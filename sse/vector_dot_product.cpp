@@ -1,13 +1,12 @@
 /*!
 * \brief Vector dot product: result = SUM(A * B).
 */
-#include "xmmintrin.h"
-#include "stdio.h"
+#include <iostream>
 #include "time.h"
 
-#include<iostream>
-using namespace std;
+#include "xmmintrin.h"
 
+// Initialize the input data.
 void GenVector(const int len, float *vec) {
 	for(int i=0; i<len; i++)
     vec[i] = (float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
@@ -55,20 +54,18 @@ int main() {
 	GenVector(len, vec_a);
 	GenVector(len, vec_b);
 
-	double time_start, time_end;
+  time_t stime;
 
-  time_start = clock();
+  stime = clock();
 	float result_normal = VectorDotNormal(vec_a, vec_b, len);
-	time_end = clock();
-	printf("normal: time = %f, result = %f \n", time_end - time_start, result_normal);
+  std::cout << "Normal ->  time: " << clock() - stime << ", result: " << result_normal << std::endl;
 
-  time_start = clock();
+  stime = clock();
   float result_sse = VectorDotSSE(vec_a, vec_b, len);
-  time_end = clock();
-  printf("sse: time = %f, result = %f \n", time_end - time_start, result_sse);
+  std::cout << "SSE ->  time: " << clock() - stime << ", result: " << result_sse << std::endl;
 
-	delete [] vec_a;
-	delete [] vec_b;
+  delete[] vec_a;
+  delete[] vec_b;
 
   return 0;
 }
