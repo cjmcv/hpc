@@ -5,12 +5,14 @@
 #include <iostream>  
 #include <vector>  
 #include <tbb/tbb.h>  
+#include <time.h>
 
 // Target function.
 void ArrayPrint(const int *arr, const int index) {
   std::cout << arr[index] << ", ";
 }
 
+// Note: The operator in parallel_for is const.
 // Use a Class to encapsulate the target function.
 class ArrayPrintBody {
 public:
@@ -32,26 +34,36 @@ int main() {
   for (int i = 0; i < num; i++)
     arr[i] = i;
 
-  // Normal call.
+  time_t stime;
+
+  // Serial mode.
+  std::cout << "Serial mode: " << std::endl;
+  stime = clock();
   for (int i = 0; i < num; i++) {
     ArrayPrint(arr, i);
   }
+  std::cout << "Serial ->  time: " << clock() - stime << std::endl;
 
-  // Note: blocked_range is used to control partitioner and grainsize in a parallel task.
-  //       So the range in blocked_range should be suitable for cpu cores to get the best performance.
-  //       And not just set it to (0, num) for all cases.
+  // Note: 1, If you know the size of task, specify the grain size by youself 
+  //       is better. Otherwise using tbb::auto_partitioner() is an option.
+  //       2, If the task is small, there is no need to use TBB.
 
   // TBB example one.
-  std::cout << "Example one: " << std::endl;
-  tbb::parallel_for(tbb::blocked_range<size_t>(0, num), ArrayPrintBody(arr));
+  std::cout << std::endl <<"TBB example one: " << std::endl;
+  stime = clock();
+  tbb::parallel_for(tbb::blocked_range<size_t>(0, num), ArrayPrintBody(arr), tbb::auto_partitioner());
+  //tbb::parallel_for(tbb::blocked_range<size_t>(0, num, num / 16), ArrayPrintBody(arr));
+  std::cout << "TBB Parallel a ->  time: " << clock() - stime << std::endl;
 
   // TBB example two.
-  std::cout << std::endl << "Example two: " << std::endl;
+  std::cout << std::endl << "TBB example two: " << std::endl;
+  stime = clock();
   tbb::parallel_for(tbb::blocked_range<size_t>(0, num), [&](tbb::blocked_range<size_t> &r) {
     for (size_t i = r.begin(); i < r.end();i++) {
       ArrayPrint(arr, i);
     }
   });
+  std::cout << "TBB Parallel a ->  time: " << clock() - stime << std::endl;
 
   std::cout << std::endl;
   return 0;
