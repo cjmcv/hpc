@@ -15,9 +15,28 @@ void GenMatrix(const int height, const int width, float *mat) {
   }
 }
 
-// Normal method.
-// (364ms)
-void MatrixMulNormal(const int M, const int N, const int K, const float ALPHA,
+// Normal method, version 1.
+// (1900ms)
+void MatrixMulNormalv1(const int M, const int N, const int K, const float ALPHA,
+  const float *A, const int lda,
+  const float *B, const int ldb,
+  float *C, const int ldc) {
+  int i, j, k;
+  for (i = 0; i < M; ++i) {
+    for (j = 0; j < N; ++j) {
+      float temp = 0;
+      for (k = 0; k < K; ++k) {
+        temp += A[i*lda + k] * B[k*ldb + j];
+      }
+      C[i*ldc + j] = temp;
+    }
+  }
+}
+
+
+// Normal method, version 2.
+// (348ms)
+void MatrixMulNormalv2(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -58,7 +77,7 @@ void MatrixMulSSEv1(const int M, const int N, const int K, const float ALPHA,
 }
 
 // Use m256 instead, and replace _mm_add_ps(c, _mm_mul_ps(apart, b)) with _mm256_fmadd_ps.
-// Faster than v1. (200ms)
+// Faster than v1. (179ms)
 void MatrixMulSSEv2(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
@@ -82,7 +101,7 @@ void MatrixMulSSEv2(const int M, const int N, const int K, const float ALPHA,
 }
 
 // Loop unrolling
-// Faster than v2. (169ms)
+// Even slower than v2. (255ms)
 void MatrixMulSSEv3(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
@@ -109,7 +128,7 @@ void MatrixMulSSEv3(const int M, const int N, const int K, const float ALPHA,
   }
 }
 
-// Can not be faster while using aligned memory.
+// Can not be faster while using aligned memory.(195ms)
 //#define TEST_GET_ARRAY_DIRECTLY 1
 void MatrixMulSSEv4(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
@@ -133,8 +152,8 @@ void MatrixMulSSEv4(const int M, const int N, const int K, const float ALPHA,
 #else
         __m256 b0 = _mm256_loadu_ps(B + k*ldc + j);
         __m256 b1 = _mm256_loadu_ps(B + k*ldc + j + 8);
-        __m256 c0 = _mm256_loadu_ps(C + i*ldc + j);
-        __m256 c1 = _mm256_loadu_ps(C + i*ldc + j + 8);
+        __m256 c0 = _mm256_load_ps(C + i*ldc + j);
+        __m256 c1 = _mm256_load_ps(C + i*ldc + j + 8);
         c0 = _mm256_fmadd_ps(apart, b0, c0);
         c1 = _mm256_fmadd_ps(apart, b1, c1);
         _mm256_store_ps(C + i*ldc + j, c0);
@@ -180,7 +199,8 @@ int main() {
 
   float *mat_a = new float[height_a * width_a];
   float *mat_b = new float[height_b * width_b];
-  float *mat_ret_normal = new float[height_ret * width_ret];
+  float *mat_ret_normal_v1 = new float[height_ret * width_ret];
+  float *mat_ret_normal_v2 = new float[height_ret * width_ret];
   float *mat_ret_sse_v1 = new float[height_ret * width_ret];
   float *mat_ret_sse_v2 = new float[height_ret * width_ret];
   float *mat_ret_sse_v3 = new float[height_ret * width_ret];
@@ -193,9 +213,15 @@ int main() {
   time_t stime;
   stime = clock();
   for (int i = 0; i < 100; i++) {
-    MatrixMulNormal(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_normal, width_ret);
+    MatrixMulNormalv1(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_normal_v1, width_ret);
   }
-  std::cout << "Normal ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_normal, height_ret, width_ret) << std::endl;
+  std::cout << "Normalv1 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_normal_v1, height_ret, width_ret) << std::endl;
+
+  stime = clock();
+  for (int i = 0; i < 100; i++) {
+    MatrixMulNormalv2(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_normal_v2, width_ret);
+  }
+  std::cout << "Normalv2 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_normal_v2, height_ret, width_ret) << std::endl;
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
@@ -229,7 +255,8 @@ int main() {
 
   delete[] mat_a;
   delete[] mat_b;
-  delete[] mat_ret_normal;
+  delete[] mat_ret_normal_v1;
+  delete[] mat_ret_normal_v2;
   delete[] mat_ret_sse_v1;
   delete[] mat_ret_sse_v2;
   delete[] mat_ret_sse_v3;
