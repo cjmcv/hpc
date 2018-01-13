@@ -71,17 +71,17 @@ void MatrixMulCPUv2(const int M, const int N, const int K, const float ALPHA,
   float *C, const int ldc) {
   int bi, bj, bk;
   int i, j, k;
-  const int block_size = 4;
+  const int block_size = 32;
   int block_num_M = M / block_size;
   int block_num_N = N / block_size;
   int block_num_K = K / block_size;
   memset(C, 0, sizeof(float) * ldc * M);
 
-  // Loop each block.
+  // Loop over all of the blocks.
   for (bi = 0; bi < block_num_M; ++bi) {
     for (bj = 0; bj < block_num_N; ++bj) {
       for (bk = 0; bk < block_num_K; ++bk) {
-        // Loop each element in a block.
+        // Loop over all of the elements in a block.
         for (i = bi*block_size; i < (bi + 1)*block_size; ++i) {
           for (k = bk*block_size; k < (bk + 1)*block_size; ++k) {
             for (j = bj*block_size; j < (bj + 1)*block_size; ++j) { 
@@ -116,14 +116,42 @@ __global__ void MatrixMulKernelv1(const int M, const int N, const int K, const f
       c_sub_acc += A[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * lda + (bk * BLOCK_SIZE + k)] *
         B[(bk * BLOCK_SIZE + k) * ldb + (blockIdx.x * BLOCK_SIZE + threadIdx.x)];
     }
-    __syncthreads();
   }
-  __syncthreads();
 
   C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
 }
 
-float MatrixMulCUDAv1(const int M, const int N, const int K, const float ALPHA,
+template <int BLOCK_SIZE>
+__global__ void MatrixMulKernelv2(const int M, const int N, const int K, const float ALPHA,
+  const float *A, const int lda,
+  const float *B, const int ldb,
+  float *C, const int ldc) {
+
+  __shared__ float a_shared[BLOCK_SIZE][BLOCK_SIZE];
+  __shared__ float b_shared[BLOCK_SIZE][BLOCK_SIZE];
+
+  float c_sub_acc = 0;
+  // For blocks in grid.
+  for (int bk = 0; bk < K / BLOCK_SIZE; bk++) {
+    a_shared[threadIdx.y][threadIdx.x] = A[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * lda + (bk * BLOCK_SIZE + threadIdx.x)];
+    b_shared[threadIdx.y][threadIdx.x] = B[(bk * BLOCK_SIZE + threadIdx.y) * ldb + (blockIdx.x * BLOCK_SIZE + threadIdx.x)];
+    // Wait for data to complete loading to Shared memory.
+    __syncthreads();
+
+    // For elements in a block.
+    for (int k = 0;k < BLOCK_SIZE; k++) {
+      c_sub_acc += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
+    }
+	  // To prevent the case from happening:
+	  // The next round of data is loaded when the data in share memory is not used up.
+    __syncthreads();
+  }
+
+  C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
+}
+
+//#define TEST_CUDA_V1
+float MatrixMulCUDA(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -133,7 +161,7 @@ float MatrixMulCUDAv1(const int M, const int N, const int K, const float ALPHA,
   CUDA_CHECK(cudaEventCreate(&start));
   CUDA_CHECK(cudaEventCreate(&stop));
   
-  const int block_size = 4;
+  const int block_size = 32;
   dim3 threads_per_block(block_size, block_size);
   dim3 blocks_per_grid(N / threads_per_block.x, M / threads_per_block.y);
   
@@ -144,9 +172,13 @@ float MatrixMulCUDAv1(const int M, const int N, const int K, const float ALPHA,
 
   // Record the start event
   CUDA_CHECK(cudaEventRecord(start, NULL));
-
+#ifdef TEST_CUDA_V1
   MatrixMulKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
     (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
+#else
+  MatrixMulKernelv2<block_size> << <blocks_per_grid, threads_per_block >> >
+    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
+#endif
 
   // Record the stop event
   CUDA_CHECK(cudaEventRecord(stop, NULL));
@@ -176,8 +208,8 @@ int InitEnvironment(const int dev_id) {
 int main() {
   InitEnvironment(0);
 
-  int height_a = 800, width_a = 1600;
-  int height_b = 1600, width_b = 400;
+  int height_a = 2560, width_a = 800;
+  int height_b = 800, width_b = 3200;
   if (width_a != height_b) {
     printf("width_a should be equal to height_b.\n");
     return 1;
@@ -204,6 +236,7 @@ int main() {
   time_t t = clock();
   MatrixMulCPUv1(height_a, width_b, width_a, 1.0, h_a, width_a,h_b, width_b, h_c, width_b);
   printf("In cpu version 1, msec_total = %lld, mean = %f\n", clock() - t, GetMean(h_c, height_a, width_b));
+  //MatrixPrint(h_c, height_a, width_b);
 
   t = clock();
   MatrixMulCPUv2(height_a, width_b, width_a, 1.0, h_a, width_a, h_b, width_b, h_c, width_b);
@@ -222,7 +255,7 @@ int main() {
   CUDA_CHECK(cudaMemcpy(d_a, h_a, mem_size_a, cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(d_b, h_b, mem_size_b, cudaMemcpyHostToDevice));
 
-  msec_total = MatrixMulCUDAv1(height_a, width_b, width_a, 1.0, d_a, width_a, d_b, width_b, d_c, width_b);
+  msec_total = MatrixMulCUDA(height_a, width_b, width_a, 1.0, d_a, width_a, d_b, width_b, d_c, width_b);
 
   // Copy memory back to host.
   CUDA_CHECK(cudaMemcpy(h_c, d_c, mem_size_c, cudaMemcpyDeviceToHost));
