@@ -1,9 +1,13 @@
 /*!
 * \brief The basic use of parallel_scan.
+* \example: input: 1,2,3,4
+*           operation: Add
+*           ouput: 1,3,6,10 (out[i]=sum(in[0:i]))
 */
 
 #include <iostream>  
-#include <tbb/tbb.h>  
+#include <time.h>
+#include <tbb/tbb.h>
 
 template<typename DType>
 class Body {
@@ -44,10 +48,32 @@ private:
 };
 
 int main() {
-  int x[10] = { 0,1,2,3,4,5,6,7,8,9 };
-  int y[10];
-  Body<int> body(y, x);
-  tbb::parallel_scan(tbb::blocked_range<int>(0, 10), body, tbb::auto_partitioner());
-  std::cout << "sum:" << body.get_sum() << std::endl;
+  const int num = 100;
+  int *input = new int[num];
+  int *output = new int[num];
+  for (int i = 0; i < num; i++) {
+    input[i] = i;
+    output[i] = 0;
+  }
+  
+  time_t stime;
+  // Serial
+  stime = clock();
+  output[0] = input[0];
+  for (int i = 1; i < num; i++) {
+    output[i] = input[i] + output[i-1];
+  }
+  std::cout << "Serial ->  time: " << clock() - stime << ", result: " << output[num - 1] << std::endl;
+
+  memset(output, 0, sizeof(int) * num);
+
+  // TBB
+  stime = clock();
+  Body<int> body(output, input);
+  tbb::parallel_scan(tbb::blocked_range<int>(0, num), body, tbb::auto_partitioner());
+  std::cout << "TBB Parallel ->  time: " << clock() - stime << ", result: " << body.get_sum() << std::endl;
+  for (int i = 0; i < num; i++) {
+    std::cout << output[i] << ", ";
+  }
   return 0;
-}
+} 
