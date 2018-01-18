@@ -128,19 +128,17 @@ public:
 };
 
 int main() {
-  int countSize = 100000000;
-  int a[1];
-  *a = 0;
+  int num = 100000000;
+  int value = 0;
 
-  time_t begin, end;	//CPU¼ÆÊ±
-  begin = clock();
+  time_t stime, end;
+  stime = clock();
 
-  //serialTest(a, countSize);
-  //tbb::parallel_for(tbb::blocked_range<size_t>(0, countSize), NormalTest(a)); // Without mutex and get a wrong result.
-  //tbb::parallel_for(tbb::blocked_range<size_t>(0, countSize), NormalMutexTest(a));
-  tbb::parallel_for(tbb::blocked_range<size_t>(0, countSize), MutexTest(a));
+  //serialTest(a, num);
+  //tbb::parallel_for(tbb::blocked_range<size_t>(0, num), NormalTest(&value)); // Without mutex and get a wrong result.
+  //tbb::parallel_for(tbb::blocked_range<size_t>(0, num), NormalMutexTest(&value));
+  tbb::parallel_for(tbb::blocked_range<size_t>(0, num), MutexTest(&value));
 
-  end = clock();
-  printf("result = %d, time: %f \n", *a, double(end - begin));
+  printf("result = %d, time: %f \n", *a, double(clock() - stime));
   return 0;
 }
