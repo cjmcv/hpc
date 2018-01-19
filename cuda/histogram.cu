@@ -31,6 +31,7 @@ void PrintHist(const int *hist, const int hist_len) {
   }
 }
 
+// CPU version: 920ms
 // Normal version in cpu as a reference
 void HistogramCPU(const unsigned char *data, const int data_len, int *hist, const int hist_len) {
   int i;
@@ -42,11 +43,25 @@ void HistogramCPU(const unsigned char *data, const int data_len, int *hist, cons
   }
 }
 
-// CUDA version 1.
+// CUDA version 1 : 212ms
+template <int HIST_SIZE>
+__global__ void HistogramKernelv1(const unsigned char *data, const int data_len,
+  int *hist) {
+  // Prevents memory access across the border.
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+    i < data_len;
+    i += blockDim.x * gridDim.x) {
+
+    atomicAdd(&(hist[data[i]]), 1);
+  }
+}
+
+// CUDA version 2 : 282ms
+// Use shared memory, even slower than v1..
 // Attention: blockDim.x should be larger than the size of histogram. 
 //            Because using (threadIdx.x < HIST_SIZE) to assign.
 template <int HIST_SIZE>
-__global__ void HistogramKernel(const unsigned char *data, const int data_len,
+__global__ void HistogramKernelv2(const unsigned char *data, const int data_len,
   int *hist) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -63,14 +78,14 @@ __global__ void HistogramKernel(const unsigned char *data, const int data_len,
     atomicAdd(&(smem_hist[data[i]]), 1);
     __syncthreads();
 
-    // Merge the result in each block.
+    // Merge the result of each block.
     if (threadIdx.x < HIST_SIZE) {
       atomicAdd(&(hist[threadIdx.x]), smem_hist[threadIdx.x]);
     }
   }
 }
 
-float HistogramCUDA(const unsigned char *data, const int data_len, 
+float HistogramCUDA(const int loops, const unsigned char *data, const int data_len, 
   int *hist, const int hist_len) {
   // Time recorder.
   float msec_total = 0.0f;
@@ -83,16 +98,16 @@ float HistogramCUDA(const unsigned char *data, const int data_len,
   cudaMemset(hist, 0, sizeof(int) * hist_len);
 
   // Warm up.
-  HistogramKernel<256> << <blocks_per_grid, threads_per_block >> >
+  HistogramKernelv1<256> << <blocks_per_grid, threads_per_block >> >
     (data, data_len, hist);
   cudaMemset(hist, 0, sizeof(int) * hist_len);
 
   // Record the start event
   CUDA_CHECK(cudaEventRecord(start, NULL));
 
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < loops; i++) {
     cudaMemset(hist, 0, sizeof(int) * hist_len);
-    HistogramKernel<256> << <blocks_per_grid, threads_per_block >> >
+    HistogramKernelv2<256> << <blocks_per_grid, threads_per_block >> >
       (data, data_len, hist);
   }
 
@@ -122,10 +137,14 @@ int InitEnvironment(const int dev_id) {
   return 0;
 }
 
-int main() {
+int main() { 
+  // 15000000 is very close to the biggest number. 
+  // Over this, the cuda program can not get the right answer?
+  const int data_len = 15000000;
+  const int loops = 100;
+
   InitEnvironment(0);
   const int hist_len = 256;
-  const int data_len = 15000000; // 15000000 is very close to the biggest number.
   const int hist_mem_size = sizeof(int) * hist_len;
   const int data_mem_size = sizeof(unsigned char) * data_len;
   int *h_hist = (int *)malloc(hist_mem_size);
@@ -142,10 +161,10 @@ int main() {
 
   // CPU
   time_t t = clock();
-  for(int i=0; i<100; i++)
+  for(int i=0; i<loops; i++)
     HistogramCPU(h_data, data_len, h_hist, hist_len);
   printf("\nIn cpu version 1, msec_total = %lld\n", clock() - t);
-  PrintHist(h_hist, 256);
+  PrintHist(h_hist, hist_len);
 
   // GPU
   // Allocate memory in host. 
@@ -159,12 +178,12 @@ int main() {
   CUDA_CHECK(cudaMemcpy(d_hist, h_hist, hist_mem_size, cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(d_data, h_data, data_mem_size, cudaMemcpyHostToDevice));
 
-  msec_total = HistogramCUDA(d_data, data_len, d_hist, hist_len);
+  msec_total = HistogramCUDA(loops, d_data, data_len, d_hist, hist_len);
 
   // Copy memory back to host.
   CUDA_CHECK(cudaMemcpy(h_hist, d_hist, hist_mem_size, cudaMemcpyDeviceToHost));
   printf("\nIn gpu version 1, msec_total = %f\n", msec_total);
-  PrintHist(h_hist, 256);
+  PrintHist(h_hist, hist_len);
 
   free(h_hist);
   free(h_data);
