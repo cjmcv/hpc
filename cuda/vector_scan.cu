@@ -22,7 +22,7 @@
 // Initialize the input data.
 void GenArray(const int len, float *arr) {
   for (int i = 0; i < len; i++) {
-    arr[i] = (float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
+    arr[i] = 1;//(float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
   }
 } 
 
@@ -36,26 +36,31 @@ void VectorScanCPU(const float *vec_in, const int len, float *vec_out) {
 }
 
 // CUDA kernel v1
-// s1   1      2       3         4         5         6 
-// s2   1   3(1+2)   5(2+3)    7(3+4)    9(4+5)   11(5+6)
-// s4   1      3     6(1+5)   10(3+7)   14(5+9)   18(7+11)
-// s8   1      3       6        10     15(1+14)   21(3+18)
-// s16  1      3       6        10        15        21
+// Hillis Steele Scan
+// Limiting conditions : The size of vector should be smaller than block size.
+// s1    1      2       3         4         5         6 
+// s2    1   3(1+2)   5(2+3)    7(3+4)    9(4+5)   11(5+6)
+// s4    1      3     6(1+5)   10(3+7)   14(5+9)   18(7+11)
+// s8    1      3       6        10     15(1+14)   21(3+18)
+// s16   1      3       6        10        15        21
 template <int BLOCK_SIZE>
 __global__ void VectorScanKernelv1(const float *vec_in, const int len, float *vec_out) {
-  // Prevents memory access across the border.
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
-    i < len;
-    i += blockDim.x * gridDim.x) {
-    __shared__ float smem[BLOCK_SIZE];
-    smem[threadIdx.x] = vec_in[threadIdx.x];
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  __shared__ float smem[BLOCK_SIZE];
+  smem[threadIdx.x] = vec_in[i];
+  __syncthreads();
 
-    // Iterative scan.
-    for (int step = 1; step <= threadIdx.x; step *= 2) {
-      smem[threadIdx.x] += smem[threadIdx.x - step];
+  // Iterative scan.
+  for (int step = 1; step < len; step *= 2) {
+    if (threadIdx.x >= step) {
+      float temp = smem[threadIdx.x - step];
+      __syncthreads();
+      smem[threadIdx.x] += temp;
     }
-    vec_out[threadIdx.x] = smem[threadIdx.x];
+    __syncthreads();
   }
+
+  vec_out[i] = smem[threadIdx.x];
 }
 
 float VectorScanCUDA(const int loops, const float *vec_in, const int len, float *vec_out) {
@@ -89,8 +94,8 @@ float VectorScanCUDA(const int loops, const float *vec_in, const int len, float 
 }
 
 int main() {
-  const int loops = 100;
-  const int data_len = 10240000; // data_len % threads_per_block == 0
+  const int loops = 10000;
+  const int data_len = 1024; // data_len % threads_per_block == 0
   const int data_mem_size = sizeof(float) * data_len;
   float *h_vector_in = (float *)malloc(data_mem_size);
   float *h_vector_out = (float *)malloc(data_mem_size);
@@ -107,7 +112,7 @@ int main() {
   time_t t = clock();
   for (int i = 0; i < loops; i++)
     VectorScanCPU(h_vector_in, data_len, h_vector_out);
-  printf("\nIn cpu version 1, msec_total = %lld, h[10000] = %f\n", clock() - t, h_vector_out[10000]);
+  printf("\nIn cpu version 1, msec_total = %lld, h[10000] = %f\n", clock() - t, h_vector_out[1000]);
 
   // GPU
   // Allocate memory in host. 
@@ -118,12 +123,11 @@ int main() {
 
   // Copy host memory to device
   CUDA_CHECK(cudaMemcpy(d_vector_in, h_vector_in, data_mem_size, cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(d_vector_out, h_vector_out, data_mem_size, cudaMemcpyHostToDevice));
 
   msec_total = VectorScanCUDA(loops, d_vector_in, data_len, d_vector_out);
   
   CUDA_CHECK(cudaMemcpy(h_vector_out, d_vector_out, data_mem_size, cudaMemcpyDeviceToHost));
-  printf("\nIn gpu version 1, msec_total = %f, h[10000] = %f\n", msec_total, h_vector_out[10000]);
+  printf("\nIn gpu version 1, msec_total = %f, h[10000] = %f\n", msec_total, h_vector_out[1000]);
 
   free(h_vector_in);
   free(h_vector_out);
