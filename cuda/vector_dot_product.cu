@@ -22,7 +22,7 @@ void GenArray(const int len, float *arr) {
     arr[i] = 1;//(float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
   }
 }
-
+// CPU version: 965ms
 // Normal version in cpu as a reference
 float VectorDotProductCPU(const float *vec_a, const float *vec_b, const int len) {
   float h_result = 0;
@@ -32,11 +32,11 @@ float VectorDotProductCPU(const float *vec_a, const float *vec_b, const int len)
   return h_result;
 }
 
-// CUDA kernel
-// Multiply to shared memory.
-// Accumulate from all of the shared memory to fewer blocks.
+// CUDA kernel v1 : 283ms
+// Multiply and save to shared memory.
+// Accumulate data from all of the shared memory to fewer blocks.
 template <int BLOCK_SIZE>
-__global__ void VectorDotProductKernel(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len;
@@ -53,7 +53,7 @@ __global__ void VectorDotProductKernel(const float *vec_a, const float *vec_b, c
       // Synchronize the threads within the block,
       // then go to next round together.
       __syncthreads();
-      count /= 2;       // !
+      count /= 2; 
     }
     
     if(threadIdx.x == 0)
@@ -61,26 +61,89 @@ __global__ void VectorDotProductKernel(const float *vec_a, const float *vec_b, c
   }
 }
 
-float VectorDotProductCUDA(const float *vec_a, const float *vec_b, const int len, float &result) {
+// CUDA kernel v2 : 201ms
+// Compute two blocks' data to the shared memory of one block.
+template <int BLOCK_SIZE>
+__global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b, const int len, float &res) {
+  // Prevents memory access across the border.
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+    i < len / 2;
+    i += blockDim.x * gridDim.x) {
+    __shared__ float smem[BLOCK_SIZE];
+    smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];  // Mainly in here.
+    __syncthreads();
+
+    int count = BLOCK_SIZE >> 1;
+    while (count >= 1) {
+      if (threadIdx.x < count) {
+        smem[threadIdx.x] += smem[count + threadIdx.x];
+      }
+      // Synchronize the threads within the block,
+      // then go to next round together.
+      __syncthreads();
+      count >>= 1;
+    }
+
+    if (threadIdx.x == 0)
+      atomicAdd(&res, smem[0]);
+  }
+}
+
+// CUDA kernel v3 : 179ms
+// Condition: The block size should be bigger than 32
+// Unroll the last warp
+template <int BLOCK_SIZE>
+__global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b, const int len, float &res) {
+  // Prevents memory access across the border.
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
+    i < len / 2;
+    i += blockDim.x * gridDim.x) {
+    __shared__ float smem[BLOCK_SIZE];
+    smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];
+    __syncthreads();
+
+    for (int count = BLOCK_SIZE >> 1; count > 32; count >>= 1) {
+      if (threadIdx.x < count) {
+        smem[threadIdx.x] += smem[count + threadIdx.x];
+      }
+      __syncthreads();
+    }
+
+    // Mainly in here. Unroll the last warp. (It still need __syncthreads() in a warp ?)
+    if (threadIdx.x < 32) {
+      smem[threadIdx.x] += smem[threadIdx.x + 32]; __syncthreads();
+      smem[threadIdx.x] += smem[threadIdx.x + 16]; __syncthreads();
+      smem[threadIdx.x] += smem[threadIdx.x + 8];  __syncthreads();
+      smem[threadIdx.x] += smem[threadIdx.x + 4];  __syncthreads();
+      smem[threadIdx.x] += smem[threadIdx.x + 2];  __syncthreads();
+      smem[threadIdx.x] += smem[threadIdx.x + 1];  __syncthreads();
+    }
+
+    if (threadIdx.x == 0)
+      atomicAdd(&res, smem[0]);
+  }
+}
+
+float VectorDotProductCUDA(const int loops, const float *vec_a, const float *vec_b, const int len, float &result) {
   // Time recorder.
   float msec_total = 0.0f;
   cudaEvent_t start, stop;
   CUDA_CHECK(cudaEventCreate(&start));
   CUDA_CHECK(cudaEventCreate(&stop));
 
-  const int threads_per_block = 1024;
+  const int threads_per_block = 1024; // data_len % threads_per_block == 0
   const int blocks_per_grid = (len + threads_per_block - 1) / threads_per_block;
 
   // Warm up.
-  VectorDotProductKernel<threads_per_block> << <blocks_per_grid, threads_per_block >> >
+  VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
     (vec_a, vec_b, len, result);
   
   // Record the start event
   CUDA_CHECK(cudaEventRecord(start, NULL));
 
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < loops; i++) {
     cudaMemset(&result, 0, sizeof(float));
-    VectorDotProductKernel<threads_per_block> << <blocks_per_grid, threads_per_block >> >
+    VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
       (vec_a, vec_b, len, result);
   }
 
@@ -93,11 +156,12 @@ float VectorDotProductCUDA(const float *vec_a, const float *vec_b, const int len
 }
 
 int main() {
-  const int data_len = 1024000;
+  const int loops = 100;
+  const int data_len = 10240000; // data_len % threads_per_block == 0
   const int data_mem_size = sizeof(float) * data_len;
   float *h_vector_a = (float *)malloc(data_mem_size);
   float *h_vector_b = (float *)malloc(data_mem_size);
-  if (h_vector_a == NULL || h_vector_b == NULL ) {
+  if (h_vector_a == NULL || h_vector_b == NULL) {
     printf("Fail to malloc.\n");
     return 1;
   }
@@ -110,7 +174,7 @@ int main() {
   // CPU
   time_t t = clock();
   float h_result = 0;
-  for (int i = 0; i < 100; i++)
+  for (int i = 0; i < loops; i++)
     h_result = VectorDotProductCPU(h_vector_a, h_vector_b, data_len);
   printf("\nIn cpu version 1, msec_total = %lld, h_result = %f\n", clock() - t, h_result);
 
@@ -127,7 +191,7 @@ int main() {
   CUDA_CHECK(cudaMemcpy(d_vector_a, h_vector_a, data_mem_size, cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(d_vector_b, h_vector_b, data_mem_size, cudaMemcpyHostToDevice));
 
-  msec_total = VectorDotProductCUDA(d_vector_a, d_vector_b, data_len, *d_result);
+  msec_total = VectorDotProductCUDA(loops, d_vector_a, d_vector_b, data_len, *d_result);
   
   CUDA_CHECK(cudaMemcpy(&h_result, d_result, sizeof(float), cudaMemcpyDeviceToHost));
   printf("\nIn gpu version 1, msec_total = %f, h_result = %f\n", msec_total, h_result);
