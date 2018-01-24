@@ -54,7 +54,7 @@ void MatrixMulNormalv2(const int M, const int N, const int K, const float ALPHA,
 
 // m128.
 // The speed is consistent with Normal method while opening /O2. (379ms)
-void MatrixMulSSEv1(const int M, const int N, const int K, const float ALPHA,
+void MatrixMulSIMDv1(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {  
@@ -78,7 +78,7 @@ void MatrixMulSSEv1(const int M, const int N, const int K, const float ALPHA,
 
 // Use m256 instead, and replace _mm_add_ps(c, _mm_mul_ps(apart, b)) with _mm256_fmadd_ps.
 // Faster than v1. (179ms)
-void MatrixMulSSEv2(const int M, const int N, const int K, const float ALPHA,
+void MatrixMulSIMDv2(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -102,7 +102,7 @@ void MatrixMulSSEv2(const int M, const int N, const int K, const float ALPHA,
 
 // Loop unrolling
 // Even slower than v2. (255ms)
-void MatrixMulSSEv3(const int M, const int N, const int K, const float ALPHA,
+void MatrixMulSIMDv3(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -130,7 +130,7 @@ void MatrixMulSSEv3(const int M, const int N, const int K, const float ALPHA,
 
 // Can not be faster while using aligned memory.(195ms)
 //#define TEST_GET_ARRAY_DIRECTLY 1
-void MatrixMulSSEv4(const int M, const int N, const int K, const float ALPHA,
+void MatrixMulSIMDv4(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -201,10 +201,10 @@ int main() {
   float *mat_b = new float[height_b * width_b];
   float *mat_ret_normal_v1 = new float[height_ret * width_ret];
   float *mat_ret_normal_v2 = new float[height_ret * width_ret];
-  float *mat_ret_sse_v1 = new float[height_ret * width_ret];
-  float *mat_ret_sse_v2 = new float[height_ret * width_ret];
-  float *mat_ret_sse_v3 = new float[height_ret * width_ret];
-  float *mat_ret_sse_v4 = (float *)_aligned_malloc(height_ret * width_ret * sizeof(float), 32);
+  float *mat_ret_simd_v1 = new float[height_ret * width_ret];
+  float *mat_ret_simd_v2 = new float[height_ret * width_ret];
+  float *mat_ret_simd_v3 = new float[height_ret * width_ret];
+  float *mat_ret_simd_v4 = (float *)_aligned_malloc(height_ret * width_ret * sizeof(float), 32);
 
   srand(0);
   GenMatrix(height_a, width_a, mat_a);
@@ -225,42 +225,42 @@ int main() {
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
-    MatrixMulSSEv1(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_sse_v1, width_ret);
+    MatrixMulSIMDv1(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v1, width_ret);
   }
-  std::cout << "SSEv1 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_sse_v1, height_ret, width_ret) << std::endl;
+  std::cout << "SIMDv1 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_simd_v1, height_ret, width_ret) << std::endl;
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
-    MatrixMulSSEv2(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_sse_v2, width_ret);
+    MatrixMulSIMDv2(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v2, width_ret);
   }
-  std::cout << "SSEv2 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_sse_v2, height_ret, width_ret) << std::endl;
+  std::cout << "SIMDv2 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_simd_v2, height_ret, width_ret) << std::endl;
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
-    MatrixMulSSEv3(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_sse_v3, width_ret);
+    MatrixMulSIMDv3(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v3, width_ret);
   }
-  std::cout << "SSEv3 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_sse_v3, height_ret, width_ret) << std::endl;
+  std::cout << "SIMDv3 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_simd_v3, height_ret, width_ret) << std::endl;
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
-    MatrixMulSSEv4(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_sse_v4, width_ret);
+    MatrixMulSIMDv4(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v4, width_ret);
   }
-  std::cout << "SSEv4 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_sse_v4, height_ret, width_ret) << std::endl;
+  std::cout << "SIMDv4 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_simd_v4, height_ret, width_ret) << std::endl;
 
   //std::cout << "\n Org result" << std::endl;
   //MatrixPrint(mat_ret_normal, height_ret, width_ret);
 
-  //std::cout << "\n SSE result \n" << std::endl;
-  //MatrixPrint(mat_ret_sse, height_ret, width_ret);
+  //std::cout << "\n SIMD result \n" << std::endl;
+  //MatrixPrint(mat_ret_simd, height_ret, width_ret);
 
   delete[] mat_a;
   delete[] mat_b;
   delete[] mat_ret_normal_v1;
   delete[] mat_ret_normal_v2;
-  delete[] mat_ret_sse_v1;
-  delete[] mat_ret_sse_v2;
-  delete[] mat_ret_sse_v3;
-  _aligned_free(mat_ret_sse_v4);
+  delete[] mat_ret_simd_v1;
+  delete[] mat_ret_simd_v2;
+  delete[] mat_ret_simd_v3;
+  _aligned_free(mat_ret_simd_v4);
 
   return 0;
 }

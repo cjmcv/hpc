@@ -20,10 +20,10 @@ float VectorDotNormal(const float *vec_a, const float *vec_b, const int len) {
 	return result;
 }
 
-float VectorDotSSE(const float *vec_a, const float *vec_b, const int len) {
+float VectorDotSIMD(const float *vec_a, const float *vec_b, const int len) {
   float result = 0;
 
-  // Using 8 as the base number to call sse.
+  // Using 8 as the base number to call simd.
   if (len > 8) {
 	  __m128 sum = _mm_setzero_ps();
     for (int i = 0; i < len - 7; i += 8) {
@@ -61,8 +61,8 @@ int main() {
   std::cout << "Normal ->  time: " << clock() - stime << ", result: " << result_normal << std::endl;
 
   stime = clock();
-  float result_sse = VectorDotSSE(vec_a, vec_b, len);
-  std::cout << "SSE ->  time: " << clock() - stime << ", result: " << result_sse << std::endl;
+  float result_simd = VectorDotSIMD(vec_a, vec_b, len);
+  std::cout << "SIMD ->  time: " << clock() - stime << ", result: " << result_simd << std::endl;
 
   delete[] vec_a;
   delete[] vec_b;
