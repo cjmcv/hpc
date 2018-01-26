@@ -1,11 +1,11 @@
-## 高性能计算练习
+## A collection of practice codes about high performance computing
 
 ---
 
 * CUDA
+* Intel-SIMD
+* LLVM-Clang
 * OpenCL
-* OpenMP
 * TBB
-* SSE
 
 ---
