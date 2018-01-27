@@ -4,6 +4,17 @@
 #include <iostream>
 #include <tbb/tbb.h>
 
+void SimpleReadTest(const int num) {
+  tbb::concurrent_queue<int> queue;
+  for (int i = 0; i<num; ++i)
+    queue.push(i);
+  // The iterators are relatively slow. They should be used only for debugging.
+  typedef tbb::concurrent_queue<int>::iterator iter;
+  for (iter i(queue.unsafe_begin()); i != queue.unsafe_end(); ++i)
+    std::cout << *i << " ";
+  std::cout << std::endl;
+}
+
 // A test class for testing the performace of tbb::concurrent_queue in multithreading.
 class ConcurrentQueueTest {
 public:
@@ -54,8 +65,11 @@ private:
   ConcurrentQueueTest *queue_test_;
 };
 
-void main() {
+int main() { 
+  SimpleReadTest(10);
+
   ConcurrentQueueTest queue_test(300);
   // Create 3 thread for testing.
   tbb::parallel_for(tbb::blocked_range<size_t>(0, 3, 1), ThreadCreater(&queue_test));
+  return 0;
 }
