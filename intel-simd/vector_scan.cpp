@@ -49,6 +49,34 @@ void VectorScanSIMDv1(const float *vec_in, const int len, float *vec_out) {
   }
 }
 
+inline __m256 ScanM256(__m256 x) {
+  __m256 t0, t1;
+  //shift1_SIMD + add
+  t0 = _mm256_permute_ps(x, _MM_SHUFFLE(2, 1, 0, 3));
+  t1 = _mm256_permute2f128_ps(t0, t0, 41);
+  x = _mm256_add_ps(x, _mm256_blend_ps(t0, t1, 0x11));
+  //shift2_SIMD + add
+  t0 = _mm256_permute_ps(x, _MM_SHUFFLE(1, 0, 3, 2));
+  t1 = _mm256_permute2f128_ps(t0, t0, 41);
+  x = _mm256_add_ps(x, _mm256_blend_ps(t0, t1, 0x33));
+  //shift3_SIMD + add
+  x = _mm256_add_ps(x, _mm256_permute2f128_ps(x, x, 41));
+  return x;
+}
+
+void VectorScanSIMDv2(const float *vec_in, const int len, float *vec_out) {
+  __m256 offset = _mm256_setzero_ps();
+  for (int i = 0; i < len; i += 8) {
+    __m256 x = _mm256_loadu_ps(vec_in + i);
+    __m256 y = ScanM256(x);
+    y = _mm256_add_ps(y, offset);
+    _mm256_storeu_ps(vec_out + i, y);
+    // broadcast last element
+    __m256 t0 = _mm256_permute2f128_ps(y, y, 0x11);
+    offset = _mm256_permute_ps(t0, 0xff);
+  }
+}
+
 int main() {
   const int loops = 100;
   const int len = 1000000;
@@ -70,7 +98,12 @@ int main() {
   stime = clock();
   for (int i = 0; i < loops; i++)
     VectorScanSIMDv1(vec_in, len, vec_out);
-  std::cout << "SIMD ->  time: " << clock() - stime << ", result: " << vec_out[len - 1] << std::endl;
+  std::cout << "SIMDv1 ->  time: " << clock() - stime << ", result: " << vec_out[len - 1] << std::endl;
+
+  stime = clock();
+  for (int i = 0; i < loops; i++)
+    VectorScanSIMDv2(vec_in, len, vec_out);
+  std::cout << "SIMDv2 ->  time: " << clock() - stime << ", result: " << vec_out[len - 1] << std::endl;
 
   delete[] vec_in;
   delete[] vec_out;
