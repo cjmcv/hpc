@@ -47,6 +47,7 @@ void MatrixPrint(const float* mat, const int height, const int width) {
   }
 }
 
+// CPU version 1: 1583 ms
 // Normal version in cpu as a reference
 void MatrixMulCPUv1(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
@@ -64,6 +65,7 @@ void MatrixMulCPUv1(const int M, const int N, const int K, const float ALPHA,
   }
 }
 
+// CPU version 2: 3389 ms
 // Block based matrix multiplication in cpu.
 void MatrixMulCPUv2(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
@@ -94,7 +96,7 @@ void MatrixMulCPUv2(const int M, const int N, const int K, const float ALPHA,
   }
 }
 
-// CUDA version 1.
+// CUDA version 1: 72 ms
 // It is rewrited from MatrixMulCPUv2. 
 // bi,bj can be replaced by blockIdx.x,blockIdx.y
 // i,j can be replaced by threadIdx.x,threadIdx.y
@@ -121,6 +123,8 @@ __global__ void MatrixMulKernelv1(const int M, const int N, const int K, const f
   C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
 }
 
+// CUDA version 2.
+// Use shared memory.
 template <int BLOCK_SIZE>
 __global__ void MatrixMulKernelv2(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,

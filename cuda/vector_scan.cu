@@ -38,6 +38,7 @@ void VectorScanCPU(const float *vec_in, const int len, float *vec_out) {
 // CUDA kernel v1
 // Hillis Steele Scan
 // Limiting conditions : The size of vector should be smaller than block size.
+//                       ( Failure to achieve accelerated results.)
 // s1    1      2       3         4         5         6 
 // s2    1   3(1+2)   5(2+3)    7(3+4)    9(4+5)   11(5+6)
 // s4    1      3     6(1+5)   10(3+7)   14(5+9)   18(7+11)
@@ -54,7 +55,7 @@ __global__ void VectorScanKernelv1(const float *vec_in, const int len, float *ve
   for (int step = 1; step < len; step *= 2) {
     if (threadIdx.x >= step) {
       float temp = smem[threadIdx.x - step];
-      __syncthreads();
+      __syncthreads(); // Wait until after reading to execute addition together.
       smem[threadIdx.x] += temp;
     }
     __syncthreads();
