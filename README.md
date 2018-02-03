@@ -1,11 +1,13 @@
-## A collection of practice codes about high performance computing
+## This is a practice code set for high performance computing, and each subfolder or source file is independent of each other.
 
 ---
 
-* CUDA
-* Intel-SIMD
-* LLVM-Clang
-* OpenCL
-* TBB
+* CUDA              ||||||||||||||||||
+* Intel-SIMD        ||||||||||||
+* LLVM              |||
+* OpenCL            ||||||
+* TBB               ||||||||||||||||||
+
 
 ---
+
