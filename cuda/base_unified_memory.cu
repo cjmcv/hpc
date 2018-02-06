@@ -23,19 +23,63 @@
     } \
   } while(0);
 
+ // Simple host dgemv: assume data_ is in row-major format and square
 template <typename T>
-struct Task {
-  unsigned int size_, id_;
-  T *data_;
-  T *result_;
-  T *vector_;
+void gemv(int m, int n, T alpha, T *A, T *x, T beta, T *result) {
+  // rows
+  for (int i = 0; i < n; i++) {
+    result[i] *= beta;
 
+    for (int j = 0; j < n; j++) {
+      result[i] += A[i*n + j] * x[j];
+    }
+  }
+}
+
+template <typename T>
+class Task {
+public:
   Task() : size_(0), id_(0), data_(NULL), result_(NULL), vector_(NULL) {};
-  Task(unsigned int s) : size_(s), id_(0), data_(NULL), result_(NULL) {}
   ~Task() {}
-    
-  // allocate unified memory outside of constructor
-  void allocate(const unsigned int size, const unsigned int unique_id) {
+
+  void Execute(cublasHandle_t *handle, cudaStream_t *stream, int tid) {
+    if (size_ < 100) {
+      // Perform on host
+      printf("Task [%d], thread [%d] executing on host (%d)\n", id_, tid, size_);
+
+      // attach managed memory to a (dummy) stream to allow host access while the device is running
+      CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], data_, 0, cudaMemAttachHost));
+      CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], vector_, 0, cudaMemAttachHost));
+      CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], result_, 0, cudaMemAttachHost));
+      // necessary to ensure Async cudaStreamAttachMemAsync calls have finished
+      CUDA_CHECK(cudaStreamSynchronize(stream[0]));
+      // call the host operation
+      gemv(size_, size_, 1.0, data_, vector_, 0.0, result_);
+    }
+    else {
+      // Perform on device
+      printf("Task [%d], thread [%d] executing on device (%d)\n", id_, tid, size_);
+      double one = 1.0;
+      double zero = 0.0;
+
+      // Attach managed memory to my stream
+      cublasStatus_t status = cublasSetStream(handle[tid], stream[tid]);
+      if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("cublasSetStream failed. \n ");
+      }
+      CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], data_, 0, cudaMemAttachSingle));
+      CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], vector_, 0, cudaMemAttachSingle));
+      CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], result_, 0, cudaMemAttachSingle));
+      // Call the device operation
+      status = cublasDgemv(handle[tid], CUBLAS_OP_N, size_, size_, &one, data_, size_, vector_, 1, &zero, result_, 1);
+      if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("cublasSetStream failed. \n ");
+      }
+    }
+  }
+
+  // Allocate unified memory outside of constructor
+  void Allocate(const unsigned int size, const unsigned int unique_id) {
     id_ = unique_id;
     size_ = size;
     CUDA_CHECK(cudaMallocManaged(&data_, sizeof(T)*size_*size_));
@@ -54,88 +98,26 @@ struct Task {
     }
   }
 
-  void deallocate() {
+  void Deallocate() {
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaFree(data_));
     CUDA_CHECK(cudaFree(result_));
     CUDA_CHECK(cudaFree(vector_));
   }
+
+  inline int get_size() { return size_; }
+
+private:
+  T *data_;
+  T *result_;
+  T *vector_;  
+  unsigned int size_, id_;
 };
-
-// simple host dgemv: assume data_ is in row-major format and square
-template <typename T>
-void gemv(int m, int n, T alpha, T *A, T *x, T beta, T *result_) {
-  // rows
-  for (int i = 0; i < n; i++) {
-    result_[i] *= beta;
-
-    for (int j = 0; j < n; j++) {
-      result_[i] += A[i*n + j] * x[j];
-    }
-  }
-}
-
-template <typename T>
-void Execute(Task<T> &t, cublasHandle_t *handle, cudaStream_t *stream, int tid) {
-  if (t.size_ < 100) {
-    // perform on host
-    printf("Task [%d], thread [%d] executing on host (%d)\n", t.id_, tid, t.size_);
-
-    // attach managed memory to a (dummy) stream to allow host access while the device is running
-    CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], t.data_, 0, cudaMemAttachHost));
-    CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], t.vector_, 0, cudaMemAttachHost));
-    CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], t.result_, 0, cudaMemAttachHost));
-    // necessary to ensure Async cudaStreamAttachMemAsync calls have finished
-    CUDA_CHECK(cudaStreamSynchronize(stream[0]));
-    // call the host operation
-    gemv(t.size_, t.size_, 1.0, t.data_, t.vector_, 0.0, t.result_);
-  }
-  else {
-    // perform on device
-    printf("Task [%d], thread [%d] executing on device (%d)\n", t.id_, tid, t.size_);
-    double one = 1.0;
-    double zero = 0.0;
-
-    // attach managed memory to my stream
-    cublasStatus_t status = cublasSetStream(handle[tid], stream[tid]);
-    if (status != CUBLAS_STATUS_SUCCESS) {
-      printf("cublasSetStream failed. \n ");
-    }
-    CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], t.data_, 0, cudaMemAttachSingle));
-    CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], t.vector_, 0, cudaMemAttachSingle));
-    CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], t.result_, 0, cudaMemAttachSingle));
-    // call the device operation
-    status = cublasDgemv(handle[tid], CUBLAS_OP_N, t.size_, t.size_, &one, t.data_, t.size_, t.vector_, 1, &zero, t.result_, 1);
-    if (status != CUBLAS_STATUS_SUCCESS) {
-      printf("cublasSetStream failed. \n ");
-    }
-  }
-}
 
 template <typename T>
 void TaskAssignment(std::vector< Task<T> > &task_list, cublasHandle_t *handle, cudaStream_t *stream, int tid, int num_per_thread) {
   for (int i = tid*num_per_thread; i < (tid + 1)*num_per_thread && i < task_list.size(); i++) {
-    printf("process: %d, ", i);
-    Execute(task_list[i], handle, stream, tid);
-  }
-}
-
-// populate a list of tasks with random sizes
-template <typename T>
-void InitialiseTasks(std::vector< Task<T> > &task_list) {
-  for (unsigned int i = 0; i < task_list.size(); i++) {
-    // generate random size_
-    int size_ = std::max((int)((double(rand()) / RAND_MAX)*1000.0), 64);
-    task_list[i].allocate(size_, i);
-  }
-}
-
-template <typename T>
-void ReleaseTasks(std::vector< Task<T> > &task_list) {
-  printf("release task:\n");
-  for (unsigned int i = 0; i < task_list.size(); i++) {
-    task_list[i].deallocate();
-    printf("%d, ", i);
+    task_list[i].Execute(handle, stream, tid);
   }
 }
 
@@ -158,13 +140,12 @@ int InitEnvironment(const int dev_id) {
 
 int main() {
   InitEnvironment(0);
-  // randomise task sizes
   srand(time(NULL));
 
-  // set number of threads
+  // Number of threads
   const int nthreads = 4;
 
-  // number of streams = number of threads.
+  // Create a cuda stream and a cublas handle for each thread.
   cudaStream_t *streams = new cudaStream_t[nthreads];
   cublasHandle_t *handles = new cublasHandle_t[nthreads];
 
@@ -176,33 +157,38 @@ int main() {
     }
   }
 
-  // Create list of N tasks
-  unsigned int N = 40;
-  std::vector<Task<double> > task_list(N);
-  InitialiseTasks(task_list);
+  // Create list of tasks
+  std::vector<Task<double> > task_list(40);
+  for (int i = 0; i < task_list.size(); i++) {
+    // Allocate with random sizes.
+    int size = std::max((int)((double(rand()) / RAND_MAX)*1000.0), 64);
+    task_list[i].Allocate(size, i);
+  }
 
   printf("Executing tasks on host / device\n");
-  std::thread *p = new std::thread[nthreads];
+  std::thread *thread_list = new std::thread[nthreads];
   int num_per_thread = (task_list.size() + nthreads - 1) / nthreads;
   for (int tid = 0; tid < nthreads; tid++) {
-    p[tid] = std::thread(TaskAssignment<double>, task_list, handles, streams, tid, num_per_thread);
+    // Can not release memory in the destructor of Task ?
+    thread_list[tid] = std::thread(TaskAssignment<double>, task_list, handles, streams, tid, num_per_thread);
   }
   for (int tid = 0; tid < nthreads; tid++) {
-    p[tid].join();
+    thread_list[tid].join();
   }
-  printf("\nFinish join() \n");
+  delete[] thread_list;
+  printf("\nFinish excuting tasks. \n");
 
   cudaDeviceSynchronize();
-
-  // Destroy CUDA Streams, cuBlas handles
+  // Destroy CUDA Streams and cuBlas handles.
   for (int i = 0; i < nthreads; i++) {
     cudaStreamDestroy(streams[i]);
     cublasDestroy(handles[i]);
   }
 
-  printf("task_list.size() = %d \n", task_list.size());
   // Release tasks.
-  ReleaseTasks(task_list);
+  for (int i = 0; i < task_list.size(); i++) {
+    task_list[i].Deallocate();
+  }
   task_list.swap(std::vector<Task<double> >());
 
   return 0;
