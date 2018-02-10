@@ -41,44 +41,40 @@ class Task {
 public:
   Task() : size_(0), id_(0), data_(NULL), result_(NULL), vector_(NULL) {};
   ~Task() {}
+    
+  // Perform on host 
+  void ExecuteOnHost(cudaStream_t stream) {
+    // attach managed memory to a (dummy) stream to allow host access while the device is running
+    CUDA_CHECK(cudaStreamAttachMemAsync(stream, data_, 0, cudaMemAttachHost));
+    CUDA_CHECK(cudaStreamAttachMemAsync(stream, vector_, 0, cudaMemAttachHost));
+    CUDA_CHECK(cudaStreamAttachMemAsync(stream, result_, 0, cudaMemAttachHost));
+    // necessary to ensure Async cudaStreamAttachMemAsync calls have finished
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+    // call the host operation
+    gemv(size_, size_, 1.0, data_, vector_, 0.0, result_);
+  }
 
-  void Execute(cublasHandle_t *handle, cudaStream_t *stream, int tid) {
-    if (size_ < 100) {
-      // Perform on host
-      printf("Task [%d], thread [%d] executing on host (%d)\n", id_, tid, size_);
+  // Perform on device
+  void ExecuteOnDevice(cublasHandle_t handle, cudaStream_t stream) {
+    double one = 1.0;
+    double zero = 0.0;
 
-      // attach managed memory to a (dummy) stream to allow host access while the device is running
-      CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], data_, 0, cudaMemAttachHost));
-      CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], vector_, 0, cudaMemAttachHost));
-      CUDA_CHECK(cudaStreamAttachMemAsync(stream[0], result_, 0, cudaMemAttachHost));
-      // necessary to ensure Async cudaStreamAttachMemAsync calls have finished
-      CUDA_CHECK(cudaStreamSynchronize(stream[0]));
-      // call the host operation
-      gemv(size_, size_, 1.0, data_, vector_, 0.0, result_);
+    // Attach managed memory to my stream
+    cublasStatus_t status = cublasSetStream(handle, stream);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+      printf("cublasSetStream failed. \n ");
     }
-    else {
-      // Perform on device
-      printf("Task [%d], thread [%d] executing on device (%d)\n", id_, tid, size_);
-      double one = 1.0;
-      double zero = 0.0;
-
-      // Attach managed memory to my stream
-      cublasStatus_t status = cublasSetStream(handle[tid], stream[tid]);
-      if (status != CUBLAS_STATUS_SUCCESS) {
-        printf("cublasSetStream failed. \n ");
-      }
-      CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], data_, 0, cudaMemAttachSingle));
-      CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], vector_, 0, cudaMemAttachSingle));
-      CUDA_CHECK(cudaStreamAttachMemAsync(stream[tid], result_, 0, cudaMemAttachSingle));
-      // Call the device operation
-      status = cublasDgemv(handle[tid], CUBLAS_OP_N, size_, size_, &one, data_, size_, vector_, 1, &zero, result_, 1);
-      if (status != CUBLAS_STATUS_SUCCESS) {
-        printf("cublasSetStream failed. \n ");
-      }
+    CUDA_CHECK(cudaStreamAttachMemAsync(stream, data_, 0, cudaMemAttachSingle));
+    CUDA_CHECK(cudaStreamAttachMemAsync(stream, vector_, 0, cudaMemAttachSingle));
+    CUDA_CHECK(cudaStreamAttachMemAsync(stream, result_, 0, cudaMemAttachSingle));
+    // Call the device operation
+    status = cublasDgemv(handle, CUBLAS_OP_N, size_, size_, &one, data_, size_, vector_, 1, &zero, result_, 1);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+      printf("cublasSetStream failed. \n ");
     }
   }
 
-  // Allocate unified memory outside of constructor
+  // Allocate unified memory.
   void Allocate(const unsigned int size, const unsigned int unique_id) {
     id_ = unique_id;
     size_ = size;
@@ -117,7 +113,15 @@ private:
 template <typename T>
 void TaskAssignment(std::vector< Task<T> > &task_list, cublasHandle_t *handle, cudaStream_t *stream, int tid, int num_per_thread) {
   for (int i = tid*num_per_thread; i < (tid + 1)*num_per_thread && i < task_list.size(); i++) {
-    task_list[i].Execute(handle, stream, tid);
+    int size = task_list[i].get_size();
+    if (size < 100) {
+      printf("Task [%d], thread [%d] executing on host (%d)\n", i, tid, size);
+      task_list[i].ExecuteOnHost(stream[0]);
+    }
+    else {
+      printf("Task [%d], thread [%d] executing on device (%d)\n", i, tid, size);
+      task_list[i].ExecuteOnDevice(handle[tid], stream[tid]);
+    }
   }
 }
 
