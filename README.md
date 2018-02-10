@@ -3,9 +3,13 @@
 ---
 
 ### CUDA
+* [aligned_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/aligned_memory_access.cu) ： An experiment on memory access.
+* [base_float2half](https://github.com/cjmcv/hpc/blob/master/cuda/base_float2half.cu) ： Record the basic usage of float2half.
 * [base_occupancy](https://github.com/cjmcv/hpc/blob/master/cuda/base_occupancy.cu) ： Record the basic usage of cudaOccupancyMaxPotentialBlockSize.
 * [base_texture](https://github.com/cjmcv/hpc/blob/master/cuda/base_texture.cu) ： Record the basic usage of Texture Memory.
+* [base_unified_memory](https://github.com/cjmcv/hpc/blob/master/cuda/base_unified_memory.cu) ： A simple task consumer using threads and streams with all data in Unified Memory.
 * [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) ： Record the basic usage of Zero Copy.
+* [gemm_cublas_float16](https://github.com/cjmcv/hpc/blob/master/cuda/gemm_cublas_float16.cu) ： gemm: C = A * B. Use cublas with half-precision.
 * [histogram](https://github.com/cjmcv/hpc/blob/master/cuda/histogram.cu) ： histogram, mainly introduce atomicAdd.
 * [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/cuda/matrix_multiply.cu) ： gemm: C = A * B.
 * [vector_add](https://github.com/cjmcv/hpc/blob/master/cuda/vector_add.cu) ： Vector addition: C = A + B. 
