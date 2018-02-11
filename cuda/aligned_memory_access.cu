@@ -43,11 +43,18 @@ void GenArray(float *arr, const int len) {
   }
 }
 
-__global__ void TestMemoryAccessKernel(float *A, float *B, float *C, const int len, int offset) {
+__global__ void TestMisalignedReadKernel(float *A, float *B, float *C, const int len, int offset) {
   unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int k = i + offset;
   if (k < len)
     C[i] = A[k] + B[k];
+}
+
+__global__ void TestMisalignedWriteKernel(float *A, float *B, float *C, const int len, int offset) {
+  unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int k = i + offset;
+  if (k < len)
+    C[k] = A[i] + B[i];  // Just switch the place between i and k.
 }
 
 int main() {
@@ -81,7 +88,7 @@ int main() {
   CUDA_CHECK(cudaMemcpy(d_b, h_b, mem_size, cudaMemcpyHostToDevice));
 
   // Warm up
-  TestMemoryAccessKernel << < blocks_per_grid, threads_per_block >> > (d_a, d_b, d_c, len, 256);
+  TestMisalignedReadKernel << < blocks_per_grid, threads_per_block >> > (d_a, d_b, d_c, len, 256);
   
   // Test.
   float msec_total = 0.0f;
@@ -89,17 +96,35 @@ int main() {
   CUDA_CHECK(cudaEventCreate(&start));
   CUDA_CHECK(cudaEventCreate(&stop));
 
-  int offset[10] = {1, 16, 33, 129, 159,  0, 32, 64, 128, 160};
-  for (int i = 0; i < 10; i++) {
+  const int offset_size = 12;
+  int offset[12] = {1, 16, 129, 254, 513, 1020, 0, 32, 128, 160, 512, 1024};
+  for (int i = 0; i < offset_size; i++) {
     CUDA_CHECK(cudaEventRecord(start, NULL));
-    TestMemoryAccessKernel << < blocks_per_grid, threads_per_block >> > (d_a, d_b, d_c, len, offset[i]);
+    for(int tc = 0; tc < 10; tc++)
+      TestMisalignedReadKernel << < blocks_per_grid, threads_per_block >> > (d_a, d_b, d_c, len, offset[i]);
     CUDA_CHECK(cudaEventRecord(stop, NULL));
     CUDA_CHECK(cudaEventSynchronize(stop));
     CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
-    printf("Kernel <<< %4d, %4d >>>, offset %4d, elapsed %f sec, offset%32 == 0 : %d\n",
+    printf("Read<<< %4d, %4d >>>, offset %4d, elapsed %f sec, offset%32 == 0 : %d\n",
       blocks_per_grid, threads_per_block,
       offset[i], msec_total, offset[i]%32 == 0);
-    if (i == 4)
+    if (i == (offset_size-1) / 2)
+      printf("\n");
+  }
+
+  printf("-------------------------------------------------------------------------------\n");
+
+  for (int i = 0; i < offset_size; i++) {
+    CUDA_CHECK(cudaEventRecord(start, NULL));
+    for (int tc = 0; tc < 10; tc++)
+      TestMisalignedWriteKernel << < blocks_per_grid, threads_per_block >> > (d_a, d_b, d_c, len, offset[i]);
+    CUDA_CHECK(cudaEventRecord(stop, NULL));
+    CUDA_CHECK(cudaEventSynchronize(stop));
+    CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
+    printf("Write<<< %4d, %4d >>>, offset %4d, elapsed %f sec, offset%32 == 0 : %d\n",
+      blocks_per_grid, threads_per_block,
+      offset[i], msec_total, offset[i] % 32 == 0);
+    if (i == (offset_size-1) / 2)
       printf("\n");
   }
 
