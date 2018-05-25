@@ -3,4 +3,10 @@ CUDA® is a parallel computing platform and programming model developed by NVIDI
 * CUDA Zone - [link](https://developer.nvidia.com/cuda-zone)
 * CUDA Toolkit - [link](https://developer.nvidia.com/cuda-toolkit)
 
+* cuDNN - [link](https://developer.nvidia.com/cudnn)
+* cuSOLVER - [link](https://developer.nvidia.com/cusolver)
+* cuSOLVER doc - [link](https://docs.nvidia.com/cuda/cusolver/)
+* Thrust - [link](https://developer.nvidia.com/thrust)
+* Thrust doc- [link](https://docs.nvidia.com/cuda/thrust/)
+
 ---
