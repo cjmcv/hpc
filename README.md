@@ -12,6 +12,10 @@
 * [gemm_cublas_float16](https://github.com/cjmcv/hpc/blob/master/cuda/gemm_cublas_float16.cu) ： gemm: C = A * B. Use cublas with half-precision.
 * [histogram](https://github.com/cjmcv/hpc/blob/master/cuda/histogram.cu) ： histogram, mainly introduce atomicAdd.
 * [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/cuda/matrix_multiply.cu) ： gemm: C = A * B.
+* [thrust_iterators](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_iterators.cu) ： Record the basic usage of Iterators in Thrust.
+* [thrust_sort](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_sort.cu) ： Sort arrays with Thrust.
+* [thrust_transformations](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_transformations.cu) ： Some of the parallel vector operations in Thrust.
+* [thrust_vector](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_vector.cu) ： Record the basic usage of Vector in Thrust.
 * [vector_add](https://github.com/cjmcv/hpc/blob/master/cuda/vector_add.cu) ： Vector addition: C = A + B. 
 * [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/cuda/vector_dot_product.cu) ： Vector dot product: h_result = SUM(A * B).
 * [vector_scan](https://github.com/cjmcv/hpc/blob/master/cuda/vector_scan.cu) ： Scan. Prefix Sum.
