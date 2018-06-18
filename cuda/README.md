@@ -15,6 +15,7 @@ CUDA® is a parallel computing platform and programming model developed by NVIDI
 * Thrust Doc- [link](https://docs.nvidia.com/cuda/thrust/)
 * Thrust Github - [link](https://github.com/thrust/thrust)
 
+* CUB Doc - [link](http://nvlabs.github.io/cub/)
 * CUB Github - [link](https://github.com/NVlabs/cub)
 
 ---

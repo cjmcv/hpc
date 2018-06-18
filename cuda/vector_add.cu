@@ -3,18 +3,7 @@
  */
 
 #include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "util.h"
 
 // Kernel
 __global__ void VectorAddKernel(const float *A, const float *B,
@@ -26,6 +15,8 @@ __global__ void VectorAddKernel(const float *A, const float *B,
 }
 
 int VectorAdd(const float *h_a, const float *h_b, const int num, float *h_c) {
+  cjmcv_cuda_util::GpuTimer timer;
+
   size_t size = num * sizeof(float);
   // Allocate the device input vector
   float *d_a = NULL;
@@ -46,7 +37,11 @@ int VectorAdd(const float *h_a, const float *h_b, const int num, float *h_c) {
   int threadsPerBlock = 256;
   int blocksPerGrid = (num + threadsPerBlock - 1) / threadsPerBlock;
   printf("CUDA kernel launch with %d blocks of %d threads\n", blocksPerGrid, threadsPerBlock);
+  timer.Start();
   VectorAddKernel << <blocksPerGrid, threadsPerBlock >> > (d_a, d_b, d_c, num);
+  timer.Stop();
+  printf("Timer: %f ms.\n", timer.ElapsedMillis());
+
   CUDA_CHECK(cudaGetLastError());
 
   // Copy the device result vector in device memory to the host result vector
@@ -67,19 +62,15 @@ int VectorAdd(const float *h_a, const float *h_b, const int num, float *h_c) {
   CUDA_CHECK(cudaFree(d_b));
   CUDA_CHECK(cudaFree(d_c));
 
-  // Reset the device and exit
-  // cudaDeviceReset causes the driver to clean up all state. While
-  // not mandatory in normal operation, it is good practice.  It is also
-  // needed to ensure correct operation when the application is being
-  // profiled. Calling cudaDeviceReset causes all profile data to be
-  // flushed before the application exits
-  CUDA_CHECK(cudaDeviceReset());
-
   printf("Done\n");
   return 0;
 }
 
 int main(void) {
+  using namespace cjmcv_cuda_util;
+
+  InitEnvironment(0);
+
   int num = 50000;
   // Print the vector length to be used, and compute its size
   size_t size = num * sizeof(float);
@@ -105,4 +96,6 @@ int main(void) {
   free(h_a);
   free(h_b);
   free(h_c);
+
+  CleanUpEnvironment();
 }
