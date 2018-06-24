@@ -3,6 +3,7 @@
 ---
 
 ### CUDA
+* [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
 * [aligned_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/aligned_memory_access.cu) ： An experiment on memory access.
 * [base_float2half](https://github.com/cjmcv/hpc/blob/master/cuda/base_float2half.cu) ： Record the basic usage of float2half.
 * [base_occupancy](https://github.com/cjmcv/hpc/blob/master/cuda/base_occupancy.cu) ： Record the basic usage of cudaOccupancyMaxPotentialBlockSize.
