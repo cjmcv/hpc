@@ -9,19 +9,8 @@
 #include <algorithm>
 #include <thread>
 
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
+#include "cuda_util.h"
 #include <cublas_v2.h>
-
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
 
  // Simple host dgemv: assume data_ is in row-major format and square
 template <typename T>
@@ -111,8 +100,11 @@ private:
 };
 
 template <typename T>
-void TaskAssignment(std::vector< Task<T> > &task_list, cublasHandle_t *handle, cudaStream_t *stream, int tid, int num_per_thread) {
-  for (int i = tid*num_per_thread; i < (tid + 1)*num_per_thread && i < task_list.size(); i++) {
+void TaskAssignment(std::vector< Task<T> > &task_list, cublasHandle_t *handle, 
+  cudaStream_t *stream, int tid, int num_per_thread) {
+  for (int i = tid*num_per_thread;
+    i < (tid + 1)*num_per_thread && i < task_list.size();
+    i++) {
     int size = task_list[i].get_size();
     if (size < 100) {
       printf("Task [%d], thread [%d] executing on host (%d)\n", i, tid, size);
@@ -125,25 +117,13 @@ void TaskAssignment(std::vector< Task<T> > &task_list, cublasHandle_t *handle, c
   }
 }
 
-int InitEnvironment(const int dev_id) {
-  CUDA_CHECK(cudaSetDevice(dev_id));
-  cudaDeviceProp device_prop;
-  cudaError_t error = cudaGetDeviceProperties(&device_prop, dev_id);
-  if (device_prop.computeMode == cudaComputeModeProhibited) {
-    fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
-    return 1;
-  }
-  if (error != cudaSuccess) {
-    printf("cudaGetDeviceProperties returned error %s (code %d), line(%d)\n", cudaGetErrorString(error), error, __LINE__);
-  }
-  else {
-    printf("GPU Device %d: \"%s\" with compute capability %d.%d\n\n", dev_id, device_prop.name, device_prop.major, device_prop.minor);
-  }
-  return 0;
-}
 
 int main() {
-  InitEnvironment(0);
+  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
   srand(time(NULL));
 
   // Number of threads
@@ -195,5 +175,6 @@ int main() {
   }
   task_list.swap(std::vector<Task<double> >());
 
+  cjmcv_cuda_util::CleanUpEnvironment();
   return 0;
 }

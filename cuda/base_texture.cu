@@ -2,19 +2,7 @@
 * \brief Record the basic usage of Texture Memory.
 */
 
-#include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "cuda_util.h"
 
 // 1D texture
 // <class T, int texType = cudaTextureType1D, 
@@ -40,6 +28,12 @@ __global__ void CopyTexture2DKernel(float *dst, int width, int height) {
 }
 
 int main() {
+  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
+
   int height = 18;
   int width = 18;
   int num = height * width;
@@ -127,6 +121,6 @@ int main() {
   // Free device memory
   CUDA_CHECK(cudaFree(d_out));
 
-  CUDA_CHECK(cudaDeviceReset());
+  cjmcv_cuda_util::CleanUpEnvironment();
   return 0;
 }

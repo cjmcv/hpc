@@ -2,21 +2,9 @@
 * \brief gemm: C = A * B.
 *        Use cublas with half.
 */
-#include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-#include <cublas_v2.h>
-#include "time.h"
 
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "cuda_util.h"
+#include <cublas_v2.h>
 
 // Initialize the input data.
 void GenMatrix(const int height, const int width, float *mat) {
@@ -70,11 +58,10 @@ void MatrixMulCPU(const int M, const int N, const int K, const float ALPHA,
 float GemmWithCublas(cublasHandle_t cublas_handle, const bool TransA,
   const bool TransB, const int M, const int N, const int K,
   const float alpha, const float* A, const float* B, const float beta,
-  float* C) {  
-  float msec_total = 0.0f;
-  cudaEvent_t start, stop;
-  CUDA_CHECK(cudaEventCreate(&start));
-  CUDA_CHECK(cudaEventCreate(&stop));
+  float* C) {
+  using namespace cjmcv_cuda_util;
+
+  GpuTimer gpu_timer;
 
   // Note that cublas follows fortran order.
   int lda = (TransA == false) ? K : M;
@@ -90,20 +77,14 @@ float GemmWithCublas(cublasHandle_t cublas_handle, const bool TransA,
     printf("cublasSgemm error.\n");
   }
 
-  // Record the start event
-  CUDA_CHECK(cudaEventRecord(start, NULL));
-
+  gpu_timer.Start();
   if (cublasSgemm(cublas_handle, cuTransB, cuTransA,
     N, M, K, &alpha, B, ldb, A, lda, &beta, C, N) != CUBLAS_STATUS_SUCCESS) {
     printf("cublasSgemm error.\n");
   }
+  gpu_timer.Stop();
 
-  // Record the stop event
-  CUDA_CHECK(cudaEventRecord(stop, NULL));
-
-  CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
-  return msec_total;
+  return gpu_timer.ElapsedMillis();;
 }
 
 
@@ -129,6 +110,7 @@ float GemmWithCublasFloat16(cublasHandle_t cublas_handle, const bool TransA,
   const bool TransB, const int M, const int N, const int K,
   const float alpha, const float* A, const float* B, const float beta,
   float* C) {
+  using namespace cjmcv_cuda_util;
 
   // Convert float to half.
   half *A_half, *B_half, *C_half;
@@ -146,10 +128,7 @@ float GemmWithCublasFloat16(cublasHandle_t cublas_handle, const bool TransA,
     (B, K*N, B_half);
 
   // Time counter.
-  float msec_total = 0.0f;
-  cudaEvent_t start, stop;
-  CUDA_CHECK(cudaEventCreate(&start));
-  CUDA_CHECK(cudaEventCreate(&stop));
+  GpuTimer gpu_timer;
 
   // Note that cublas follows fortran order.
   int lda = (TransA == false) ? K : M;
@@ -171,21 +150,14 @@ float GemmWithCublasFloat16(cublasHandle_t cublas_handle, const bool TransA,
     printf("cublasHgemm error.\n");
   }
 
-  // Record the start event
-  CUDA_CHECK(cudaEventRecord(start, NULL));
-
+  gpu_timer.Start();
   if (cublasSgemmEx(cublas_handle, cuTransB, cuTransA,
     N, M, K, &alpha_f, B_half, half_datatype, ldb,
     A_half, half_datatype, lda, &beta_f, 
     C_half, half_datatype, N) != CUBLAS_STATUS_SUCCESS) {
     printf("cublasHgemm error.\n");
   }
-
-  // Record the stop event
-  CUDA_CHECK(cudaEventRecord(stop, NULL));
-
-  CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
+  gpu_timer.Stop();
 
   // Convert half back to float.
   blocks_per_grid = (K*N + threads_per_block - 1) / threads_per_block;
@@ -196,29 +168,16 @@ float GemmWithCublasFloat16(cublasHandle_t cublas_handle, const bool TransA,
   CUDA_CHECK(cudaFree(B_half));
   CUDA_CHECK(cudaFree(C_half));
 
-  return msec_total;
-}
-
-int InitEnvironment(const int dev_id) {
-  CUDA_CHECK(cudaSetDevice(dev_id));
-  cudaDeviceProp device_prop;
-  cudaError_t error = cudaGetDeviceProperties(&device_prop, dev_id);
-  if (device_prop.computeMode == cudaComputeModeProhibited) {
-    fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
-    return 1;
-  }
-  if (error != cudaSuccess) {
-    printf("cudaGetDeviceProperties returned error %s (code %d), line(%d)\n", cudaGetErrorString(error), error, __LINE__);
-  }
-  else {
-    printf("GPU Device %d: \"%s\" with compute capability %d.%d\n\n", dev_id, device_prop.name, device_prop.major, device_prop.minor);
-  }
-  return 0;
+  return gpu_timer.ElapsedMillis();
 }
 
 int main() {
   int dev_id = 0;
-  InitEnvironment(dev_id);
+  int ret = cjmcv_cuda_util::InitEnvironment(dev_id);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
 
   int height_a = 1024, width_a = 800;
   int height_b = 800, width_b = 2048;
@@ -286,11 +245,11 @@ int main() {
   if (cublasDestroy(cublas_handle) != CUBLAS_STATUS_SUCCESS) {
     printf("Destory Cublas handle Error.");
   }
-  CUDA_CHECK(cudaDeviceReset());
 
   free(h_a);
   free(h_b);
   free(h_c);
+  cjmcv_cuda_util::CleanUpEnvironment();
 
   return 0;
 }

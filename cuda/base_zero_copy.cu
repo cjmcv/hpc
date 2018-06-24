@@ -2,20 +2,7 @@
 * \brief Record the basic usage of Zero Copy.
 */
 
-#include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-#include "time.h"
-
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "cuda_util.h"
 
 __global__ void SimpleKernel(int *data, int *res) {
   res[threadIdx.x] = data[threadIdx.x];

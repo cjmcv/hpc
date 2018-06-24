@@ -2,22 +2,9 @@
 * \brief Record the basic usage of float2half.
 */
 #include <iostream>
-#include <time.h>
-#include <assert.h>
-
 #include <cuda_runtime.h>
 #include "device_launch_parameters.h"
 #include <cuda_fp16.h>
-
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
 
 // Taken from:
 // https://github.com/dmlc/mshadow/blob/master/mshadow/half.h
@@ -94,10 +81,17 @@ __global__ void ConvertTest() {
 
   //unsigned short res = __float2half_rn(flt_in);
   half res = __float2half(flt_in);  
-  printf("Device version half: %hu\n", res);
+  printf("Device version, half: %hu\n", res);
 
   half2 res2 = __float2half2_rn(flt_in);
-  printf("Device version half2: %d\n", res2);
+  printf("Device version, half2: %d\n", res2);
+
+  int high_half = res2.x >> 16;
+  printf("Device version, high_half of half2: %d\n", high_half);
+
+  int low_half = res2.x << 16;
+  low_half = low_half >> 16;
+  printf("Device version, low_half of half2: %d\n", low_half);
 }
 
 int main() {
@@ -105,6 +99,6 @@ int main() {
   cudaDeviceSynchronize();
 
   unsigned short res = float2half(1.1234);
-  printf("Host version half: %hu\n", res);
+  printf("Host version, half: %hu\n", res);
   return 0;
 }
