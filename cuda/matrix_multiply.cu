@@ -1,20 +1,7 @@
 /*!
 * \brief gemm: C = A * B.
 */
-#include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-#include "time.h"
-
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "cuda_util.h"
 
 // Initialize the input data.
 void GenMatrix(const int height, const int width, float *mat) {
@@ -159,12 +146,8 @@ float MatrixMulCUDA(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
-  // Time recorder.
-  float msec_total = 0.0f;
-  cudaEvent_t start, stop;
-  CUDA_CHECK(cudaEventCreate(&start));
-  CUDA_CHECK(cudaEventCreate(&stop));
-  
+  cjmcv_cuda_util::GpuTimer gpu_timer;
+
   const int block_size = 32;
   dim3 threads_per_block(block_size, block_size);
   dim3 blocks_per_grid(N / threads_per_block.x, M / threads_per_block.y);
@@ -175,7 +158,7 @@ float MatrixMulCUDA(const int M, const int N, const int K, const float ALPHA,
   cudaMemset(C, 0, sizeof(float) * M * N);
 
   // Record the start event
-  CUDA_CHECK(cudaEventRecord(start, NULL));
+  gpu_timer.Start();
 #ifdef TEST_CUDA_V1
   MatrixMulKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
     (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
@@ -185,32 +168,17 @@ float MatrixMulCUDA(const int M, const int N, const int K, const float ALPHA,
 #endif
 
   // Record the stop event
-  CUDA_CHECK(cudaEventRecord(stop, NULL));
-  CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
+  gpu_timer.Stop();
 
-  return msec_total;
-}
-
-int InitEnvironment(const int dev_id) {
-  CUDA_CHECK(cudaSetDevice(dev_id));
-  cudaDeviceProp device_prop;
-  cudaError_t error = cudaGetDeviceProperties(&device_prop, dev_id);
-  if (device_prop.computeMode == cudaComputeModeProhibited) {
-    fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
-    return 1;
-  }
-  if (error != cudaSuccess) {
-    printf("cudaGetDeviceProperties returned error %s (code %d), line(%d)\n", cudaGetErrorString(error), error, __LINE__);
-  }
-  else {
-    printf("GPU Device %d: \"%s\" with compute capability %d.%d\n\n", dev_id, device_prop.name, device_prop.major, device_prop.minor);
-  }
-  return 0;
+  return gpu_timer.ElapsedMillis();
 }
 
 int main() {
-  InitEnvironment(0);
+  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
 
   int height_a = 2560, width_a = 800;
   int height_b = 800, width_b = 3200;
@@ -273,7 +241,7 @@ int main() {
   cudaFree(d_a);
   cudaFree(d_b);
   cudaFree(d_c);
-  CUDA_CHECK(cudaDeviceReset());
+  cjmcv_cuda_util::CleanUpEnvironment();
 
   return 0;
 }

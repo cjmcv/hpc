@@ -3,7 +3,7 @@
  */
 
 #include <iostream>
-#include "util.h"
+#include "cuda_util.h"
 
 // Kernel
 __global__ void VectorAddKernel(const float *A, const float *B,
@@ -67,9 +67,11 @@ int VectorAdd(const float *h_a, const float *h_b, const int num, float *h_c) {
 }
 
 int main(void) {
-  using namespace cjmcv_cuda_util;
-
-  InitEnvironment(0);
+  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
 
   int num = 50000;
   // Print the vector length to be used, and compute its size
@@ -97,5 +99,5 @@ int main(void) {
   free(h_b);
   free(h_c);
 
-  CleanUpEnvironment();
+  cjmcv_cuda_util::CleanUpEnvironment();
 }

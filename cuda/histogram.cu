@@ -1,20 +1,8 @@
 /*!
 * \brief histogram, mainly introduce atomicAdd.
 */
-#include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-#include "time.h"
 
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "cuda_util.h"
 
 // Initialize the input data.
 void GenArray(const int up_bound, const int len, unsigned char *arr) {
@@ -87,11 +75,9 @@ __global__ void HistogramKernelv2(const unsigned char *data, const int data_len,
 
 float HistogramCUDA(const int loops, const unsigned char *data, const int data_len, 
   int *hist, const int hist_len) {
+
   // Time recorder.
-  float msec_total = 0.0f;
-  cudaEvent_t start, stop;
-  CUDA_CHECK(cudaEventCreate(&start));
-  CUDA_CHECK(cudaEventCreate(&stop));
+  cjmcv_cuda_util::GpuTimer gpu_timer;
 
   const int threads_per_block = 512; // Should be larger than the size of histogram (256)
   const int blocks_per_grid = (data_len + threads_per_block - 1) / threads_per_block;
@@ -102,48 +88,29 @@ float HistogramCUDA(const int loops, const unsigned char *data, const int data_l
     (data, data_len, hist);
   cudaMemset(hist, 0, sizeof(int) * hist_len);
 
-  // Record the start event
-  CUDA_CHECK(cudaEventRecord(start, NULL));
-
+  gpu_timer.Start();
   for (int i = 0; i < loops; i++) {
     cudaMemset(hist, 0, sizeof(int) * hist_len);
     HistogramKernelv2<256> << <blocks_per_grid, threads_per_block >> >
       (data, data_len, hist);
   }
+  gpu_timer.Stop();
 
-
-  // Record the stop event
-  CUDA_CHECK(cudaEventRecord(stop, NULL));
-  CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
-
-  return msec_total;
-}
-
-int InitEnvironment(const int dev_id) {
-  CUDA_CHECK(cudaSetDevice(dev_id));
-  cudaDeviceProp device_prop;
-  cudaError_t error = cudaGetDeviceProperties(&device_prop, dev_id);
-  if (device_prop.computeMode == cudaComputeModeProhibited) {
-    fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
-    return 1;
-  }
-  if (error != cudaSuccess) {
-    printf("cudaGetDeviceProperties returned error %s (code %d), line(%d)\n", cudaGetErrorString(error), error, __LINE__);
-  }
-  else {
-    printf("GPU Device %d: \"%s\" with compute capability %d.%d\n\n", dev_id, device_prop.name, device_prop.major, device_prop.minor);
-  }
-  return 0;
+  return gpu_timer.ElapsedMillis();
 }
 
 int main() { 
+  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
+
   // 15000000 is very close to the biggest number. 
   // Over this, the cuda program can not get the right answer?
   const int data_len = 15000000;
   const int loops = 100;
 
-  InitEnvironment(0);
   const int hist_len = 256;
   const int hist_mem_size = sizeof(int) * hist_len;
   const int data_mem_size = sizeof(unsigned char) * data_len;
@@ -190,7 +157,7 @@ int main() {
 
   cudaFree(d_hist);
   cudaFree(d_data);
-  CUDA_CHECK(cudaDeviceReset());
+  cjmcv_cuda_util::CleanUpEnvironment();
 
   system("pause");
   return 0;

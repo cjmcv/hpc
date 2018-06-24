@@ -131,7 +131,7 @@ int main() {
   int num = 100000000;
   int value = 0;
 
-  time_t stime, end;
+  time_t stime;
   stime = clock();
 
   //serialTest(a, num);

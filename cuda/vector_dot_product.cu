@@ -1,20 +1,8 @@
 /*!
 * \brief Vector dot product: h_result = SUM(A * B).
 */
-#include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
-#include "time.h"
 
-#define CUDA_CHECK(condition) \
-  do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      fprintf(stderr, "CUDA_CHECK error in line %d of file %s \
-              : %s \n", __LINE__, __FILE__, cudaGetErrorString(cudaGetLastError()) ); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include "cuda_util.h"
 
 // Initialize the input data.
 void GenArray(const int len, float *arr) {
@@ -126,10 +114,7 @@ __global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b,
 
 float VectorDotProductCUDA(const int loops, const float *vec_a, const float *vec_b, const int len, float &result) {
   // Time recorder.
-  float msec_total = 0.0f;
-  cudaEvent_t start, stop;
-  CUDA_CHECK(cudaEventCreate(&start));
-  CUDA_CHECK(cudaEventCreate(&stop));
+  cjmcv_cuda_util::GpuTimer gpu_timer;
 
   const int threads_per_block = 1024; // data_len % threads_per_block == 0
   const int blocks_per_grid = (len + threads_per_block - 1) / threads_per_block;
@@ -138,8 +123,7 @@ float VectorDotProductCUDA(const int loops, const float *vec_a, const float *vec
   VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
     (vec_a, vec_b, len, result);
   
-  // Record the start event
-  CUDA_CHECK(cudaEventRecord(start, NULL));
+  gpu_timer.Start();
 
   for (int i = 0; i < loops; i++) {
     cudaMemset(&result, 0, sizeof(float));
@@ -147,15 +131,18 @@ float VectorDotProductCUDA(const int loops, const float *vec_a, const float *vec
       (vec_a, vec_b, len, result);
   }
 
-  // Record the stop event
-  CUDA_CHECK(cudaEventRecord(stop, NULL));
-  CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaEventElapsedTime(&msec_total, start, stop));
+  gpu_timer.Stop();
 
-  return msec_total;
+  return gpu_timer.ElapsedMillis();
 }
 
 int main() {
+  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  if (ret != 0) {
+    printf("Failed to initialize the environment for cuda.");
+    return -1;
+  }
+
   const int loops = 100;
   const int data_len = 10240000; // data_len % threads_per_block == 0
   const int data_mem_size = sizeof(float) * data_len;
@@ -202,7 +189,7 @@ int main() {
   cudaFree(d_vector_a);
   cudaFree(d_vector_b);
   cudaFree(d_result);
-  CUDA_CHECK(cudaDeviceReset());
+  cjmcv_cuda_util::CleanUpEnvironment();
 
   system("pause");
   return 0;
