@@ -71,6 +71,7 @@ int InitEnvironment(const int dev_id) {
   }
   if (error != cudaSuccess) {
     fprintf(stderr, "cudaGetDeviceProperties returned error %s (code %d), line(%d)\n", cudaGetErrorString(error), error, __LINE__);
+    return 1;
   }
   else {
     fprintf(stderr, "GPU Device %d: \"%s\" with compute capability %d.%d\n\n", dev_id, device_prop.name, device_prop.major, device_prop.minor);
