@@ -1,31 +1,28 @@
 /*!
 * \brief Simple demonstration of DeviceScan::ExclusiveSum.
+*        (It is slower than cpu version ?)
 */
 #include "cuda_util.h"
 
 #include <cub/util_allocator.cuh>
 #include <cub/device/device_scan.cuh>
-
-using namespace cub;
-
-
-CachingDeviceAllocator  g_allocator(true);  // Caching allocator for device memory
+  
+// Caching allocator for device memory
+cub::CachingDeviceAllocator  g_allocator(true);
 
 void Initialize(int *h_in, int num_items) {
   for (int i = 0; i < num_items; ++i)
-    h_in[i] = 1;
+    h_in[i] = i;
 }
 
 // CPU version.
 // Solve exclusive-scan problem.
-int SolveInCPU(int *h_in, int *h_reference, int num_items) {
+void ExclusiveScanCPU(int *h_in, int *h_out, int num_items) {
   int sum = 0;
   for (int i = 0; i < num_items; ++i) {
-    h_reference[i] = sum;
+    h_out[i] = sum;
     sum += h_in[i];
   }
-  printf("%d, %d\n", sum, h_reference[num_items - 1]);
-  return sum;
 }
 
 int main(int argc, char** argv) {
@@ -36,24 +33,32 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  int num_items = 3;
+  int num_items = 1234567;
 
   printf("cub::DeviceScan::ExclusiveSum %d items (%d-byte elements)\n",
     num_items, (int) sizeof(int));
 
+  /*
+  *  CPU version. 4ms.
+  */
   // Allocate host arrays
   int *h_in = new int[num_items];
-  int *h_reference = new int[num_items];
+  int *h_out = new int[num_items];
 
   // Initialize problem and solution
   Initialize(h_in, num_items);
-  SolveInCPU(h_in, h_reference, num_items);
+  time_t t = clock();
+  ExclusiveScanCPU(h_in, h_out, num_items);
+  printf("Time spent in running in cpu: %lld ms\n", clock() - t);
 
-  // Allocate problem device arrays
+  /*
+  *  Device version. 24ms.
+  */
+  cjmcv_cuda_util::GpuTimer *gpu_timer = new cjmcv_cuda_util::GpuTimer;
+  gpu_timer->Start();
+  // Initialize device input
   int *d_in = NULL;
   CubDebugExit(g_allocator.DeviceAllocate((void**)&d_in, sizeof(int) * num_items));
-
-  // Initialize device input
   CubDebugExit(cudaMemcpy(d_in, h_in, sizeof(int) * num_items, cudaMemcpyHostToDevice));
 
   // Allocate device output array
@@ -63,29 +68,37 @@ int main(int argc, char** argv) {
   // Allocate temporary storage
   void *d_temp_storage = NULL;
   size_t temp_storage_bytes = 0;
-  CubDebugExit(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items));
+  CubDebugExit(cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items));
   CubDebugExit(g_allocator.DeviceAllocate(&d_temp_storage, temp_storage_bytes));
-
+  gpu_timer->Stop();
+  printf("Time spent in creating memory for device: %f ms.\n", gpu_timer->ElapsedMillis());
+  
   // Run
-  CubDebugExit(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items));
+  gpu_timer->Start();
+  CubDebugExit(cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items));
+  gpu_timer->Stop();
+  printf("Time spent in running: %f ms.\n", gpu_timer->ElapsedMillis());
 
-  int *h_reference4device = new int[num_items];
-  CUDA_CHECK(cudaMemcpy(h_reference4device, d_out, sizeof(int) * num_items, cudaMemcpyDeviceToHost));
+  // Get the output from device.
+  int *h_out4cub = new int[num_items];
+  CUDA_CHECK(cudaMemcpy(h_out4cub, d_out, sizeof(int) * num_items, cudaMemcpyDeviceToHost));
 
+  // Check the answer.
   bool is_equal = true;
   for (int i = 0; i < num_items; i++) {
-    if (h_reference4device[i] != h_reference[i]) {
+    if (h_out4cub[i] != h_out[i]) {
       is_equal = false;
       break;
     }
   }
   printf("The result is equal or not: %d -> (%d vs %d)\n", is_equal, 
-    h_reference[num_items - 1], h_reference4device[num_items - 1]);
+    h_out[num_items - 1], h_out4cub[num_items - 1]);
 
   // Cleanup
+  if (gpu_timer) delete gpu_timer;
   if (h_in) delete[] h_in;
-  if (h_reference) delete[] h_reference;
-  if (h_reference4device) delete[] h_reference4device;
+  if (h_out) delete[] h_out;
+  if (h_out4cub) delete[] h_out4cub;
   if (d_in) CubDebugExit(g_allocator.DeviceFree(d_in));
   if (d_out) CubDebugExit(g_allocator.DeviceFree(d_out));
   if (d_temp_storage) CubDebugExit(g_allocator.DeviceFree(d_temp_storage));

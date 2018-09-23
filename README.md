@@ -10,6 +10,8 @@
 * [base_texture](https://github.com/cjmcv/hpc/blob/master/cuda/base_texture.cu) ： Record the basic usage of Texture Memory.
 * [base_unified_memory](https://github.com/cjmcv/hpc/blob/master/cuda/base_unified_memory.cu) ： A simple task consumer using threads and streams with all data in Unified Memory.
 * [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) ： Record the basic usage of Zero Copy.
+* [cub_block_scan](https://github.com/cjmcv/hpc/blob/master/cuda/cub_block_scan.cu) ： Simple demonstration of cub::BlockScan.
+* [cub_device_scan](https://github.com/cjmcv/hpc/blob/master/cuda/cub_device_scan.cu) ： Simple demonstration of DeviceScan::ExclusiveSum.
 * [gemm_cublas_float16](https://github.com/cjmcv/hpc/blob/master/cuda/gemm_cublas_float16.cu) ： gemm: C = A * B. Use cublas with half-precision.
 * [histogram](https://github.com/cjmcv/hpc/blob/master/cuda/histogram.cu) ： histogram, mainly introduce atomicAdd.
 * [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/cuda/matrix_multiply.cu) ： gemm: C = A * B.
