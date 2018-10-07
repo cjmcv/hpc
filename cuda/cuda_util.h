@@ -89,5 +89,14 @@ void CleanUpEnvironment() {
   CUDA_CHECK(cudaDeviceReset());
 }
 
+template <typename T>
+void PrintArray(std::string str, T *h_in, int num_items) {
+  std::cout << str.c_str();
+  for (int i = 0; i < num_items; i++) {
+    std::cout << h_in[i] << ",";
+  }
+  std::cout << std::endl;
+}
+
 }
 #endif //CJMCV_CUDA_UTIL_HPP_

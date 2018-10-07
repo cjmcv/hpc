@@ -34,12 +34,15 @@ enum WarpReduceMode {
 };
 
 /*
-*   The difference between Full and Partial is the input parameters
+*   Reduce operation in different mode.
+*   Use Function Overloading to switch them.
+*
+*   The main difference between Full and Partial is the input parameters
 * of cub::WarpReduce::Reduce.
 *
 *   In the mode Full, you can call the Reduce function like this :
 * T output = WarpReduce(temp_storage[warp_id]).Reduce(input, reduction_op);
-* And in the mode PARTIAL, then :
+*   And in the mode PARTIAL, then :
 * T output = WarpReduce(temp_storage[warp_id]).Reduce(input, reduction_op, valid_warp_threads);
 *
 *   PS: The Reduce functions in FULL and PARTIAL are implemented differently.
@@ -72,7 +75,7 @@ template <typename T, typename ReductionOp, typename WarpReduce>
 template <int NUM_WARPS, int LOGICAL_WARP_THREADS, WarpReduceMode TEST_MODE, 
           typename T, typename ReductionOp>
 __global__ void WarpReduceKernel(T *d_in, T *d_out, ReductionOp reduction_op,
-                                     clock_t *d_elapsed, int valid_warp_threads) {
+                                 clock_t *d_elapsed, int valid_warp_threads) {
   // Cooperative warp-reduce utility type (1 warp)
   typedef cub::WarpReduce<T, LOGICAL_WARP_THREADS> WarpReduce;
 
@@ -94,7 +97,9 @@ __global__ void WarpReduceKernel(T *d_in, T *d_out, ReductionOp reduction_op,
   /// You can call them directly like the two lines below:
   //T output = WarpReduce(temp_storage[warp_id]).Reduce(input, reduction_op); //Full
   //T output = WarpReduce(temp_storage[warp_id]).Reduce(input, reduction_op, valid_warp_threads); //Partial
-  /// Or you can use a template to switch them, like this way:
+  /// Or you can use Function Overloading to switch them, like this way:
+  /// Note: In cub::Int2Type<TEST_MODE>(), the expression must have a constant value.
+  ///       So TEST_MODE can not be one of the input params of this kernel function.
   T output = DeviceReduce<T, ReductionOp, WarpReduce>(
     temp_storage[warp_id], input, reduction_op, 
     cub::Int2Type<TEST_MODE>(), valid_warp_threads);
@@ -135,12 +140,7 @@ void TestReduce(ReductionOp reduction_op,
   // Initialize problem.
   Initialize<T>(h_in, BLOCK_THREADS);
   SolveInCPU(h_in, h_out, BLOCK_THREADS);
-
-  std::cout << "input array: ";
-  for (int i = 0; i < BLOCK_THREADS; i++) {
-    std::cout << h_in[i] << ",";
-  }
-  std::cout << std::endl;
+  cjmcv_cuda_util::PrintArray("<CPU> Input array: ", h_in, BLOCK_THREADS);
 
   // Initialize/clear device arrays
   T *d_in = NULL;
@@ -181,12 +181,7 @@ void TestReduce(ReductionOp reduction_op,
   // Copy the output data from device to cpu.
   T *h_out4cub_temp_arr = new T[BLOCK_THREADS];
   cudaMemcpy(h_out4cub_temp_arr, d_out, sizeof(T) * BLOCK_THREADS, cudaMemcpyDeviceToHost);
-
-  std::cout << "output array: ";
-  for (int i = 0; i < BLOCK_THREADS; i++) {
-    std::cout << h_out4cub_temp_arr[i] << ",";
-  }
-  std::cout << std::endl;
+  cjmcv_cuda_util::PrintArray("<GPU> Output array: ", h_out4cub_temp_arr, BLOCK_THREADS);
 
   // Merge the result of each warp.
   T h_out4cub = 0;
