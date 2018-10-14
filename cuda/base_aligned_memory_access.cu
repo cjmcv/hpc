@@ -1,5 +1,5 @@
 /*!
-* \brief An experiment on memory access.
+* \brief An experiment on aligned memory access.
 * \reference https://www.cnblogs.com/1024incn/p/4573566.html
 */
 
@@ -99,12 +99,13 @@ int main() {
 
   // Free host and device memory
   delete timer;
-  CUDA_CHECK(cudaFree(d_a));
-  CUDA_CHECK(cudaFree(d_b));
-  CUDA_CHECK(cudaFree(d_c));
-  free(h_a);
-  free(h_b);
-  free(h_c);
+  if (d_a) CUDA_CHECK(cudaFree(d_a));
+  if (d_b) CUDA_CHECK(cudaFree(d_b));
+  if (d_c) CUDA_CHECK(cudaFree(d_c));
+
+  if (h_a) free(h_a);
+  if (h_b) free(h_b);
+  if (h_c) free(h_c);
 
   // Reset device
   cjmcv_cuda_util::CleanUpEnvironment();

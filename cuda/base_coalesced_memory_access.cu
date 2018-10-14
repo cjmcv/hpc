@@ -119,14 +119,13 @@ int main() {
     printf("PASS.\n");
   }
 
-  cudaFree(d_in);
-  cudaFree(d_out1);
-  cudaFree(d_out2);
-
   delete timer;
-  delete[] h_in;
-  delete[] h_out1;
-  delete[] h_out2;
+  if (d_in) CUDA_CHECK(cudaFree(d_in));
+  if (d_out1) CUDA_CHECK(cudaFree(d_out1));
+  if (d_out2) CUDA_CHECK(cudaFree(d_out2));
+  if (h_in) delete[] h_in;
+  if (h_out1) delete[] h_out1;
+  if (h_out2) delete[] h_out2;
 
   // Reset device
   cjmcv_cuda_util::CleanUpEnvironment();
