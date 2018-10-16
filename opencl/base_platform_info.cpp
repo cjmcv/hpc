@@ -2,18 +2,7 @@
 * \brief Query OpenCL platform information.
 */
 
-#include <iostream>
-#include <CL/cl.h>
-
-#define OCL_CHECK(condition) \
-  do { \
-    cl_int error = condition; \
-    if (error != CL_SUCCESS) { \
-      fprintf(stderr, "OCL_CHECK error in line %d of file %s : code %d \n", \
-              __LINE__, __FILE__, error); \
-      exit(EXIT_FAILURE); \
-    } \
-  } while(0);
+#include"ocl_util.h"
 
 int main() {
   // Platform index.
@@ -67,15 +56,15 @@ int main() {
       ext_size, profile, NULL));
     printf("The profile of platform %d is : %s\n", i, profile);
 
-    free(ext_data);
-    free(name);
-    free(vendor);
-    free(version);
-    free(profile);
+    if (ext_data) free(ext_data);
+    if (name) free(name);
+    if (vendor) free(vendor);
+    if (version) free(version);
+    if (profile) free(profile);
 
     printf("\n\n");
   }
 
-  free(platforms);
+  if (platforms) free(platforms);
   return 0;
 }
