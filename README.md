@@ -4,6 +4,11 @@
 
 ### CUDA
 * [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
+* [alg_histogram](https://github.com/cjmcv/hpc/blob/master/cuda/alg_histogram.cu) ： histogram, mainly introduce atomicAdd.
+* [alg_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/cuda/alg_matrix_multiply.cu) ： gemm: C = A * B.
+* [alg_vector_add](https://github.com/cjmcv/hpc/blob/master/cuda/alg_vector_add.cu) ： Vector addition: C = A + B. 
+* [alg_vector_dot_product](https://github.com/cjmcv/hpc/blob/master/cuda/alg_vector_dot_product.cu) ： Vector dot product: h_result = SUM(A * B).
+* [alg_vector_scan](https://github.com/cjmcv/hpc/blob/master/cuda/alg_vector_scan.cu) ： Scan. Prefix Sum.
 * [base_aligned_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/base_aligned_memory_access.cu) ： An experiment on aligned memory access.
 * [base_bank_conflict](https://github.com/cjmcv/hpc/blob/master/cuda/base_bank_conflict.cu) ： An experiment on Bank Conflict in Shared Memory.
 * [base_coalesced_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/base_coalesced_memory_access.cu) ： An experiment on coalesced memory access.
@@ -20,15 +25,10 @@
 * [cub_warp_reduce](https://github.com/cjmcv/hpc/blob/master/cuda/cub_warp_reduce.cu) ： Simple demonstration of cub::WarpReduce.
 * [cub_warp_scan](https://github.com/cjmcv/hpc/blob/master/cuda/cub_warp_scan) ： Simple demonstration of cub::WarpScan.
 * [cublas_gemm_float16](https://github.com/cjmcv/hpc/blob/master/cuda/cublas_gemm_float16.cu) ： gemm: C = A * B. Use cublas with half-precision.
-* [histogram](https://github.com/cjmcv/hpc/blob/master/cuda/histogram.cu) ： histogram, mainly introduce atomicAdd.
-* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/cuda/matrix_multiply.cu) ： gemm: C = A * B.
 * [thrust_iterators](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_iterators.cu) ： Record the basic usage of Iterators in Thrust.
 * [thrust_sort](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_sort.cu) ： Sort arrays with Thrust.
 * [thrust_transformations](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_transformations.cu) ： Some of the parallel vector operations in Thrust.
 * [thrust_vector](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_vector.cu) ： Record the basic usage of Vector in Thrust.
-* [vector_add](https://github.com/cjmcv/hpc/blob/master/cuda/vector_add.cu) ： Vector addition: C = A + B. 
-* [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/cuda/vector_dot_product.cu) ： Vector dot product: h_result = SUM(A * B).
-* [vector_scan](https://github.com/cjmcv/hpc/blob/master/cuda/vector_scan.cu) ： Scan. Prefix Sum.
 
 ### Intel-SIMD
 * [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/intel-simd/matrix_multiply.cpp) ： Matrix Multiplication.
