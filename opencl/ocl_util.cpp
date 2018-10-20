@@ -3,7 +3,7 @@
 
 namespace cjmcv_ocl_util {
 
-const char* OclGetErrorString(cl_int error) {
+const char* GetErrorString(cl_int error) {
   switch (error) {
   case CL_SUCCESS:
     return "CL_SUCCESS";
@@ -130,7 +130,7 @@ const char* OclGetErrorString(cl_int error) {
 }
 
 //  Loads a Program file and prepends the preamble to the code.
-char* OclLoadProgSource(const char* file_name, const char* preamble, size_t* final_length) {
+char* LoadProgSource(const char* file_name, const char* preamble, size_t* final_length) {
   // locals 
   FILE* file_stream = NULL;
   size_t source_length;
@@ -138,11 +138,13 @@ char* OclLoadProgSource(const char* file_name, const char* preamble, size_t* fin
   // open the OpenCL source code file
 #ifdef _WIN32   // Windows version
   if (fopen_s(&file_stream, file_name, "rb") != 0) {
+    printf("Can not open the file : %s.\n", file_name);
     return NULL;
   }
 #else           // Linux version
   file_stream = fopen(file_name, "rb");
   if (file_stream == 0) {
+    printf("Can not open the file : %s.\n", file_name);
     return NULL;
   }
 #endif
@@ -171,6 +173,25 @@ char* OclLoadProgSource(const char* file_name, const char* preamble, size_t* fin
   source_string[source_length + preamble_length] = '\0';
 
   return source_string;
+}
+
+// Print the name and version of the platform.
+void PrintPlatBasicInfo(cl_platform_id &platform) {
+  size_t ext_size;
+  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS,
+    0, NULL, &ext_size));
+  char *name = (char*)malloc(ext_size);
+  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_NAME,
+    ext_size, name, NULL));
+
+  char *version = (char*)malloc(ext_size);
+  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_VERSION,
+    ext_size, version, NULL));
+
+  printf("The name of the platform is <%s> with version <%s>.\n", name, version);
+
+  free(name);
+  free(version);
 }
 
 } //namespace cjmcv_ocl_util
