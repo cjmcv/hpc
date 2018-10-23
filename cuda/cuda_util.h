@@ -64,18 +64,14 @@ struct GpuTimer {
 int InitEnvironment(const int dev_id) {
   CUDA_CHECK(cudaSetDevice(dev_id));
   cudaDeviceProp device_prop;
-  cudaError_t error = cudaGetDeviceProperties(&device_prop, dev_id);
+  CUDA_CHECK(cudaGetDeviceProperties(&device_prop, dev_id));
   if (device_prop.computeMode == cudaComputeModeProhibited) {
     fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
     return 1;
   }
-  if (error != cudaSuccess) {
-    fprintf(stderr, "cudaGetDeviceProperties returned error %s (code %d), line(%d)\n", cudaGetErrorString(error), error, __LINE__);
-    return 1;
-  }
-  else {
-    fprintf(stderr, "GPU Device %d: \"%s\" with compute capability %d.%d\n\n", dev_id, device_prop.name, device_prop.major, device_prop.minor);
-  }
+  fprintf(stderr, "GPU Device %d: \"%s\" with compute capability %d.%d with %d multi-processors.\n\n", 
+    dev_id, device_prop.name, device_prop.major, device_prop.minor, device_prop.multiProcessorCount);
+
   return 0;
 }
 
