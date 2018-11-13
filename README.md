@@ -41,6 +41,7 @@
 
 ### OpenCL
 * [ocl_util](https://github.com/cjmcv/hpc/blob/master/opencl/ocl_util.h) ： Utility functions.
+* [alg_dot_product](https://github.com/cjmcv/hpc/blob/master/opencl/alg_dot_product.cpp) ： Vector dot product, h_result = SUM(A * B).
 * [alg_vector_add](https://github.com/cjmcv/hpc/blob/master/opencl/alg_vector_add.cpp) ： Vector addition: C = A + B.
 * [base_platform_info](https://github.com/cjmcv/hpc/blob/master/opencl/base_platform_info.cpp) ： Query OpenCL platform information.
 
