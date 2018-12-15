@@ -2,6 +2,9 @@
 
 ---
 
+### CPP11-MT
+* [alg_vector_dot_product](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/alg_vector_dot_product.cpp)： Vector dot product: h_result = SUM(A * B). Record the basic usage of std::tread.
+
 ### CUDA
 * [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
 * [alg_histogram](https://github.com/cjmcv/hpc/blob/master/cuda/alg_histogram.cu) ： histogram, mainly introduce atomicAdd.
