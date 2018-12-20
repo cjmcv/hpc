@@ -4,6 +4,7 @@
 
 ### CPP11-MT
 * [alg_vector_dot_product](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/alg_vector_dot_product.cpp)： Vector dot product: h_result = SUM(A * B). Record the basic usage of std::tread.
+* [util_blocking_queue](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_blocking_queue.cpp)： Blocking queue. Mainly implemented by thread, queue and condition_variable.
 
 ### CUDA
 * [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
