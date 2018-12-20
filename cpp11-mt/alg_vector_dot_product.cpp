@@ -70,4 +70,6 @@ int main() {
 
   delete src0;
   delete src1;
+  
+  return 0;
 }
