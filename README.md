@@ -4,6 +4,7 @@
 
 ### CPP11-MT
 * [alg_vector_dot_product](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/alg_vector_dot_product.cpp)： Vector dot product: h_result = SUM(A * B). Record the basic usage of std::tread and std::sync.
+* [base_async](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/base_async.cpp)： Record the basic usage of std::async.
 * [util_blocking_queue](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_blocking_queue.cpp)： Blocking queue. Mainly implemented by thread, queue and condition_variable.
 * [util_internal_thread](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_internal_thread.cpp)： Internal Thread. Mainly implemented by thread.
 * [util_thread_pool](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_thread_pool.cpp)： Thread Pool. Mainly implemented by thread, queue, future and condition_variable.
