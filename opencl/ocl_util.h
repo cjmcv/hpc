@@ -18,18 +18,44 @@ namespace cjmcv_ocl_util {
       exit(EXIT_FAILURE); \
     } \
   } while(0);
-////////////////
 
+////////////////
 // Functions.
 ////////////////
+
 // Get the error string by error code.
 const char* GetErrorString(cl_int error);
 
-// Load a program file and prepend the preamble to the code.
-char* LoadProgSource(const char* cFilename, const char* cPreamble, size_t* szFinalLength);
-
 // Print the name and version of the platform.
 void PrintPlatBasicInfo(cl_platform_id &platform);
+
+////////////////
+// Class.
+////////////////
+
+// KernelLoader: It is used to get the kernel functions from the program file.
+class KernelLoader {
+public:
+  KernelLoader();
+  // Load 
+  bool Load(const char *source_file);
+  void UnLoad();
+  bool CreateProgram(const cl_context &context);
+  bool GetKernel(const char *kernel_name, cl_kernel *kernel);
+
+private:
+  char* LoadProgSource(const char* file_name, const char* preamble, size_t* final_length);
+
+private:
+  cl_int err_code_;
+  // Byte size of kernel code
+  // Buffer to hold source for compilation
+  size_t program_length_;
+  char* program_source_;
+
+  cl_program program_;
+};
+
 
 } //namespace cjmcv_ocl_util
 

@@ -3,6 +3,10 @@
 
 namespace cjmcv_ocl_util {
 
+////////////////
+// Function.
+////////////////
+
 const char* GetErrorString(cl_int error) {
   switch (error) {
   case CL_SUCCESS:
@@ -129,13 +133,78 @@ const char* GetErrorString(cl_int error) {
   return "Unknown opencl status";
 }
 
+// Print the name and version of the platform.
+void PrintPlatBasicInfo(cl_platform_id &platform) {
+  size_t ext_size;
+  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS,
+    0, NULL, &ext_size));
+  char *name = (char*)malloc(ext_size);
+  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_NAME,
+    ext_size, name, NULL));
+
+  char *version = (char*)malloc(ext_size);
+  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_VERSION,
+    ext_size, version, NULL));
+
+  printf("The name of the platform is <%s> with version <%s>.\n", name, version);
+
+  free(name);
+  free(version);
+}
+
+////////////////
+// Class.
+////////////////
+
+// KernelLoader
+KernelLoader::KernelLoader() {
+  err_code_ = CL_SUCCESS;
+  program_length_ = 0;
+  program_source_ = NULL;
+  program_ = NULL;
+}
+
+bool KernelLoader::Load(const char *source_file) {
+  program_source_ = LoadProgSource(source_file, "", &program_length_);
+  if (program_source_ == NULL) {
+    printf("LoadProgSource Failed.\n"); 
+    return false;
+  }
+  else {
+    printf("LoadProgSource (%s): Succeed\n", source_file); 
+    return true;
+  }
+}
+
+void KernelLoader::UnLoad() {
+  if (program_) OCL_CHECK(clReleaseProgram(program_));
+  if (program_source_) free(program_source_);
+}
+
+bool KernelLoader::CreateProgram(const cl_context &context) {
+  if (program_) OCL_CHECK(clReleaseProgram(program_));
+
+  program_ = clCreateProgramWithSource(context, 1, (const char **)&program_source_, &program_length_, &err_code_);
+  OCL_CHECK(err_code_);
+  OCL_CHECK(clBuildProgram(program_, 0, NULL, NULL, NULL, NULL));
+
+  return true;
+}
+
+bool KernelLoader::GetKernel(const char *kernel_name, cl_kernel *kernel) {
+  *kernel = clCreateKernel(program_, kernel_name, &err_code_);
+  OCL_CHECK(err_code_);
+
+  return true;
+}
+
 //  Loads a Program file and prepends the preamble to the code.
-char* LoadProgSource(const char* file_name, const char* preamble, size_t* final_length) {
-  // locals 
+char* KernelLoader::LoadProgSource(const char* file_name, const char* preamble, size_t* final_length) {
+  // Locals 
   FILE* file_stream = NULL;
   size_t source_length;
 
-  // open the OpenCL source code file
+  // Open the OpenCL source code file
 #ifdef _WIN32   // Windows version
   if (fopen_s(&file_stream, file_name, "rb") != 0) {
     printf("Can not open the file : %s.\n", file_name);
@@ -162,7 +231,7 @@ char* LoadProgSource(const char* file_name, const char* preamble, size_t* final_
   if (fread((source_string)+preamble_length, source_length, 1, file_stream) != 1) {
     fclose(file_stream);
     free(source_string);
-    return 0;
+    return NULL;
   }
 
   // close the file and return the total length of the combined (preamble + source) string
@@ -173,25 +242,6 @@ char* LoadProgSource(const char* file_name, const char* preamble, size_t* final_
   source_string[source_length + preamble_length] = '\0';
 
   return source_string;
-}
-
-// Print the name and version of the platform.
-void PrintPlatBasicInfo(cl_platform_id &platform) {
-  size_t ext_size;
-  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_EXTENSIONS,
-    0, NULL, &ext_size));
-  char *name = (char*)malloc(ext_size);
-  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_NAME,
-    ext_size, name, NULL));
-
-  char *version = (char*)malloc(ext_size);
-  OCL_CHECK(clGetPlatformInfo(platform, CL_PLATFORM_VERSION,
-    ext_size, version, NULL));
-
-  printf("The name of the platform is <%s> with version <%s>.\n", name, version);
-
-  free(name);
-  free(version);
 }
 
 } //namespace cjmcv_ocl_util
