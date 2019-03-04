@@ -46,6 +46,10 @@
 ### LLVM
 * [fibonacci](https://github.com/cjmcv/hpc/blob/master/llvm/fibonacci.cpp) ： An example of how to build quickly a small module with function Fibonacci and execute it with the JIT.
 
+### MPI
+* [base_broadcast_scatter_gather](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_broadcast_scatter_gather.py) ： Record the basic usage of Bcast, Scatter, Gather and Allgather.
+* [base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_send_recv.py) ： Record the basic usage of Send and Recv.
+
 ### OpenCL
 * [ocl_util](https://github.com/cjmcv/hpc/blob/master/opencl/ocl_util.h) ： Utility functions.
 * [alg_dot_product](https://github.com/cjmcv/hpc/blob/master/opencl/alg_dot_product.cpp) ： Vector dot product, h_result = SUM(A * B).
