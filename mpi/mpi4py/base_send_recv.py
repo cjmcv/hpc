@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# -*- coding : utf-8 -*-
+# -*- coding: utf-8 -*-
 #
 # Record the basic usage of Send and Recv.
 
