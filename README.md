@@ -48,6 +48,7 @@
 
 ### MPI
 * [base_broadcast_scatter_gather](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_broadcast_scatter_gather.py) ： Record the basic usage of Bcast, Scatter, Gather and Allgather.
+* [base_reduce_scan](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_reduce_scan.py) ： Record the basic usage of Reduce and Scan.
 * [base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_send_recv.py) ： Record the basic usage of Send and Recv.
 
 ### OpenCL
