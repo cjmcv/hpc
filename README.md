@@ -47,6 +47,7 @@
 * [fibonacci](https://github.com/cjmcv/hpc/blob/master/llvm/fibonacci.cpp) ： An example of how to build quickly a small module with function Fibonacci and execute it with the JIT.
 
 ### MPI
+* [alg_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/mpi/alg_matrix_multiply.cpp) ： gemm: C = A * B.
 * [base_hello_world](https://github.com/cjmcv/hpc/blob/master/mpi/base_hello_world.cpp) ： Environment Management Routines.
 * [base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/base_send_recv.cpp) ： Record the basic usage of MPI_Send/MPI_Recv and MPI_ISend/MPI_IRecv.
 * [py_base_broadcast_scatter_gather](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_broadcast_scatter_gather.py) ： Record the basic usage of Bcast, Scatter, Gather and Allgather.
