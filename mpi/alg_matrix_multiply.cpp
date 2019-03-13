@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MASTER 0                   /* taskid of first task */
+#define MASTER 0                   /* rank of first task */
 #define TAG_FROM_MASTER 1          /* setting A message type */
 #define TAG_FROM_WORKER 2          /* setting A message type */
 
@@ -23,11 +23,11 @@ int main(int argc, char *argv[]) {
   double *B = (double *)malloc(K * ldb * sizeof(double));
   double *C = (double *)malloc(M * ldc * sizeof(double));
   
-  int num_tasks, taskid, rc;  
+  int num_tasks, rank, rc;  
   MPI_Status status;
 
   MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &num_tasks);
   if (num_tasks < 2) {
     printf("Need at least two MPI tasks. Quitting...\n");
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
   }
 
   /**************************** master task ************************************/
-  if (taskid == MASTER) {
+  if (rank == MASTER) {
     int num_workers = num_tasks - 1;
     printf("Start with %d tasks.\n", num_tasks);
     printf("Initializing arrays...\n");
@@ -54,6 +54,8 @@ int main(int argc, char *argv[]) {
     int offset = 0;
     // rows of matrix A sent to each worker.
     int rows; 
+    
+    double t = MPI_Wtime();
     for (int dest = 1; dest <= num_workers; dest++) {
       rows = (dest <= extra) ? averow + 1 : averow;
       printf("Sending %d rows to task %d offset=%d\n", rows, dest, offset);
@@ -72,9 +74,10 @@ int main(int argc, char *argv[]) {
       MPI_Recv(C+offset*ldc, rows*ldc, MPI_DOUBLE, source, TAG_FROM_WORKER, MPI_COMM_WORLD, &status);
       printf("Received results from task %d\n", source);
     }
-
+    
     /* Print results */
     printf("******************************************************\n");
+    printf("That tooks %f seconds\n", MPI_Wtime() - t);
     printf("Result Matrix:\n");
     for (int i = 0; i < M; i++) {
       printf("\n");
@@ -86,7 +89,7 @@ int main(int argc, char *argv[]) {
   }
 
   /**************************** worker task ************************************/
-  if (taskid != MASTER) {
+  if (rank != MASTER) {
     int offset, rows;
     MPI_Recv(&offset, 1, MPI_INT, MASTER, TAG_FROM_MASTER, MPI_COMM_WORLD, &status);
     MPI_Recv(&rows, 1, MPI_INT, MASTER, TAG_FROM_MASTER, MPI_COMM_WORLD, &status);
@@ -104,6 +107,7 @@ int main(int argc, char *argv[]) {
     MPI_Send(&rows, 1, MPI_INT, MASTER, TAG_FROM_WORKER, MPI_COMM_WORLD);
     MPI_Send(C, rows*ldc, MPI_DOUBLE, MASTER, TAG_FROM_WORKER, MPI_COMM_WORLD);
   }
+
   MPI_Finalize();
   
   if(A) free(A);

@@ -21,7 +21,8 @@ int main(int argc, char *argv[]) {
 
   // Get the hostname of each process.
   MPI_Get_processor_name(hostname, &len);
-  printf ("Number of tasks= %d My rank= %d Running on %s\n", num_tasks, rank, hostname);
+  printf ("Number of tasks= %d My rank= %d Running on %s\n", 
+          num_tasks, rank, hostname);
 
   // Clean up the environment.   
   MPI_Finalize();
