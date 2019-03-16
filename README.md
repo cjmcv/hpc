@@ -48,8 +48,13 @@
 
 ### MPI
 * [alg_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/mpi/alg_matrix_multiply.cpp) ： gemm: C = A * B.
+* [base_broadcast_scatter_gather](https://github.com/cjmcv/hpc/blob/master/mpi/base_broadcast_scatter_gather.cpp) ： Record the basic usage of Bcast, Scatter, Gather and Allgather.
+* [base_group](https://github.com/cjmcv/hpc/blob/master/mpi/base_group.cpp) ： Group communication.
 * [base_hello_world](https://github.com/cjmcv/hpc/blob/master/mpi/base_hello_world.cpp) ： Environment Management Routines.
+* [base_reduce_alltoall_scan](https://github.com/cjmcv/hpc/blob/master/mpi/base_reduce_alltoall_scan.cpp) ： Record the basic usage of Reduce, Allreduce, Alltoall, Scan and Exscan.
 * [base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/base_send_recv.cpp) ： Record the basic usage of MPI_Send/MPI_Recv and MPI_ISend/MPI_IRecv.
+* [base_type_contiguous](https://github.com/cjmcv/hpc/blob/master/mpi/base_type_contiguous.cpp) ： Send and receive custom types of data by using MPI_Type_contiguous.
+* [base_type_struct](https://github.com/cjmcv/hpc/blob/master/mpi/base_type_struct.cpp) ： Send and receive custom types of data by using MPI_Type_struct
 * [py_base_broadcast_scatter_gather](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_broadcast_scatter_gather.py) ： Record the basic usage of Bcast, Scatter, Gather and Allgather.
 * [py_base_reduce_scan](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_reduce_scan.py) ： Record the basic usage of Reduce and Scan.
 * [py_base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_send_recv.py) ： Record the basic usage of Send and Recv.
