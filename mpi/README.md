@@ -9,7 +9,8 @@ MPI primarily addresses the message-passing parallel programming model: data is 
 sudo apt-get install libopenmpi-dev openmpi-bin openmpi-doc
 
 ## Run
-Compile: mpicxx mpi_hello.cpp -o mpi_hello OR mpicc mpi_hello.c -o mpi_hello
+Compile: mpicxx mpi_hello.cpp -o mpi_hello  OR  mpicc mpi_hello.c -o mpi_hello
+
 Execute: mpirun -allow-run-as-root -np 5 mpi_hello 
 
 # mpi4py - MPI for Python
@@ -18,6 +19,7 @@ mpi4py provides Python bindings for the Message Passing Interface (MPI) standard
 
 ## Install based on openmpi
 Install OpenMPI: sudo apt-get install libopenmpi-dev openmpi-bin openmpi-doc
+
 Install mpi4py : sudo pip install mpi4py
 
 ## Run 
