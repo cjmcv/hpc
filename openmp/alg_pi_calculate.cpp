@@ -1,5 +1,5 @@
 /*!
-* \brief Calculate PI using parallel and for reduction.
+* \brief Calculate PI using parallel, for and reduction.
 */
 
 #include <omp.h>
@@ -8,7 +8,10 @@
 #include <stdlib.h>
 #include <ctime>
 
-#define random(x) ((rand()%(x*2))*1.0 - x) / x;
+#include <random>
+
+// C: Output[-1, 1]
+#define random() ((rand()%(200))*1.0 - 100) / 100;
 
 int main() {
 
@@ -16,6 +19,12 @@ int main() {
   double r = 1.0;   // radius of circle. Side of squrare is 2*r   
   double x, y, test, circ_count;
  
+  /// Generate random numbers using C++, but it is slower than using C.
+  //std::uniform_real_distribution<double> uniform_rand(-1.0, 1.0);
+  //std::mt19937 rng;
+  //rng.seed(std::random_device{}());
+  //double generated_number = uniform_rand(rng);
+
   printf("num_trials = %d\n", num_trials);
 
   printf("Serial version: \n");
@@ -25,9 +34,8 @@ int main() {
 
     clock_t wtime = clock();
     for (long i = 0; i < num_trials; i++) {
-      // Output[-1, 1]
-      x = random(1000);
-      y = random(1000);
+      x = random(); // Or use uniform_rand(rng).
+      y = random();
       test = x*x + y*y;
       if (test <= r*r) circ_count++;
     }
@@ -50,9 +58,8 @@ int main() {
 
       #pragma omp for reduction(+:circ_count) private(x,y,test)
       for (long i = 0; i < num_trials; i++) {
-        // Output[-1, 1]
-        x = random(1000);
-        y = random(1000);
+        x = random();
+        y = random();
         test = x*x + y*y;
         if (test <= r*r) circ_count++;
       }
