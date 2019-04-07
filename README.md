@@ -66,6 +66,16 @@
 * [alg_vector_add](https://github.com/cjmcv/hpc/blob/master/opencl/alg_vector_add.cpp) ： Vector addition: C = A + B.
 * [base_platform_info](https://github.com/cjmcv/hpc/blob/master/opencl/base_platform_info.cpp) ： Query OpenCL platform information.
 
+### OpenMP
+* [alg_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/openmp/alg_matrix_multiply.cpp) ： gemm: C = A * B.
+* [alg_pi_calculate](https://github.com/cjmcv/hpc/blob/master/openmp/alg_pi_calculate.cpp) ： Calculate PI using parallel, for and reduction.
+* [base_flush](https://github.com/cjmcv/hpc/blob/master/openmp/base_flush.cpp) ： Records the basic usage of flush.
+* [base_mutex](https://github.com/cjmcv/hpc/blob/master/openmp/base_mutex.cpp) ： Mutex operation in openmp, including critical, atomic, lock.
+* [base_parallel_for](https://github.com/cjmcv/hpc/blob/master/openmp/base_parallel_for.cpp) ： Parallel and For.
+* [base_schedule](https://github.com/cjmcv/hpc/blob/master/openmp/base_schedule.cpp) ： Records the basic usage of schedule.
+* [base_sections_single](https://github.com/cjmcv/hpc/blob/master/openmp/base_sections_single.cpp) ： Records the basic usage of Sections and Single.
+* [base_synchronous](https://github.com/cjmcv/hpc/blob/master/openmp/base_synchronous.cpp) ： Synchronous operation in openmp, including barrier, ordered and master.
+
 ### TBB
 * [base_allocator](https://github.com/cjmcv/hpc/blob/master/tbb/base_allocator.cpp) ： The basic use of allocator.
 * [base_atomic](https://github.com/cjmcv/hpc/blob/master/tbb/base_atomic.cpp) ： The basic use of atomic.
