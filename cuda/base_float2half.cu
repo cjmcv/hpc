@@ -2,9 +2,9 @@
 * \brief Record the basic usage of float2half.
 */
 #include <iostream>
-#include <cuda_runtime.h>
-#include "device_launch_parameters.h"
 #include <cuda_fp16.h>
+#include "cuda_util.h"
+
 
 // Taken from:
 // https://github.com/dmlc/mshadow/blob/master/mshadow/half.h
@@ -54,6 +54,24 @@ uint16_t float2half(const float& value) {
   return v.ui | sign;
 }
 
+float half2float(const uint16_t& value) {
+  Bits v;
+  v.ui = value;
+  int32_t sign = v.si & signC;
+  v.si ^= sign;
+  sign <<= shiftSign;
+  v.si ^= ((v.si + minD) ^ v.si) & -(v.si > subC);
+  v.si ^= ((v.si + maxD) ^ v.si) & -(v.si > maxC);
+  Bits s;
+  s.si = mulC;
+  s.f *= v.si;
+  int32_t mask = -(norC > v.si);
+  v.si <<= shift;
+  v.si ^= (s.si ^ v.si) & mask;
+  v.si |= sign;
+  return v.f;
+}
+
 // Annotation:
 // \function, unsigned short __float2half_rn(float x);  -->  device_functions.h
 //   It was already presented in CUDA before CUDA 7.5.
@@ -79,26 +97,26 @@ uint16_t float2half(const float& value) {
 __global__ void ConvertTest() {
   const float flt_in = 1.1234;
 
-  //unsigned short res = __float2half_rn(flt_in);
-  half res = __float2half(flt_in);  
-  printf("Device version, half: %hu\n", res);
+  half res_h = __float2half(flt_in);  
+  printf("Device version, float -> half: %f -> %hu\n", flt_in, res_h);
 
-  half2 res2 = __float2half2_rn(flt_in);
-  printf("Device version, half2: %d\n", res2);
+  half2 res_h2 = __float2half2_rn(flt_in);
+  printf("Device version, float -> half2: %f -> (x: %d, y: %d)\n", res_h2.x, res_h2.y);
 
-  int high_half = res2.x >> 16;
-  printf("Device version, high_half of half2: %d\n", high_half);
-
-  int low_half = res2.x << 16;
-  low_half = low_half >> 16;
-  printf("Device version, low_half of half2: %d\n", low_half);
+  float res_f = __half2float(res_h);
+  printf("Device version, half -> float: %hu -> %f\n", res_h, res_f);
 }
 
 int main() {
   ConvertTest << <1, 1 >> >();
   cudaDeviceSynchronize();
 
-  unsigned short res = float2half(1.1234);
-  printf("Host version, half: %hu\n", res);
+  float flt_in = 1.1234;
+  unsigned short res_h = float2half(1.1234);
+  printf("Host version, float -> half: %f -> %hu\n", flt_in, res_h);
+  float res_f = half2float(res_h);
+  printf("Host version, half -> float: %hu -> %f\n", res_h, res_f);
+
+  float2 a;
   return 0;
 }

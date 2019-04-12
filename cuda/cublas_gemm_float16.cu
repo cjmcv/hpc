@@ -1,6 +1,6 @@
 /*!
 * \brief gemm: C = A * B.
-*        Use cublas with half.
+*        Use cublas with half. -> cublas.lib.
 */
 
 #include "cuda_util.h"
