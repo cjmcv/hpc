@@ -6,13 +6,6 @@
 * [base_hello_world](https://github.com/cjmcv/hpc/blob/master/coroutine/asyncio/base_hello_world.py)： Hello world. Record the basic usage of async, await and loop.
 * [base_loop_chain](https://github.com/cjmcv/hpc/blob/master/coroutine/asyncio/base_loop_chain.py)： Executes nested coroutines.
 
-### CPP11-MT
-* [alg_vector_dot_product](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/alg_vector_dot_product.cpp)： Vector dot product: h_result = SUM(A * B). Record the basic usage of std::tread and std::sync.
-* [base_async](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/base_async.cpp)： Record the basic usage of std::async.
-* [util_blocking_queue](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_blocking_queue.cpp)： Blocking queue. Mainly implemented by thread, queue and condition_variable.
-* [util_internal_thread](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_internal_thread.cpp)： Internal Thread. Mainly implemented by thread.
-* [util_thread_pool](https://github.com/cjmcv/hpc/tree/master/cpp11-mt/util_thread_pool.cpp)： Thread Pool. Mainly implemented by thread, queue, future and condition_variable.
-
 ### CUDA
 * [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
 * [alg_histogram](https://github.com/cjmcv/hpc/blob/master/cuda/alg_histogram.cu) ： histogram, mainly introduce atomicAdd.
@@ -92,5 +85,12 @@
 * [base_parallel_sort](https://github.com/cjmcv/hpc/blob/master/tbb/base_parallel_sort.cpp) ： The basic use of base_parallel_sort.
 * [base_task_scheduler](https://github.com/cjmcv/hpc/blob/master/tbb/base_task_scheduler.cpp) ： The basic use of base_task_scheduler.
 * [count_strings](https://github.com/cjmcv/hpc/blob/master/tbb/count_strings.cpp) ： Count strings. Use the concurrent_hash_map.
+
+### Thread
+* [alg_vector_dot_product](https://github.com/cjmcv/hpc/tree/master/thread/cpp11/alg_vector_dot_product.cpp)： Vector dot product: h_result = SUM(A * B). Record the basic usage of std::tread and std::sync.
+* [base_async](https://github.com/cjmcv/hpc/tree/master/thread/cpp11/base_async.cpp)： Record the basic usage of std::async.
+* [util_blocking_queue](https://github.com/cjmcv/hpc/tree/master/thread/cpp11/util_blocking_queue.cpp)： Blocking queue. Mainly implemented by thread, queue and condition_variable.
+* [util_internal_thread](https://github.com/cjmcv/hpc/tree/master/thread/cpp11/util_internal_thread.cpp)： Internal Thread. Mainly implemented by thread.
+* [util_thread_pool](https://github.com/cjmcv/hpc/tree/master/thread/cpp11/util_thread_pool.cpp)： Thread Pool. Mainly implemented by thread, queue, future and condition_variable.
 
 ---
