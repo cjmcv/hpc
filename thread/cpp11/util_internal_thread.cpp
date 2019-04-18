@@ -5,8 +5,6 @@
 
 #include <iostream>
 #include <thread>
-#include <queue>
-#include <windows.h>
 
 class InternalThread {
 public:
@@ -84,7 +82,7 @@ private:
   void EntryInnerThread() {
     while (!must_stop()) {
       std::cout << "0";
-      Sleep(2);
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
   }
 };
@@ -94,9 +92,9 @@ int main() {
   bool ret = test.StartInnerThread();
   std::cout << "Start: " << ((ret == true) ? "Succeeded" : "Failed") << std::endl;
 
-  for (int i = 0; i < 1000; i++) {
+  for (int i = 0; i < 100; i++) {
     std::cout << "1";
-    Sleep(1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   std::cout << std::endl << "End." << std::endl;
