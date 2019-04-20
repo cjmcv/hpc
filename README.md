@@ -1,23 +1,22 @@
 ## A collection of practical code for high performance computing.
 
-.
-+-- distributed
-|   +-- [mpi](https://github.com/cjmcv/hpc/tree/master/mpi)
-+-- stand-alone
-|   +-- heterogeneous computing
-|   |   +-- [cuda](https://github.com/cjmcv/hpc/tree/master/cuda)
-|   |   +-- [vulkan]
-|   |   +-- [opencl](https://github.com/cjmcv/hpc/tree/master/opencl)
-|   +-- thread
-|   |   +-- [std::thread](https://github.com/cjmcv/hpc/tree/master/thread/cpp11)
-|   |   +-- [openmp](https://github.com/cjmcv/hpc/tree/master/openmp)
-|   |   +-- [tbb](https://github.com/cjmcv/hpc/tree/master/tbb)
-|   +-- coroutines
-|   |   +-- [libco](https://github.com/cjmcv/hpc/tree/master/coroutine/libco)
-|   |   +-- [asyncio](https://github.com/cjmcv/hpc/tree/master/coroutine/asyncio)
-|   +-- simd
-|   |   +-- [sse/avx](https://github.com/cjmcv/hpc/tree/master/intel-simd)
-|   |   +-- [neon]
+> distributed
+>> [mpi](https://github.com/cjmcv/hpc/tree/master/mpi)
+> stand-alone
+>> heterogeneous computing
+>>> [cuda](https://github.com/cjmcv/hpc/tree/master/cuda)
+>>> [vulkan]
+>>> [opencl](https://github.com/cjmcv/hpc/tree/master/opencl)
+>> thread
+>>> [std::thread](https://github.com/cjmcv/hpc/tree/master/thread/cpp11)
+>>> [openmp](https://github.com/cjmcv/hpc/tree/master/openmp)
+>>> [tbb](https://github.com/cjmcv/hpc/tree/master/tbb)
+>> coroutines
+>>> [libco](https://github.com/cjmcv/hpc/tree/master/coroutine/libco)
+>>> [asyncio](https://github.com/cjmcv/hpc/tree/master/coroutine/asyncio)
+>> simd
+>>> [sse/avx](https://github.com/cjmcv/hpc/tree/master/intel-simd)
+>>> [neon]
 
 ---
 ### Coroutine
