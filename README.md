@@ -1,5 +1,6 @@
 ## A collection of practical code for high performance computing.
 
+.
 +-- distributed
 |   +-- [mpi](https://github.com/cjmcv/hpc/tree/master/mpi)
 +-- stand-alone
