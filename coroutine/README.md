@@ -11,17 +11,18 @@ asyncio is often a perfect fit for IO-bound and high-level structured network co
 Note: Python introduced the concept of coroutines in 3.4, and 3.5 defined the syntax for coroutines.
 
 * Version: 3.5
-* [Doc1](https://docs.python.org/3/library/asyncio.html)
-* [Doc2](https://docs.python.org/3.5/library/asyncio-task.html)
+* [Documentation 1](https://docs.python.org/3/library/asyncio.html)
+* [Documentation 2](https://docs.python.org/3.5/library/asyncio-task.html)
 
 ## cpp20
 Coroutine will be added to C++20 as a standard in 2020.
-* [Reference1](https://www.oschina.net/news/104653/201902-kona-iso-c-committee-trip-report-c20)
-* [Reference2](https://en.cppreference.com/w/cpp/language/coroutines)
+* [C++20 最新进展](https://www.oschina.net/news/104653/201902-kona-iso-c-committee-trip-report-c20)
+* [cppreference](https://en.cppreference.com/w/cpp/language/coroutines)
 
 ## libco (C++)
 libco is a coroutine library which is widely used in wechat back-end service. It has been running on tens of thousands of machines since 2013.
 * Version: Clone from github on 2019.4.1
 * [Github](https://github.com/Tencent/libco)
-
+* [C/C++协程库libco：微信怎样漂亮地完成异步化改造](https://www.open-open.com/lib/view/open1481699603028.html)
+* [Closure源代码分析](https://blog.csdn.net/MakeZero/article/details/80552509)
 ---
