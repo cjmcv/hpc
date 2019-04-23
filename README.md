@@ -1,39 +1,26 @@
 ## A collection of practical code for high performance computing.
 
 > distributed
-
->> [mpi](https://github.com/cjmcv/hpc/tree/master/mpi)
+>> [mpi/mpi4py](https://github.com/cjmcv/hpc/tree/master/mpi)
 
 > stand-alone
-
 >> heterogeneous computing
-
->>> [cuda](https://github.com/cjmcv/hpc/tree/master/cuda)
-
->>> [vulkan]
-
->>> [opencl](https://github.com/cjmcv/hpc/tree/master/opencl)
+>>> * [cuda](https://github.com/cjmcv/hpc/tree/master/cuda)
+>>> * [vulkan]
+>>> * [opencl](https://github.com/cjmcv/hpc/tree/master/opencl)
 
 >> thread
-
->>> [std::thread](https://github.com/cjmcv/hpc/tree/master/thread/cpp11)
-
->>> [openmp](https://github.com/cjmcv/hpc/tree/master/openmp)
-
->>> [tbb](https://github.com/cjmcv/hpc/tree/master/tbb)
+>>> * [std::thread](https://github.com/cjmcv/hpc/tree/master/thread/cpp11)
+>>> * [openmp](https://github.com/cjmcv/hpc/tree/master/openmp)
+>>> * [tbb](https://github.com/cjmcv/hpc/tree/master/tbb)
 
 >> coroutines
-
->>> [libco](https://github.com/cjmcv/hpc/tree/master/coroutine/libco)
-
->>> [asyncio](https://github.com/cjmcv/hpc/tree/master/coroutine/asyncio)
+>>> * [libco](https://github.com/cjmcv/hpc/tree/master/coroutine/libco)
+>>> * [asyncio](https://github.com/cjmcv/hpc/tree/master/coroutine/asyncio)
 
 >> simd
-
->>> [sse/avx](https://github.com/cjmcv/hpc/tree/master/intel-simd)
-
->>> [neon]
-
+>>> * [sse/avx](https://github.com/cjmcv/hpc/tree/master/intel-simd)
+>>> * [neon]
 ---
 
 ### Coroutine
@@ -70,11 +57,6 @@
 * [thrust_transformations](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_transformations.cu) ： Some of the parallel vector operations in Thrust.
 * [thrust_vector](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_vector.cu) ： Record the basic usage of Vector in Thrust.
 
-### Intel-SIMD
-* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/intel-simd/matrix_multiply.cpp) ： Matrix Multiplication.
-* [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/intel-simd/vector_dot_product.cpp) ： Vector dot product: result = SUM(A * B).
-* [vector_scan](https://github.com/cjmcv/hpc/blob/master/intel-simd/vector_scan.cpp) ： Scan. Prefix Sum.
-
 ### LLVM
 * [fibonacci](https://github.com/cjmcv/hpc/blob/master/llvm/fibonacci.cpp) ： An example of how to build quickly a small module with function Fibonacci and execute it with the JIT.
 
@@ -107,6 +89,11 @@
 * [base_schedule](https://github.com/cjmcv/hpc/blob/master/openmp/base_schedule.cpp) ： Records the basic usage of schedule.
 * [base_sections_single](https://github.com/cjmcv/hpc/blob/master/openmp/base_sections_single.cpp) ： Records the basic usage of Sections and Single.
 * [base_synchronous](https://github.com/cjmcv/hpc/blob/master/openmp/base_synchronous.cpp) ： Synchronous operation in openmp, including barrier, ordered and master.
+
+### SIMD
+* [x86_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_multiply.cpp) ： Matrix Multiplication.
+* [x86_vector_dot_product](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_dot_product.cpp) ： Vector dot product: result = SUM(A * B).
+* [x86_vector_scan](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_scan.cpp) ： Scan. Prefix Sum.
 
 ### TBB
 * [base_allocator](https://github.com/cjmcv/hpc/blob/master/tbb/base_allocator.cpp) ： The basic use of allocator.
