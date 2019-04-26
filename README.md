@@ -6,7 +6,7 @@
 > stand-alone
 >> heterogeneous computing
 >>> * [cuda](https://github.com/cjmcv/hpc/tree/master/cuda)
->>> * [vulkan]
+>>> * [vulkan](https://github.com/cjmcv/hpc/tree/master/vulkan)
 >>> * [opencl](https://github.com/cjmcv/hpc/tree/master/opencl)
 
 >> thread
