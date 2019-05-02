@@ -25,81 +25,22 @@ public:
 
   int device_count() const { return device_count_; }
   vk::Device device() const { return device_; }
+  vk::PhysicalDevice phys_device() const { return phys_devices_[0]; } // TODO
+
   // TODO: Use string to get.
   vk::ShaderModule shader() const { return shader_; }
+  uint32_t compute_queue_familly_id() const { return compute_queue_familly_id_; }
 
-  int Initialize(bool is_enable_validation) {
-    std::vector<const char*> layers = std::vector<const char*>{};
-    std::vector<const char*> extensions = std::vector<const char*>{};
-    if (is_enable_validation) {
-      // "=" in vector is deep copy.
-      layers = EnabledLayers({ "VK_LAYER_LUNARG_standard_validation" });
-      extensions = EnabledExtensions({ VK_EXT_DEBUG_REPORT_EXTENSION_NAME });
-    }
-
-    CreateInstance(layers, extensions);
-    SearchPhysicalDevices();
-    CreateDevice();
-
-    // TODO: move to other place.
-    CreateShaderModule("src/shaders/saxpy.spv");
-
-    return 0;
-  }
+  int Initialize(bool is_enable_validation);
 
   int CreateInstance(std::vector<const char*> &layers,
-                     std::vector<const char*> &extensions) {
+    std::vector<const char*> &extensions);
 
-    auto app_info = vk::ApplicationInfo("Example Filter", 0, "no_engine",
-      0, VK_API_VERSION_1_0); // The only important field here is apiVersion
-    auto create_info = vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &app_info,
-      ARR_VIEW(layers), ARR_VIEW(extensions));
+  int SearchPhysicalDevices();
 
-    instance_ = vk::createInstance(create_info);
-    return 0;
-  }
+  int CreateDevice(int device_id = 0);
 
-  int SearchPhysicalDevices() {
-    vkEnumeratePhysicalDevices(instance_, &device_count_, NULL);
-    if (device_count_ == 0) {
-      throw std::runtime_error("could not find a device with vulkan support");
-    }
-    phys_devices_.resize(device_count_);
-    instance_.enumeratePhysicalDevices(&device_count_, phys_devices_.data());
-
-    return 0;
-  }
-
-  int CreateDevice(int device_id = 0) {
-    compute_queue_familly_id_ = GetComputeQueueFamilyId(phys_devices_[device_id]);
-
-    // create logical device_ to interact with the physical one
-    // When creating the device specify what queues it has
-    // TODO: when physical device is a discrete gpu, transfer queue needs to be included
-    auto p = float(1.0); // queue priority
-    auto queue_create_info = vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id_, 1, &p);
-    auto device_create_info = vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//ARR_VIEW(layers_)
-    device_ = phys_devices_[device_id].createDevice(device_create_info, nullptr);
-  }
-
-  int CreateShaderModule(const char* filename) {
-    // Read binary shader_ file into array of uint32_t. little endian assumed.
-    auto fin = std::ifstream(filename, std::ios::binary);
-    if (!fin.is_open()) {
-      throw std::runtime_error(std::string("could not open file ") + filename);
-    }
-    auto code = std::vector<char>(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
-    // Padded by 0s to a boundary of 4.
-    code.resize(4 * div_up(code.size(), size_t(4)));
-
-    vk::ShaderModuleCreateFlags flags = vk::ShaderModuleCreateFlags();
-    auto shader_module_create_info = vk::ShaderModuleCreateInfo(flags, code.size(),
-      reinterpret_cast<uint32_t*>(code.data()));
-
-    shader_ = device_.createShaderModule(shader_module_create_info);
-
-    return 0;
-  }
+  int CreateShaderModule(const char* filename);
 
 public: //private
   /// filter list of desired extensions to include only those supported by current Vulkan instance.
@@ -181,37 +122,6 @@ public:  //private
 
 }; // class Device
 
-class Command {
-public:
-
-  //, uint32_t queue_index
-  Command() {
-
-  }
-
-  ~Command() {
-
-  }
-
-  int Initialize(const DeviceManager* device_manager) {
-    vk::DescriptorPoolSize descriptor_pool_size =
-      vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, NumDescriptors);
-    vk::DescriptorPoolCreateInfo descriptor_pool_create_info =
-      vk::DescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlags(), 1, 1, &descriptor_pool_size);
-    dsc_pool_ = device_manager->device().createDescriptorPool(descriptor_pool_create_info);
-
-    auto command_pool = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), device_manager->compute_queue_familly_id_);
-    cmd_pool_ = device_manager->device().createCommandPool(command_pool);
-
-  }
-
-private:
-  mutable vk::DescriptorPool dsc_pool_;  // descriptors pool
-  vk::CommandPool cmd_pool_;             // used to allocate command buffers
-
-
-}; // class Command
-
 // C++ mirror of the shader push constants interface
 struct PushParams {
   uint32_t width;  //< frame width
@@ -222,15 +132,24 @@ struct PushParams {
 class Pipeline {
 
 public:
+  Pipeline(const DeviceManager* device_manager) {  
+    devm_ = device_manager;
 
-
-  Pipeline(const DeviceManager* device_manager) {
     local_shader_module_ = nullptr;
-    descriptorset_layout_ = nullptr;
+    descriptor_set_layout_ = nullptr;
     pipeline_layout_ = nullptr;
     pipeline_ = nullptr;
+  }
 
-    devm_ = device_manager;
+  vk::PipelineLayout pipeline_layout() const{ return pipeline_layout_; }
+  vk::Pipeline pipeline() const { return pipeline_; }
+  vk::DescriptorSetLayout descriptor_set_layout() const { return descriptor_set_layout_; }
+
+  int Initialize() {
+    CreateDescriptorsetLayout();
+    CreatePipelineLayout();
+
+    return 0;
   }
 
   int CreateDescriptorsetLayout() {
@@ -240,7 +159,7 @@ public:
       }};
     auto create_info = vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags()
       , ARR_VIEW(bind_layout));
-    descriptorset_layout_ = devm_->device().createDescriptorSetLayout(create_info);
+    descriptor_set_layout_ = devm_->device().createDescriptorSetLayout(create_info);
 
     return 0;
   }
@@ -248,9 +167,9 @@ public:
   int CreatePipelineLayout() {
     auto push_const_range = vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute,
       0, sizeof(PushParams));
-    auto pipeline_layoutCI = vk::PipelineLayoutCreateInfo(vk::PipelineLayoutCreateFlags(),
-      1, &descriptorset_layout_, 1, &push_const_range);
-    pipeline_layout_ = devm_->device().createPipelineLayout(pipeline_layoutCI);
+    auto pipe_layout_create_info = vk::PipelineLayoutCreateInfo(vk::PipelineLayoutCreateFlags(),
+      1, &descriptor_set_layout_, 1, &push_const_range);
+    pipeline_layout_ = devm_->device().createPipelineLayout(pipe_layout_create_info);
 
     return 0;
   }
@@ -287,33 +206,156 @@ private:
   const DeviceManager* devm_;
 
   vk::ShaderModule local_shader_module_; 
-  vk::DescriptorSetLayout descriptorset_layout_; // c++ definition of the shader binding interface
-  vk::PipelineLayout pipeline_layout_;
+  vk::DescriptorSetLayout descriptor_set_layout_; // c++ definition of the shader binding interface
 
+  vk::PipelineLayout pipeline_layout_;
   vk::PipelineCache pipe_cache_;
   vk::Pipeline pipeline_;
 
 }; // class Pipeline
 
-class Operator {
+class Command {
 public:
-  int Initialize() {
 
+  //, uint32_t queue_index
+  Command() {}
+
+  ~Command() {}
+
+  vk::CommandBuffer cmd_buffer() const { return cmd_buffer_; }
+  vk::CommandPool cmd_pool() const { return cmd_pool_; }
+  vk::DescriptorPool descriptor_pool() const { return dsc_pool_; }
+  vk::DescriptorSet descriptor_set() const { return descriptor_set_; }
+
+  int Initialize(const DeviceManager* device_manager) {
+    devm_ = device_manager;
+
+    CreateDescriptorPool();
+
+    auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), devm_->compute_queue_familly_id_);
+    cmd_pool_ = devm_->device().createCommandPool(command_pool_create_info);
+
+    auto alloc_info = vk::CommandBufferAllocateInfo(cmd_pool_, vk::CommandBufferLevel::ePrimary, 1);
+    cmd_buffer_ = devm_->device().allocateCommandBuffers(alloc_info)[0];
+
+    return 0;
+  }
+
+  int CreateDescriptorPool() {
+    vk::DescriptorPoolSize descriptor_pool_size =
+      vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, NumDescriptors);
+    vk::DescriptorPoolCreateInfo descriptor_pool_create_info =
+      vk::DescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlags(), 1, 1, &descriptor_pool_size);
+    dsc_pool_ = devm_->device().createDescriptorPool(descriptor_pool_create_info);
+
+    return 0;
+  }
+
+  vk::SubmitInfo Begin(Pipeline *pipeline, const PushParams& p) {
+
+    ///Create descriptor set.Actually associate buffers to binding points in bindLayout.
+    /// Buffer sizes are specified here as well.
+    auto descriptorSetAI = vk::DescriptorSetAllocateInfo(dsc_pool_, 1, &(pipeline->descriptor_set_layout()));
+    descriptor_set_ = devm_->device().allocateDescriptorSets(descriptorSetAI)[0];
+
+    // Start recording commands into the newly allocated command buffer.
+    // buffer is only submitted and used once
+    auto begin_info = vk::CommandBufferBeginInfo();
+    cmd_buffer_.begin(begin_info);
+
+    // Before dispatch bind a pipeline, AND a descriptor set.
+    // The validation layer will NOT give warnings if you forget those.
+    cmd_buffer_.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline->pipeline());
+    cmd_buffer_.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline->pipeline_layout(),
+      0, { descriptor_set_ }, {});
+
+    cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, ST_VIEW(p));
+
+    // Start the compute pipeline, and execute the compute shader_.
+    // The number of workgroups is specified in the arguments.
+    cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
+    cmd_buffer_.end(); // end recording commands
+
+                       //
+    assert(cmd_buffer_ != vk::CommandBuffer{}); // TODO: this should be a check for a valid command buffer
+    auto submit_info = vk::SubmitInfo(0, nullptr, nullptr, 1, &cmd_buffer_); // submit a single command buffer
+
+    return submit_info;
   }
 
 private:
-  std::vector<Pipeline *> pipes_;
+  const DeviceManager* devm_;
+
+  mutable vk::DescriptorPool dsc_pool_;  // descriptors pool
+  vk::DescriptorSet descriptor_set_;  // TODO: Move to other place.
+  vk::CommandPool cmd_pool_;             // used to allocate command buffers
+  vk::CommandBuffer cmd_buffer_;
+
+}; // class Command
+
+// TODO: Operator -> OperatorA
+//                -> OperatorB
+class OperatorA {
+public:
+  int Initialize(const DeviceManager* device_manager, Command *comd) {
+    devm_ = device_manager;
+    comd_ = comd;
+
+    pipes_ = new Pipeline(device_manager);
+    pipes_->Initialize();
+    return 0;
+  }
+
+  int Run(const vk::Buffer& in, const PushParams& p, vk::Buffer& out) {
+    
+    // TODO: Move ?
+    uint32_t size = p.width*p.height;
+    auto out_info = vk::DescriptorBufferInfo(out, 0, sizeof(float)*size);
+    auto in_info = vk::DescriptorBufferInfo(in, 0, sizeof(float)*size);
+
+    auto writeDsSets = std::array<vk::WriteDescriptorSet, NumDescriptors>{ {
+      { comd_->descriptor_set(), 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &out_info },
+      { comd_->descriptor_set(), 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &in_info }
+      } };
+    devm_->device().updateDescriptorSets(writeDsSets, {});
+
+    ////
+
+    vk::SubmitInfo submit_info = comd_->Begin(pipes_, p);
+                                                                             // submit the command buffer to the queue and set up a fence.
+    auto queue = devm_->device().getQueue(devm_->compute_queue_familly_id(), 0); // 0 is the queue index in the family, by default just the first one is used
+    auto fence = devm_->device().createFence(vk::FenceCreateInfo()); // fence makes sure the control is not returned to CPU till command buffer is depleted
+    queue.submit({ submit_info }, fence);
+    devm_->device().waitForFences({ fence }, true, uint64_t(-1));      // wait for the fence indefinitely
+    devm_->device().destroyFence(fence);
+
+    // UnbindParameters
+    devm_->device().destroyDescriptorPool(comd_->descriptor_pool());
+    devm_->device().resetCommandPool(comd_->cmd_pool(), vk::CommandPoolResetFlags());
+
+    comd_->CreateDescriptorPool();
+
+    return 0;
+  }
+
+private:
+  const DeviceManager* devm_;
+  Command* comd_;
+  // TODO: std::vector<Pipeline *> pipes_;
+  Pipeline *pipes_;
 
 }; // class Operator
 
 class Executor {
 
-  Executor() {
+public:
 
-  }
-  ~Executor() {
+  Executor() {}
+  ~Executor() {}
 
-  }
+  // TODO. move ?
+  vk::Device device() const { return devm_->device(); }
+  vk::PhysicalDevice phys_device() const { return devm_->phys_device(); } // TODO
 
   int Initialize() {
     // Init Device.
@@ -322,20 +364,25 @@ class Executor {
     // Init command.
     comd_ = new Command();
     comd_->Initialize(devm_);
-
     // Init Operators.
+    ops_ = new OperatorA();
+    ops_->Initialize(devm_, comd_);
 
+    return 0;
   }
 
-  int Run(vk::Buffer& out, const vk::Buffer& in, const PushParams& p) {
-    // BindParameters
+  int Run(const vk::Buffer& in, const PushParams& p, vk::Buffer& out) const {
+    ops_->Run(in, p, out);
+
+    return 0;
   }
 
-private:
-  Command *comd_;
-  std::vector<Operator *> ops_;
-
+private: 
   DeviceManager *devm_;
+  Command *comd_;
+
+  // TODO: std::vector<OperatorA *> ops_;
+  OperatorA *ops_;
 
 }; // class Executor
 
