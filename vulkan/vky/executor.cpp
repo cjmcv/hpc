@@ -61,7 +61,7 @@ int DeviceManager::CreateDevice(int device_id) {
 }
 
 int DeviceManager::CreateShaderModule(const char* filename) {
-  // Read binary shader_ file into array of uint32_t. little endian assumed.
+  // Read binary shader file into array of uint32_t. little endian assumed.
   auto fin = std::ifstream(filename, std::ios::binary);
   if (!fin.is_open()) {
     throw std::runtime_error(std::string("could not open file ") + filename);

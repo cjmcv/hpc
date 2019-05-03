@@ -24,6 +24,7 @@ public:
   ~DeviceManager() {}
 
   int device_count() const { return device_count_; }
+
   vk::Device device() const { return device_; }
   vk::PhysicalDevice phys_device() const { return phys_devices_[0]; } // TODO
 
@@ -145,10 +146,15 @@ public:
   vk::Pipeline pipeline() const { return pipeline_; }
   vk::DescriptorSetLayout descriptor_set_layout() const { return descriptor_set_layout_; }
 
+  vk::DescriptorSet descriptor_set() const { return descriptor_set_; }
+  vk::DescriptorPool descriptor_pool() const { return descriptor_pool_; }
+
   int Initialize() {
+    // CreateDescriptorPool();
     CreateDescriptorsetLayout();
     CreatePipelineLayout();
 
+    CreatePipeline();
     return 0;
   }
 
@@ -202,11 +208,31 @@ public:
     return 0;
   }
 
+  int CreateDescriptorPool() {
+    vk::DescriptorPoolSize descriptor_pool_size =
+      vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, NumDescriptors);
+    vk::DescriptorPoolCreateInfo descriptor_pool_create_info =
+      vk::DescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlags(), 1, 1, &descriptor_pool_size);
+    descriptor_pool_ = devm_->device().createDescriptorPool(descriptor_pool_create_info);
+
+    return 0;
+  }
+  int AllocateDescriptorSet() {
+    ///Create descriptor set.Actually associate buffers to binding points in bindLayout.
+    /// Buffer sizes are specified here as well.
+    auto descriptorSetAI = vk::DescriptorSetAllocateInfo(descriptor_pool_, 1, &descriptor_set_layout_);
+    descriptor_set_ = devm_->device().allocateDescriptorSets(descriptorSetAI)[0];
+
+    return 0;
+  }
+
 private:
   const DeviceManager* devm_;
 
   vk::ShaderModule local_shader_module_; 
   vk::DescriptorSetLayout descriptor_set_layout_; // c++ definition of the shader binding interface
+  vk::DescriptorPool descriptor_pool_;  // descriptors pool
+  vk::DescriptorSet descriptor_set_; 
 
   vk::PipelineLayout pipeline_layout_;
   vk::PipelineCache pipe_cache_;
@@ -222,15 +248,10 @@ public:
 
   ~Command() {}
 
-  vk::CommandBuffer cmd_buffer() const { return cmd_buffer_; }
   vk::CommandPool cmd_pool() const { return cmd_pool_; }
-  vk::DescriptorPool descriptor_pool() const { return dsc_pool_; }
-  vk::DescriptorSet descriptor_set() const { return descriptor_set_; }
 
   int Initialize(const DeviceManager* device_manager) {
     devm_ = device_manager;
-
-    CreateDescriptorPool();
 
     auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), devm_->compute_queue_familly_id_);
     cmd_pool_ = devm_->device().createCommandPool(command_pool_create_info);
@@ -241,23 +262,8 @@ public:
     return 0;
   }
 
-  int CreateDescriptorPool() {
-    vk::DescriptorPoolSize descriptor_pool_size =
-      vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, NumDescriptors);
-    vk::DescriptorPoolCreateInfo descriptor_pool_create_info =
-      vk::DescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlags(), 1, 1, &descriptor_pool_size);
-    dsc_pool_ = devm_->device().createDescriptorPool(descriptor_pool_create_info);
-
-    return 0;
-  }
 
   vk::SubmitInfo Begin(Pipeline *pipeline, const PushParams& p) {
-
-    ///Create descriptor set.Actually associate buffers to binding points in bindLayout.
-    /// Buffer sizes are specified here as well.
-    auto descriptorSetAI = vk::DescriptorSetAllocateInfo(dsc_pool_, 1, &(pipeline->descriptor_set_layout()));
-    descriptor_set_ = devm_->device().allocateDescriptorSets(descriptorSetAI)[0];
-
     // Start recording commands into the newly allocated command buffer.
     // buffer is only submitted and used once
     auto begin_info = vk::CommandBufferBeginInfo();
@@ -267,7 +273,7 @@ public:
     // The validation layer will NOT give warnings if you forget those.
     cmd_buffer_.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline->pipeline());
     cmd_buffer_.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline->pipeline_layout(),
-      0, { descriptor_set_ }, {});
+      0, { pipeline->descriptor_set() }, {});
 
     cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, ST_VIEW(p));
 
@@ -276,7 +282,6 @@ public:
     cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
     cmd_buffer_.end(); // end recording commands
 
-                       //
     assert(cmd_buffer_ != vk::CommandBuffer{}); // TODO: this should be a check for a valid command buffer
     auto submit_info = vk::SubmitInfo(0, nullptr, nullptr, 1, &cmd_buffer_); // submit a single command buffer
 
@@ -286,8 +291,6 @@ public:
 private:
   const DeviceManager* devm_;
 
-  mutable vk::DescriptorPool dsc_pool_;  // descriptors pool
-  vk::DescriptorSet descriptor_set_;  // TODO: Move to other place.
   vk::CommandPool cmd_pool_;             // used to allocate command buffers
   vk::CommandBuffer cmd_buffer_;
 
@@ -308,14 +311,17 @@ public:
 
   int Run(const vk::Buffer& in, const PushParams& p, vk::Buffer& out) {
     
+    pipes_->CreateDescriptorPool();
+
+    pipes_->AllocateDescriptorSet();
     // TODO: Move ?
     uint32_t size = p.width*p.height;
     auto out_info = vk::DescriptorBufferInfo(out, 0, sizeof(float)*size);
     auto in_info = vk::DescriptorBufferInfo(in, 0, sizeof(float)*size);
 
     auto writeDsSets = std::array<vk::WriteDescriptorSet, NumDescriptors>{ {
-      { comd_->descriptor_set(), 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &out_info },
-      { comd_->descriptor_set(), 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &in_info }
+      { pipes_->descriptor_set(), 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &out_info },
+      { pipes_->descriptor_set(), 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &in_info }
       } };
     devm_->device().updateDescriptorSets(writeDsSets, {});
 
@@ -330,10 +336,8 @@ public:
     devm_->device().destroyFence(fence);
 
     // UnbindParameters
-    devm_->device().destroyDescriptorPool(comd_->descriptor_pool());
+    devm_->device().destroyDescriptorPool(pipes_->descriptor_pool());
     devm_->device().resetCommandPool(comd_->cmd_pool(), vk::CommandPoolResetFlags());
-
-    comd_->CreateDescriptorPool();
 
     return 0;
   }
