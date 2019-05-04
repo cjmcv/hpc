@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <map>
 
 #include <vulkan/vulkan.hpp>
 
@@ -29,7 +30,7 @@ public:
   vk::PhysicalDevice phys_device() const { return phys_devices_[0]; } // TODO
 
   // TODO: Use string to get.
-  vk::ShaderModule shader() const { return shader_; }
+  vk::ShaderModule shader(std::string str = "saxpy") const { return shaders_map_.find(str)->second; }
   uint32_t compute_queue_familly_id() const { return compute_queue_familly_id_; }
 
   int Initialize(bool is_enable_validation);
@@ -41,9 +42,10 @@ public:
 
   int CreateDevice(int device_id = 0);
 
-  int CreateShaderModule(const char* filename);
+private:
 
-public: //private
+  vk::ShaderModule CreateShaderModule(const char* filename);
+
   /// filter list of desired extensions to include only those supported by current Vulkan instance.
   std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const {
     auto ret = std::vector<const char*>{};
@@ -79,7 +81,7 @@ public: //private
   }
 
   /// @return the index of a queue family that supports compute operations.
-  /// Groups of queues that have the same capabilities (for instance_, they all supports graphics
+  /// Groups of queues that have the same capabilities (for instance, they all supports graphics
   /// and computer operations), are grouped into queue families.
   /// When submitting a command buffer, you must specify to which queue in the family you are submitting to.
   uint32_t GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const {
@@ -109,7 +111,7 @@ public: //private
   }
 
 
-public:  //private
+private:
   uint32_t device_id_;
   uint32_t compute_queue_familly_id_;
   vk::Instance instance_;
@@ -119,10 +121,13 @@ public:  //private
   // TODO: list for multi-devices.
   vk::Device device_;               // logical device providing access to a physical one     
   // TODO: list for multi-shaders.
-  vk::ShaderModule shader_;
+  // Use string to search it.
+  //vk::ShaderModule shader_;
+  std::map<std::string, vk::ShaderModule> shaders_map_;
 
 }; // class Device
 
+// TODO: Remove it.
 // C++ mirror of the shader push constants interface
 struct PushParams {
   uint32_t width;  //< frame width
@@ -144,24 +149,21 @@ public:
 
   vk::PipelineLayout pipeline_layout() const{ return pipeline_layout_; }
   vk::Pipeline pipeline() const { return pipeline_; }
-  vk::DescriptorSetLayout descriptor_set_layout() const { return descriptor_set_layout_; }
 
   vk::DescriptorSet descriptor_set() const { return descriptor_set_; }
   vk::DescriptorPool descriptor_pool() const { return descriptor_pool_; }
 
   int Initialize() {
-    // CreateDescriptorPool();
     CreateDescriptorsetLayout();
     CreatePipelineLayout();
-
     CreatePipeline();
     return 0;
   }
 
   int CreateDescriptorsetLayout() {
     auto bind_layout = std::array<vk::DescriptorSetLayoutBinding, NumDescriptors>{ {
-      {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute}
-      , { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute }
+      { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute }, 
+      { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute }
       }};
     auto create_info = vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags()
       , ARR_VIEW(bind_layout));
@@ -181,12 +183,12 @@ public:
   }
 
   // TODO: std::string shader_name 
-  // Create compute pipeline consisting of a single stage with compute shader_.
+  // Create compute pipeline consisting of a single stage with compute shader.
   // Specialization constants specialized here.
   int CreatePipeline() {
     pipe_cache_ = devm_->device().createPipelineCache(vk::PipelineCacheCreateInfo());
 
-    // specialize constants of the shader_
+    // specialize constants of the shader
     auto specEntries = std::array<vk::SpecializationMapEntry, 2>{
       { {0, 0, sizeof(int)}, { 1, 1 * sizeof(int), sizeof(int) }}
     };
@@ -253,7 +255,7 @@ public:
   int Initialize(const DeviceManager* device_manager) {
     devm_ = device_manager;
 
-    auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), devm_->compute_queue_familly_id_);
+    auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), devm_->compute_queue_familly_id());
     cmd_pool_ = devm_->device().createCommandPool(command_pool_create_info);
 
     auto alloc_info = vk::CommandBufferAllocateInfo(cmd_pool_, vk::CommandBufferLevel::ePrimary, 1);
@@ -261,7 +263,6 @@ public:
 
     return 0;
   }
-
 
   vk::SubmitInfo Begin(Pipeline *pipeline, const PushParams& p) {
     // Start recording commands into the newly allocated command buffer.
@@ -277,7 +278,7 @@ public:
 
     cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, ST_VIEW(p));
 
-    // Start the compute pipeline, and execute the compute shader_.
+    // Start the compute pipeline, and execute the compute shader.
     // The number of workgroups is specified in the arguments.
     cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
     cmd_buffer_.end(); // end recording commands

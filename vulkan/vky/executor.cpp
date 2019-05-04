@@ -18,7 +18,8 @@ int DeviceManager::Initialize(bool is_enable_validation) {
   CreateDevice();
 
   // TODO: move to other place.
-  CreateShaderModule("src/shaders/saxpy.spv");
+  shaders_map_["saxpy"] = CreateShaderModule("src/shaders/saxpy.spv");
+  //shader_ = CreateShaderModule("src/shaders/saxpy.spv");
 
   return 0;
 }
@@ -60,7 +61,8 @@ int DeviceManager::CreateDevice(int device_id) {
   return 0;
 }
 
-int DeviceManager::CreateShaderModule(const char* filename) {
+// <Private
+vk::ShaderModule DeviceManager::CreateShaderModule(const char* filename) {
   // Read binary shader file into array of uint32_t. little endian assumed.
   auto fin = std::ifstream(filename, std::ios::binary);
   if (!fin.is_open()) {
@@ -74,9 +76,7 @@ int DeviceManager::CreateShaderModule(const char* filename) {
   auto shader_module_create_info = vk::ShaderModuleCreateInfo(flags, code.size(),
     reinterpret_cast<uint32_t*>(code.data()));
 
-  shader_ = device_.createShaderModule(shader_module_create_info);
-
-  return 0;
+  return device_.createShaderModule(shader_module_create_info);
 }
 
 } // namespace vky
