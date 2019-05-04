@@ -17,9 +17,10 @@ int DeviceManager::Initialize(bool is_enable_validation) {
   SearchPhysicalDevices();
   CreateDevice();
 
-  // TODO: move to other place.
-  shaders_map_["saxpy"] = CreateShaderModule("src/shaders/saxpy.spv");
-  //shader_ = CreateShaderModule("src/shaders/saxpy.spv");
+  // TODO: move to other place.  
+  std::string base_path = "D:/projects/github/hpc/vulkan/vky/";
+  shaders_map_["add"] = CreateShaderModule(base_path + "shaders/add.spv");
+  shaders_map_["saxpy"] = CreateShaderModule(base_path + "shaders/saxpy.spv");
 
   return 0;
 }
@@ -62,11 +63,11 @@ int DeviceManager::CreateDevice(int device_id) {
 }
 
 // <Private
-vk::ShaderModule DeviceManager::CreateShaderModule(const char* filename) {
+vk::ShaderModule DeviceManager::CreateShaderModule(const std::string &filename) {
   // Read binary shader file into array of uint32_t. little endian assumed.
-  auto fin = std::ifstream(filename, std::ios::binary);
+  auto fin = std::ifstream(filename.c_str(), std::ios::binary);
   if (!fin.is_open()) {
-    throw std::runtime_error(std::string("could not open file ") + filename);
+    throw std::runtime_error(std::string("could not open file ") + filename.c_str());
   }
   auto code = std::vector<char>(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
   // Padded by 0s to a boundary of 4.

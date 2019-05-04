@@ -30,7 +30,7 @@ public:
   vk::PhysicalDevice phys_device() const { return phys_devices_[0]; } // TODO
 
   // TODO: Use string to get.
-  vk::ShaderModule shader(std::string str = "saxpy") const { return shaders_map_.find(str)->second; }
+  vk::ShaderModule shader(std::string str) const { return shaders_map_.find(str)->second; }
   uint32_t compute_queue_familly_id() const { return compute_queue_familly_id_; }
 
   int Initialize(bool is_enable_validation);
@@ -44,7 +44,7 @@ public:
 
 private:
 
-  vk::ShaderModule CreateShaderModule(const char* filename);
+  vk::ShaderModule CreateShaderModule(const std::string &filename);
 
   /// filter list of desired extensions to include only those supported by current Vulkan instance.
   std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const {
@@ -110,7 +110,6 @@ private:
     throw std::runtime_error("could not find a queue family that supports compute operations");
   }
 
-
 private:
   uint32_t device_id_;
   uint32_t compute_queue_familly_id_;
@@ -122,7 +121,6 @@ private:
   vk::Device device_;               // logical device providing access to a physical one     
   // TODO: list for multi-shaders.
   // Use string to search it.
-  //vk::ShaderModule shader_;
   std::map<std::string, vk::ShaderModule> shaders_map_;
 
 }; // class Device
@@ -156,7 +154,7 @@ public:
   int Initialize() {
     CreateDescriptorsetLayout();
     CreatePipelineLayout();
-    CreatePipeline();
+    CreatePipeline("saxpy");
     return 0;
   }
 
@@ -185,7 +183,7 @@ public:
   // TODO: std::string shader_name 
   // Create compute pipeline consisting of a single stage with compute shader.
   // Specialization constants specialized here.
-  int CreatePipeline() {
+  int CreatePipeline(const std::string &shader_name) {
     pipe_cache_ = devm_->device().createPipelineCache(vk::PipelineCacheCreateInfo());
 
     // specialize constants of the shader
@@ -200,7 +198,7 @@ public:
     auto stage_create_info = vk::PipelineShaderStageCreateInfo(
       vk::PipelineShaderStageCreateFlags(),
       vk::ShaderStageFlagBits::eCompute,
-      devm_->shader(), "main", &spec_info);
+      devm_->shader(shader_name), "main", &spec_info);
     auto pipeline_create_info = vk::ComputePipelineCreateInfo(
       vk::PipelineCreateFlags(),
       stage_create_info, pipeline_layout_);

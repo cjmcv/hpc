@@ -16,8 +16,8 @@ int main(int argc, char* argv[]) {
   vky::Executor *executor = new vky::Executor();
   executor->Initialize();
   
-  auto d_x = vky::Allocator<float>::fromHost(x, width * height, executor->device(), executor->phys_device());
-  auto d_y = vky::Allocator<float>::fromHost(y, width * height, executor->device(), executor->phys_device());
+  vky::Allocator<float> d_x = vky::Allocator<float>::fromHost(x, width * height, executor->device(), executor->phys_device());
+  vky::Allocator<float> d_y = vky::Allocator<float>::fromHost(y, width * height, executor->device(), executor->phys_device());
 
   executor->Run(d_x, { width, height, a }, d_y);
 

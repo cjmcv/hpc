@@ -1,2 +1,2 @@
-D:\software\VulkanSDK\1.1.106.0\Bin\glslangValidator.exe -V saxpy.comp
+D:\software\VulkanSDK\1.1.106.0\Bin\glslangValidator.exe -V add.comp
 pause
