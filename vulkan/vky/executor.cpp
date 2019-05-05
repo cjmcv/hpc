@@ -15,12 +15,6 @@ int DeviceManager::Initialize(bool is_enable_validation) {
 
   CreateInstance(layers, extensions);
   SearchPhysicalDevices();
-  CreateDevice();
-
-  // TODO: move to other place.  
-  std::string base_path = "D:/projects/github/hpc/vulkan/vky/";
-  shaders_map_["add"] = CreateShaderModule(base_path + "shaders/add.spv");
-  shaders_map_["saxpy"] = CreateShaderModule(base_path + "shaders/saxpy.spv");
 
   return 0;
 }
@@ -46,38 +40,6 @@ int DeviceManager::SearchPhysicalDevices() {
   instance_.enumeratePhysicalDevices(&device_count_, phys_devices_.data());
 
   return 0;
-}
-
-int DeviceManager::CreateDevice(int device_id) {
-  compute_queue_familly_id_ = GetComputeQueueFamilyId(phys_devices_[device_id]);
-
-  // create logical device_ to interact with the physical one
-  // When creating the device specify what queues it has
-  // TODO: when physical device is a discrete gpu, transfer queue needs to be included
-  auto p = float(1.0); // queue priority
-  auto queue_create_info = vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id_, 1, &p);
-  auto device_create_info = vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//ARR_VIEW(layers_)
-  device_ = phys_devices_[device_id].createDevice(device_create_info, nullptr);
-
-  return 0;
-}
-
-// <Private
-vk::ShaderModule DeviceManager::CreateShaderModule(const std::string &filename) {
-  // Read binary shader file into array of uint32_t. little endian assumed.
-  auto fin = std::ifstream(filename.c_str(), std::ios::binary);
-  if (!fin.is_open()) {
-    throw std::runtime_error(std::string("could not open file ") + filename.c_str());
-  }
-  auto code = std::vector<char>(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
-  // Padded by 0s to a boundary of 4.
-  code.resize(4 * div_up(code.size(), size_t(4)));
-
-  vk::ShaderModuleCreateFlags flags = vk::ShaderModuleCreateFlags();
-  auto shader_module_create_info = vk::ShaderModuleCreateInfo(flags, code.size(),
-    reinterpret_cast<uint32_t*>(code.data()));
-
-  return device_.createShaderModule(shader_module_create_info);
 }
 
 } // namespace vky
