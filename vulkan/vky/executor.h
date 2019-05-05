@@ -9,10 +9,12 @@
 
 namespace vky {
 
-#define ARR_VIEW(x) uint32_t(x.size()), x.data()
 #define ALL(x) begin(x), end(x)
 
 inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
+
+// TODO: Handle exeception.
+// TODO: Release resource.
 
 // TODO: Change to a variate. 
 static constexpr auto NumDescriptors = uint32_t(2);
@@ -134,7 +136,7 @@ public:
       }};
     auto create_info = vk::DescriptorSetLayoutCreateInfo(
       vk::DescriptorSetLayoutCreateFlags(), 
-      ARR_VIEW(bind_layout));
+      bind_layout.size(), bind_layout.data());
     descriptor_set_layout_ = device_.createDescriptorSetLayout(create_info);
 
     return 0;
@@ -156,11 +158,11 @@ public:
     pipe_cache_ = device_.createPipelineCache(vk::PipelineCacheCreateInfo());
 
     // specialize constants of the shader
-    auto specEntries = std::array<vk::SpecializationMapEntry, 2>{
+    auto spec_entries = std::array<vk::SpecializationMapEntry, 2>{
       { {0, 0, sizeof(int)}, { 1, 1 * sizeof(int), sizeof(int) }}
     };
     auto spec_values = std::array<int, 2>{WORKGROUP_SIZE, WORKGROUP_SIZE};
-    auto spec_info = vk::SpecializationInfo(ARR_VIEW(specEntries),
+    auto spec_info = vk::SpecializationInfo(spec_entries.size(), spec_entries.data(),
       spec_values.size() * sizeof(int), spec_values.data());
 
     // Specify the compute shader stage, and it's entry point (main), and specializations
@@ -248,25 +250,16 @@ public:
     queue_ = device_.getQueue(compute_queue_familly_id, 0);   
     // fence makes sure the control is not returned to CPU till command buffer is depleted
     // create fence
-    VkFenceCreateInfo fence_create_info;
-    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_create_info.pNext = 0;
-    fence_create_info.flags = 0;
+    fence_ = device_.createFence(vk::FenceCreateInfo());
 
-    VkResult ret = vkCreateFence(device_, &fence_create_info, 0, &fence_);
-    if (ret != VK_SUCCESS) {
-      fprintf(stderr, "vkCreateFence failed %d\n", ret);
-    }
     return 0;
   }
 
   int Reset() {
+    // CommandPool must be reset before CommandBuffer starts.
     device_.resetCommandPool(cmd_pool_, vk::CommandPoolResetFlags());
-    int ret = vkResetFences(device_, 1, &fence_);
-    if (ret != VK_SUCCESS) {
-      fprintf(stderr, "vkResetFences failed %d\n", ret);
-      return -1;
-    }
+    // Fences must be reset before being submitted
+    device_.resetFences(fence_);
     return 0;
   }
 
@@ -311,7 +304,7 @@ private:
   vk::CommandBuffer cmd_buffer_;
 
   vk::Queue queue_;
-  VkFence fence_;
+  vk::Fence fence_;
 }; // class Command
 
 // TODO: Operator -> OperatorA
@@ -354,7 +347,6 @@ private:
   Command* comd_;
   vk::Device device_;
   // TODO: std::vector<Pipeline *> pipes_;
-  //       
   Pipeline *pipes_;
 
 }; // class Operator
@@ -369,15 +361,11 @@ public:
   vk::Device device() const { return device_; }
   vk::PhysicalDevice physical_device() const { return physical_device_; }
 
-  int Initialize(vk::PhysicalDevice &phys_device) {
+  int Initialize(vk::PhysicalDevice &phys_device, const std::string &shaders_dir_path) {
     //// Init Device.
     physical_device_ = phys_device;
     CreateDevice();
-
-    // TODO: move to other place.  
-    std::string base_path = "D:/projects/github/hpc/vulkan/vky/";
-    shaders_map_["add"] = CreateShaderModule(base_path + "shaders/add.spv");
-    shaders_map_["saxpy"] = CreateShaderModule(base_path + "shaders/saxpy.spv");
+    RegisterShaders(shaders_dir_path);
 
     // Init command.
     comd_ = new Command();
@@ -396,6 +384,10 @@ public:
   }
 
 private:
+  void RegisterShaders(const std::string &shaders_dir_path) {
+    shaders_map_["add"] = CreateShaderModule(shaders_dir_path + "shaders/add.spv");
+    shaders_map_["saxpy"] = CreateShaderModule(shaders_dir_path + "shaders/saxpy.spv");
+ }
 
   vk::ShaderModule shader(std::string str) const { return shaders_map_.find(str)->second; }
 
@@ -457,7 +449,7 @@ private:
     vk::DeviceQueueCreateInfo queue_create_info =
       vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id_, 1, &p);
     vk::DeviceCreateInfo device_create_info = 
-      vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//ARR_VIEW(layers_)
+      vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//layers_.size(), layers_.data()
 
     device_ = physical_device_.createDevice(device_create_info, nullptr);
     return 0;

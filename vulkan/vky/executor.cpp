@@ -25,7 +25,7 @@ int DeviceManager::CreateInstance(std::vector<const char*> &layers,
   auto app_info = vk::ApplicationInfo("Example Filter", 0, "no_engine",
     0, VK_API_VERSION_1_0); // The only important field here is apiVersion
   auto create_info = vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &app_info,
-    ARR_VIEW(layers), ARR_VIEW(extensions));
+    layers.size(), layers.data(), extensions.size(), extensions.data());
 
   instance_ = vk::createInstance(create_info);
   return 0;
