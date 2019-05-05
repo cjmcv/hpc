@@ -36,8 +36,8 @@ int DeviceManager::SearchPhysicalDevices() {
   if (device_count_ == 0) {
     throw std::runtime_error("could not find a device with vulkan support");
   }
-  phys_devices_.resize(device_count_);
-  instance_.enumeratePhysicalDevices(&device_count_, phys_devices_.data());
+  physical_devices_.resize(device_count_);
+  instance_.enumeratePhysicalDevices(&device_count_, physical_devices_.data());
 
   return 0;
 }
