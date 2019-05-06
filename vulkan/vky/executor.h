@@ -17,7 +17,6 @@ inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 // TODO: Release resource.
 
 // TODO: Change to a variate. 
-static constexpr auto NumDescriptors = uint32_t(2);
 constexpr uint32_t WORKGROUP_SIZE = 16; ///< compute shader workgroup dimension is WORKGROUP_SIZE x WORKGROUP_SIZE
 
 class DeviceManager {
@@ -85,14 +84,6 @@ private:
 
 }; // class DeviceManager
 
-// TODO: Remove it.
-// C++ mirror of the shader push constants interface
-struct PushParams {
-  uint32_t width;  //< frame width
-  uint32_t height; //< frame height
-  float a;         //< saxpy (\$ y = y + ax \$) scaling factor
-};
-
 class Data {
 public:
   int Initialize() {
@@ -100,16 +91,15 @@ public:
   }
 
 private:
-  int num_;
-  int channels_;
-  int height_;
-  int width_;
+  vk::Buffer buffer_;
 };
 
 class Pipeline {
 
 public:
-  Pipeline() {  
+  Pipeline() {
+    num_descriptors_ = 0;
+    push_constant_count_ = 0;
     local_shader_module_ = nullptr;
     descriptor_set_layout_ = nullptr;
     pipeline_layout_ = nullptr;
@@ -121,30 +111,41 @@ public:
 
   vk::DescriptorSet descriptor_set() const { return descriptor_set_; }
 
-  int Initialize(const vk::Device device, const vk::ShaderModule shader) {
+  int Initialize(const vk::Device device, const vk::ShaderModule shader,
+    const int buffer_count, const int push_constant_count) {
+
     device_ = device;
-    CreateDescriptorsetLayout();
-    CreatePipelineLayout();
+    num_descriptors_ = buffer_count;
+    push_constant_count_ = push_constant_count;
+
+    CreateDescriptorsetLayout();  // num_descriptors_
+    CreatePipelineLayout();       // push_constant_count_
     CreatePipeline(shader);
     return 0;
   }
 
   int CreateDescriptorsetLayout() {
-    auto bind_layout = std::array<vk::DescriptorSetLayoutBinding, NumDescriptors>{ {
-      { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute }, 
-      { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute }
-      }};
-    auto create_info = vk::DescriptorSetLayoutCreateInfo(
-      vk::DescriptorSetLayoutCreateFlags(), 
-      bind_layout.size(), bind_layout.data());
+    std::vector<vk::DescriptorSetLayoutBinding> layout_binding(num_descriptors_);
+    for (int i = 0; i < num_descriptors_; i++) {
+      layout_binding[i].setBinding(i);
+      layout_binding[i].setDescriptorType(vk::DescriptorType::eStorageBuffer);
+      layout_binding[i].setDescriptorCount(1);
+      layout_binding[i].setStageFlags(vk::ShaderStageFlagBits::eCompute);
+      layout_binding[i].setPImmutableSamplers(0);
+    }
+      
+    vk::DescriptorSetLayoutCreateInfo create_info = vk::DescriptorSetLayoutCreateInfo(
+      vk::DescriptorSetLayoutCreateFlags(), num_descriptors_, layout_binding.data());
+      
     descriptor_set_layout_ = device_.createDescriptorSetLayout(create_info);
 
     return 0;
   }
 
   int CreatePipelineLayout() {
+
     auto push_const_range = vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute,
-      0, sizeof(PushParams));
+      0, sizeof(int) * push_constant_count_);
     auto pipe_layout_create_info = vk::PipelineLayoutCreateInfo(vk::PipelineLayoutCreateFlags(),
       1, &descriptor_set_layout_, 1, &push_const_range);
     pipeline_layout_ = device_.createPipelineLayout(pipe_layout_create_info);
@@ -152,6 +153,7 @@ public:
     return 0;
   }
 
+  // TODO: Recheck the number: 2.
   // Create compute pipeline consisting of a single stage with compute shader.
   // Specialization constants specialized here.
   int CreatePipeline(const vk::ShaderModule shader) {
@@ -180,7 +182,7 @@ public:
 
   int CreateDescriptorPool() {
     vk::DescriptorPoolSize descriptor_pool_size =
-      vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, NumDescriptors);
+      vk::DescriptorPoolSize(vk::DescriptorType::eStorageBuffer, num_descriptors_);
     vk::DescriptorPoolCreateInfo descriptor_pool_create_info =
       vk::DescriptorPoolCreateInfo(vk::DescriptorPoolCreateFlags(), 1, 1, &descriptor_pool_size);
     descriptor_pool_ = device_.createDescriptorPool(descriptor_pool_create_info);
@@ -203,17 +205,32 @@ public:
     return 0;
   }
 
-  int UpdateDescriptorSet(const vk::Buffer &in, const PushParams &p, vk::Buffer &out) {
-    uint32_t size = p.width*p.height;
-    auto out_info = vk::DescriptorBufferInfo(out, 0, sizeof(float)*size);
-    auto in_info = vk::DescriptorBufferInfo(in, 0, sizeof(float)*size);
+  // TODO: Now, the size of the buffers has to be the same .
+  int UpdateDescriptorSet(const std::vector<vk::Buffer> &buffers, const int size) {
+    if (buffers.size() != num_descriptors_) {
+      throw std::runtime_error("UpdateDescriptorSet -> buffers.size() != num_descriptors_");
+    }
 
-    auto write_descriptor_sets = std::array<vk::WriteDescriptorSet, NumDescriptors>{ {
-      { descriptor_set_, 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &out_info },
-      { descriptor_set_, 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &in_info }
-      } };
+    std::vector<vk::DescriptorBufferInfo> buffers_info(num_descriptors_);
+    for (int i = 0; i < num_descriptors_; i++) {
+      buffers_info[i].setBuffer(buffers[i]);
+      buffers_info[i].setOffset(0);
+      buffers_info[i].setRange(size);
+    }
+
+    std::vector<vk::WriteDescriptorSet> write_descriptor_sets(num_descriptors_);
+    for (int i = 0; i < num_descriptors_; i++) {
+      write_descriptor_sets[i].setDstSet(descriptor_set_);
+      write_descriptor_sets[i].setDstBinding(i);
+      write_descriptor_sets[i].setDstArrayElement(0);
+      write_descriptor_sets[i].setDescriptorCount(1);
+      write_descriptor_sets[i].setDescriptorType(vk::DescriptorType::eStorageBuffer);
+      write_descriptor_sets[i].setPImageInfo(nullptr);
+
+      write_descriptor_sets[i].setPBufferInfo(&(buffers_info[i]));
+    }
+
     device_.updateDescriptorSets(write_descriptor_sets, {});
-
     return 0;
   }
 
@@ -229,6 +246,8 @@ private:
   vk::PipelineCache pipe_cache_;
   vk::Pipeline pipeline_;
 
+  int num_descriptors_;
+  int push_constant_count_;
 }; // class Pipeline
 
 class Command {
@@ -283,11 +302,12 @@ public:
       0, { pipeline->descriptor_set() }, {});
   }
 
-  void PushAndDispatch(Pipeline *pipeline, const PushParams& p) {
-    cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, uint32_t(sizeof(p)), &p);
+  void PushAndDispatch(Pipeline *pipeline, const int *group_xyz, const void *params, const int params_size) {
+    cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, params_size, params);
     // Start the compute pipeline, and execute the compute shader.
     // The number of workgroups is specified in the arguments.
-    cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
+    // cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
+    cmd_buffer_.dispatch(group_xyz[0], group_xyz[1], group_xyz[2]);
   }
 
   void Fences() {
@@ -316,23 +336,27 @@ public:
     device_ = device;
 
     pipes_ = new Pipeline();
-    pipes_->Initialize(device_, shader);
+    pipes_->Initialize(device_, shader, 2, 3);
     return 0;
   }
 
   int Run(const uint32_t compute_queue_familly_id,
-    const vk::Buffer &in, const PushParams &p, vk::Buffer &out) {
+    const std::vector<vk::Buffer> &buffers, 
+    const int buffer_range, 
+    const int *group_xyz,
+    const void *params,
+    const int params_size) {
     
     pipes_->CreateDescriptorPool();
     pipes_->AllocateDescriptorSet();
-    pipes_->UpdateDescriptorSet(in, p, out);
+    pipes_->UpdateDescriptorSet(buffers, buffer_range);
     ////
 
     comd_->Reset();
 
     comd_->Begin();
     comd_->Bind(pipes_);
-    comd_->PushAndDispatch(pipes_, p);
+    comd_->PushAndDispatch(pipes_, group_xyz, params, params_size);
     comd_->End();
 
     comd_->Fences();
@@ -377,17 +401,25 @@ public:
     return 0;
   }
 
-  int Run(const vk::Buffer& in, const PushParams& p, vk::Buffer& out) const {
-    op_->Run(compute_queue_familly_id_, in, p, out);
+  // TODO: Bind the buffers and buffer_range together. 
+  //       Create a new class for Buffer.
+  int Run(const std::vector<vk::Buffer> &buffers,
+    const int buffer_range,
+    const int *group_xyz, 
+    const void *params, 
+    const int params_size) const {
+
+    op_->Run(compute_queue_familly_id_, buffers, buffer_range, group_xyz, params, params_size);
 
     return 0;
   }
 
 private:
+
   void RegisterShaders(const std::string &shaders_dir_path) {
     shaders_map_["add"] = CreateShaderModule(shaders_dir_path + "shaders/add.spv");
     shaders_map_["saxpy"] = CreateShaderModule(shaders_dir_path + "shaders/saxpy.spv");
- }
+  }
 
   vk::ShaderModule shader(std::string str) const { return shaders_map_.find(str)->second; }
 
@@ -417,10 +449,10 @@ private:
 
     // prefer using compute-only queue
     auto queue_it = std::find_if(ALL(queue_families), [](auto& f) {
-      auto maskedFlags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags; // ignore sparse binding flag 
+      auto masked_flags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags; // ignore sparse binding flag 
       return 0 < f.queueCount                                               // queue family does have some queues in it
-        && (vk::QueueFlagBits::eCompute & maskedFlags)
-        && !(vk::QueueFlagBits::eGraphics & maskedFlags);
+        && (vk::QueueFlagBits::eCompute & masked_flags)
+        && !(vk::QueueFlagBits::eGraphics & masked_flags);
     });
     if (queue_it != end(queue_families)) {
       return uint32_t(std::distance(begin(queue_families), queue_it));
@@ -428,14 +460,13 @@ private:
 
     // otherwise use any queue that has compute flag set
     queue_it = std::find_if(ALL(queue_families), [](auto& f) {
-      auto maskedFlags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags;
-      return 0 < f.queueCount && (vk::QueueFlagBits::eCompute & maskedFlags);
+      auto masked_flags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags;
+      return 0 < f.queueCount && (vk::QueueFlagBits::eCompute & masked_flags);
     });
     if (queue_it != end(queue_families)) {
       return uint32_t(std::distance(begin(queue_families), queue_it));
     }
 
-    // TODO: Change it to error code.
     throw std::runtime_error("could not find a queue family that supports compute operations");
   }
 
