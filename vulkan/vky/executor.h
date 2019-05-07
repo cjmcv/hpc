@@ -35,7 +35,7 @@ public:
   // eCpu = VK_PHYSICAL_DEVICE_TYPE_CPU
   vk::PhysicalDeviceType type_;
 
-    // hardware capability
+  // hardware capability
   uint32_t max_shared_memory_size_;
   uint32_t max_workgroup_count_[3];
   uint32_t max_workgroup_invocations_;
@@ -65,11 +65,10 @@ private:
   // filter list of desired extensions to include only those supported by current Vulkan instance.
   std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const;
 
-  // filter list of desired extensions to include only those supported by current Vulkan instance_
+  // filter list of desired extensions to include only those supported by current Vulkan instance
   std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const;
 
-  int CreateInstance(std::vector<const char*> &layers,
-    std::vector<const char*> &extensions);
+  int CreateInstance(std::vector<const char*> &layers, std::vector<const char*> &extensions);
 
   // @return the index of a queue family that supports compute operations.
   // Groups of queues that have the same capabilities (for instance, they all supports graphics
@@ -336,16 +335,14 @@ private:
 //                -> OperatorB
 class OperatorA {
 public:
-  int Initialize(const vk::Device device, const vk::ShaderModule shader, Command *comd) {
-    comd_ = comd;
-    device_ = device;
-
+  int Initialize(const vk::Device device, const vk::ShaderModule shader) {
     pipes_ = new Pipeline();
-    pipes_->Initialize(device_, shader, 2, 3);
+    pipes_->Initialize(device, shader, 2, 3);
     return 0;
   }
 
-  int Run(const std::vector<vk::Buffer> &buffers, 
+  int Run(Command *command,
+    const std::vector<vk::Buffer> &buffers,
     const int buffer_range, 
     const int *group_count_xyz,
     const void *params,
@@ -356,14 +353,14 @@ public:
     pipes_->UpdateDescriptorSet(buffers, buffer_range);
     ////
 
-    comd_->Reset();
+    command->Reset();
 
-    comd_->Begin();
-    comd_->Bind(pipes_);
-    comd_->PushAndDispatch(pipes_, group_count_xyz, params, params_size);
-    comd_->End();
+    command->Begin();
+    command->Bind(pipes_);
+    command->PushAndDispatch(pipes_, group_count_xyz, params, params_size);
+    command->End();
 
-    comd_->Fences();
+    command->Fences();
 
     // UnbindParameters
     pipes_->ReleaseDescriptorPool();
@@ -372,8 +369,6 @@ public:
   }
 
 private:
-  Command* comd_;
-  vk::Device device_;
   // TODO: std::vector<Pipeline *> pipes_;
   Pipeline *pipes_;
 
@@ -399,7 +394,7 @@ public:
 
     // Init Operators.
     op_ = new OperatorA();
-    op_->Initialize(device_, shader("saxpy"), comd_);
+    op_->Initialize(device_, shader("saxpy"));
 
     return 0;
   }
@@ -412,7 +407,7 @@ public:
     const void *params, 
     const int params_size) const {
 
-    op_->Run(buffers, buffer_range, group_count_xyz, params, params_size);
+    op_->Run(comd_, buffers, buffer_range, group_count_xyz, params, params_size);
 
     return 0;
   }

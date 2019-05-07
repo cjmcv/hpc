@@ -24,23 +24,29 @@ int main(int argc, char* argv[]) {
   }
   vky::DeviceManager *devm = new vky::DeviceManager();
   devm->Initialize(true);
+  devm->PrintDevicesInfo();
 
   int physical_device_id = 0;
   std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/";
 
+  vky::DeviceInfo selected_device_info = devm->device_info(physical_device_id);
+
   vky::Executor *executor = new vky::Executor();
-  executor->Initialize(devm->physical_device(physical_device_id), shaders_dir_path);
+  executor->Initialize(selected_device_info, shaders_dir_path);
   
-  vky::Allocator<float> d_x = vky::Allocator<float>::fromHost(x, width * height, executor->device(), executor->physical_device());
-  vky::Allocator<float> d_y = vky::Allocator<float>::fromHost(y, width * height, executor->device(), executor->physical_device());
+  vky::Allocator<float> d_x = vky::Allocator<float>::fromHost(x, width * height, executor->device(), selected_device_info.physical_device_);
+  vky::Allocator<float> d_y = vky::Allocator<float>::fromHost(y, width * height, executor->device(), selected_device_info.physical_device_);
 
   clock_t time = clock();
  
   // The order must be the same as defined in comp.
-  int group_xyz[3];
-  group_xyz[0] = vky::div_up(width, 16); // TODO: WORKGROUP_SIZE = 16, has been defined in executor.h.
-  group_xyz[1] = vky::div_up(height, 16);
-  group_xyz[2] = 1;
+  int group_count_xyz[3];
+  //group_count_xyz[0] = (m.w + pipeline->local_size_x - 1) / pipeline->local_size_x;
+  //group_count_xyz[1] = (m.h + pipeline->local_size_y - 1) / pipeline->local_size_y;
+  //group_count_xyz[2] = (m.c + pipeline->local_size_z - 1) / pipeline->local_size_z;
+  group_count_xyz[0] = vky::div_up(width, 16); // TODO: WORKGROUP_SIZE = 16, has been defined in executor.h.
+  group_count_xyz[1] = vky::div_up(height, 16);
+  group_count_xyz[2] = 1;
 
   std::vector<vk::Buffer> buffers;
   buffers.push_back(d_y);
@@ -53,7 +59,7 @@ int main(int argc, char* argv[]) {
 
   int buffer_range = params.width * params.height * sizeof(float);
   for (int i = 0; i < 10; i++) {
-    executor->Run(buffers, buffer_range, group_xyz, &params, sizeof(params));
+    executor->Run(buffers, buffer_range, group_count_xyz, &params, sizeof(params));
   }
 
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
@@ -65,9 +71,16 @@ int main(int argc, char* argv[]) {
     std::cout << out[i] << ", ";
   }
 
+  // TODO: UnInitialize.
+
   delete[]x;
   delete[]y;
   delete[]out;
 
-   return 0;
+  // TODO: Check Release. 
+  //       The reason may be related to the life cycle of vky::Allocator.
+  //delete devm;
+  //delete executor;
+
+  return 0;
 }
