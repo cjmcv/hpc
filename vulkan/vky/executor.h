@@ -9,8 +9,6 @@
 
 namespace vky {
 
-#define ALL(x) begin(x), end(x)
-
 inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 
 // TODO: Handle exeception.
@@ -19,71 +17,75 @@ inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 // TODO: Change to a variate. 
 constexpr uint32_t WORKGROUP_SIZE = 16; ///< compute shader workgroup dimension is WORKGROUP_SIZE x WORKGROUP_SIZE
 
+class DeviceInfo {
+public:
+  vk::PhysicalDevice physical_device_;
+
+  // info
+  uint32_t api_version_;
+  uint32_t driver_version_;
+  uint32_t vendor_id_;
+  uint32_t device_id_;
+
+  // eOther = VK_PHYSICAL_DEVICE_TYPE_OTHER,
+  // eIntegratedGpu = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
+  // eDiscreteGpu = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+  // eVirtualGpu = VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
+  // eCpu = VK_PHYSICAL_DEVICE_TYPE_CPU
+  vk::PhysicalDeviceType type_;
+
+    // hardware capability
+  uint32_t max_shared_memory_size_;
+  uint32_t max_workgroup_count_[3];
+  uint32_t max_workgroup_invocations_;
+  uint32_t max_workgroup_size_[3];
+
+  uint32_t memory_map_alignment_;
+  uint32_t buffer_offset_alignment_;
+
+  // runtime
+  uint32_t compute_queue_familly_id_;
+};
+
 class DeviceManager {
 public:
   DeviceManager() {}
   ~DeviceManager() {}
 
-  int device_count() const { return device_count_; }
+  int device_count() const { return physical_devices_.size(); }
   vk::PhysicalDevice physical_device(int id) const { return physical_devices_[id]; }
+  DeviceInfo &device_info(int id) const { return devices_info_[id]; }
 
   int Initialize(bool is_enable_validation);
-  // TODO: UnInitialize, release resource.
-  int UnInitialize() {
-  }
-  // TODO: Query Information about GPUs.
-  void QueryInformation() const {
-  }
-  
+  int UnInitialize();
+  void PrintDeviceInfo(int id = 0) const;
+
 private: 
+  // filter list of desired extensions to include only those supported by current Vulkan instance.
+  std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const;
+
+  // filter list of desired extensions to include only those supported by current Vulkan instance_
+  std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const;
 
   int CreateInstance(std::vector<const char*> &layers,
     std::vector<const char*> &extensions);
 
-  int SearchPhysicalDevices();
+  // @return the index of a queue family that supports compute operations.
+  // Groups of queues that have the same capabilities (for instance, they all supports graphics
+  // and computer operations), are grouped into queue families.
+  // When submitting a command buffer, you must specify to which queue in the family you are submitting to.
+  uint32_t GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const;
 
-  /// filter list of desired extensions to include only those supported by current Vulkan instance.
-  std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const {
-    auto ret = std::vector<const char*>{};
-    auto instanceExtensions = vk::enumerateInstanceExtensionProperties();
-    for (auto e : extensions) {
-      auto it = std::find_if(ALL(instanceExtensions)
-        , [=](auto& p) { return strcmp(p.extensionName, e); });
-      if (it != end(instanceExtensions)) {
-        ret.push_back(e);
-      }
-      else {
-        std::cerr << "[WARNING]: extension " << e << " is not found" "\n";
-      }
-    }
-    return ret;
-  }
-
-  /// filter list of desired extensions to include only those supported by current Vulkan instance_
-  std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const {
-    auto ret = std::vector<const char*>{};
-    auto instanceLayers = vk::enumerateInstanceLayerProperties();
-    for (auto l : layers) {
-      auto it = std::find_if(ALL(instanceLayers)
-        , [=](auto& p) { return strcmp(p.layerName, l); });
-      if (it != end(instanceLayers)) {
-        ret.push_back(l);
-      }
-      else {
-        std::cerr << "[WARNING] layer " << l << " is not found" "\n";
-      }
-    }
-    return ret;
-  }
+  int QueryPhysicalDevices();
 
 private:
   vk::Instance instance_;
-
   std::vector<vk::PhysicalDevice> physical_devices_;
-  uint32_t device_count_;
 
+  DeviceInfo *devices_info_;
 }; // class DeviceManager
 
+// TODO: The basic data unit in here.
 class Data {
 public:
   int Initialize() {
@@ -302,12 +304,12 @@ public:
       0, { pipeline->descriptor_set() }, {});
   }
 
-  void PushAndDispatch(Pipeline *pipeline, const int *group_xyz, const void *params, const int params_size) {
+  void PushAndDispatch(Pipeline *pipeline, const int *group_count_xyz, const void *params, const int params_size) {
     cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, params_size, params);
     // Start the compute pipeline, and execute the compute shader.
     // The number of workgroups is specified in the arguments.
     // cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
-    cmd_buffer_.dispatch(group_xyz[0], group_xyz[1], group_xyz[2]);
+    cmd_buffer_.dispatch(group_count_xyz[0], group_count_xyz[1], group_count_xyz[2]);
   }
 
   void Fences() {
@@ -340,10 +342,9 @@ public:
     return 0;
   }
 
-  int Run(const uint32_t compute_queue_familly_id,
-    const std::vector<vk::Buffer> &buffers, 
+  int Run(const std::vector<vk::Buffer> &buffers, 
     const int buffer_range, 
-    const int *group_xyz,
+    const int *group_count_xyz,
     const void *params,
     const int params_size) {
     
@@ -356,7 +357,7 @@ public:
 
     comd_->Begin();
     comd_->Bind(pipes_);
-    comd_->PushAndDispatch(pipes_, group_xyz, params, params_size);
+    comd_->PushAndDispatch(pipes_, group_count_xyz, params, params_size);
     comd_->End();
 
     comd_->Fences();
@@ -382,18 +383,17 @@ public:
   Executor() {}
   ~Executor() {}
 
-  vk::Device device() const { return device_; }
-  vk::PhysicalDevice physical_device() const { return physical_device_; }
+  const vk::Device &device() const { return device_; }
 
-  int Initialize(vk::PhysicalDevice &phys_device, const std::string &shaders_dir_path) {
-    //// Init Device.
-    physical_device_ = phys_device;
-    CreateDevice();
+  int Initialize(const DeviceInfo &device_info, const std::string &shaders_dir_path) {
+    // Init Device.
+    device_ = CreateDevice(device_info.physical_device_, device_info.compute_queue_familly_id_);
     RegisterShaders(shaders_dir_path);
 
     // Init command.
     comd_ = new Command();
-    comd_->Initialize(device_, compute_queue_familly_id_);
+    comd_->Initialize(device_, device_info.compute_queue_familly_id_);
+
     // Init Operators.
     op_ = new OperatorA();
     op_->Initialize(device_, shader("saxpy"), comd_);
@@ -401,15 +401,15 @@ public:
     return 0;
   }
 
-  // TODO: Bind the buffers and buffer_range together. 
+  // TODO: Data, Bind the buffers and buffer_range together. 
   //       Create a new class for Buffer.
   int Run(const std::vector<vk::Buffer> &buffers,
     const int buffer_range,
-    const int *group_xyz, 
+    const int *group_count_xyz, 
     const void *params, 
     const int params_size) const {
 
-    op_->Run(compute_queue_familly_id_, buffers, buffer_range, group_xyz, params, params_size);
+    op_->Run(buffers, buffer_range, group_count_xyz, params, params_size);
 
     return 0;
   }
@@ -440,57 +440,22 @@ private:
     return device_.createShaderModule(shader_module_create_info);
   }
 
-  /// @return the index of a queue family that supports compute operations.
-  /// Groups of queues that have the same capabilities (for instance, they all supports graphics
-  /// and computer operations), are grouped into queue families.
-  /// When submitting a command buffer, you must specify to which queue in the family you are submitting to.
-  uint32_t GetComputeQueueFamilyId() const {
-    auto queue_families = physical_device_.getQueueFamilyProperties();
-
-    // prefer using compute-only queue
-    auto queue_it = std::find_if(ALL(queue_families), [](auto& f) {
-      auto masked_flags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags; // ignore sparse binding flag 
-      return 0 < f.queueCount                                               // queue family does have some queues in it
-        && (vk::QueueFlagBits::eCompute & masked_flags)
-        && !(vk::QueueFlagBits::eGraphics & masked_flags);
-    });
-    if (queue_it != end(queue_families)) {
-      return uint32_t(std::distance(begin(queue_families), queue_it));
-    }
-
-    // otherwise use any queue that has compute flag set
-    queue_it = std::find_if(ALL(queue_families), [](auto& f) {
-      auto masked_flags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags;
-      return 0 < f.queueCount && (vk::QueueFlagBits::eCompute & masked_flags);
-    });
-    if (queue_it != end(queue_families)) {
-      return uint32_t(std::distance(begin(queue_families), queue_it));
-    }
-
-    throw std::runtime_error("could not find a queue family that supports compute operations");
-  }
-
-  int CreateDevice() {
-    compute_queue_familly_id_ = GetComputeQueueFamilyId();
-
+  vk::Device &CreateDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
     // create logical device to interact with the physical one
     // When creating the device specify what queues it has
     // TODO: when physical device is a discrete gpu, transfer queue needs to be included
     float p = float(1.0); // queue priority
     vk::DeviceQueueCreateInfo queue_create_info =
-      vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id_, 1, &p);
+      vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id, 1, &p);
     vk::DeviceCreateInfo device_create_info = 
       vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//layers_.size(), layers_.data()
 
-    device_ = physical_device_.createDevice(device_create_info, nullptr);
-    return 0;
+    return physical_device.createDevice(device_create_info, nullptr);
   }
 
-private:
-  vk::PhysicalDevice physical_device_;
+private:  
+  //uint32_t compute_queue_familly_id_;
   vk::Device device_;    // logical device providing access to a physical one 
-  uint32_t compute_queue_familly_id_;
-
   std::map<std::string, vk::ShaderModule> shaders_map_;
 
   Command *comd_;
