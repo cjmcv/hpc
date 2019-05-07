@@ -29,9 +29,50 @@ int DeviceManager::UnInitialize() {
   return 0;
 }
 
-void DeviceManager::PrintDeviceInfo(int id) const {
-  // TODO: if id==0, print all
-  //       else print the selected one.
+void DeviceManager::PrintDevicesInfo() const {
+  std::cout << "device count: " << physical_devices_.size() << std::endl;
+
+  for (int i = 0; i < physical_devices_.size(); i++) {
+    DeviceInfo &info = devices_info_[i];
+
+    ///////////////////////////////////
+    //  Information.
+    std::cout << std::endl;
+    std::cout << "////////////////device:" << i << "//////////////////" << std::endl;
+    std::cout << "device name: " << info.device_name_ << std::endl;
+    std::cout << "api version: " << info.api_version_ << std::endl;
+    std::cout << "driver version: " << info.driver_version_ << std::endl;
+    std::cout << "vendor id: " << info.vendor_id_ << std::endl;
+    std::cout << "device id: " << info.device_id_ << std::endl;
+
+    std::string type;
+    if (info.type_ == vk::PhysicalDeviceType::eOther)
+      type = "Other";
+    else if(info.type_ == vk::PhysicalDeviceType::eIntegratedGpu)
+      type = "IntegratedGpu";
+    else if (info.type_ == vk::PhysicalDeviceType::eDiscreteGpu)
+      type = "DiscreteGpu";
+    else if (info.type_ == vk::PhysicalDeviceType::eVirtualGpu)
+      type = "VirtualGpu";
+    else if (info.type_ == vk::PhysicalDeviceType::eCpu)
+      type = "Cpu";
+    std::cout << "device type: " << type << std::endl;
+
+    ///////////////////////////////////
+    // Capability
+    std::cout << "max compute shared memory size: " << info.max_shared_memory_size_ << std::endl;
+    std::cout << "max workgroup count: [" << info.max_workgroup_count_[0]
+                                  << ", " << info.max_workgroup_count_[1] 
+                                  << ", " << info.max_workgroup_count_[2] << "]" << std::endl;
+    std::cout << "max workgroup invocations: " << info.max_workgroup_invocations_ << std::endl;
+    std::cout << "max workgroup size: [" << info.max_workgroup_size_[0]
+                                 << ", " << info.max_workgroup_size_[1]
+                                 << ", " << info.max_workgroup_size_[2] << "]" << std::endl;
+
+    std::cout << "memory map alignment: " << info.memory_map_alignment_ << std::endl;
+    std::cout << "buffer offset alignment: " << info.buffer_offset_alignment_ << std::endl;
+    std::cout << "compute queue familly id: " << info.compute_queue_familly_id_ << std::endl;
+  }
 }
 
 ///////////////
@@ -127,13 +168,14 @@ int DeviceManager::QueryPhysicalDevices() {
     info.physical_device_ = physical_device;
 
     // info
+    memcpy(info.device_name_, device_properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
     info.api_version_ = device_properties.apiVersion;
     info.driver_version_ = device_properties.driverVersion;
     info.vendor_id_ = device_properties.vendorID;
     info.device_id_ = device_properties.deviceID;
     info.type_ = device_properties.deviceType;
 
-    // device capability
+    // capability
     info.max_shared_memory_size_ = device_properties.limits.maxComputeSharedMemorySize;
 
     info.max_workgroup_count_[0] = device_properties.limits.maxComputeWorkGroupCount[0];

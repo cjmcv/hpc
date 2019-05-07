@@ -22,6 +22,7 @@ public:
   vk::PhysicalDevice physical_device_;
 
   // info
+  char device_name_[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
   uint32_t api_version_;
   uint32_t driver_version_;
   uint32_t vendor_id_;
@@ -58,7 +59,7 @@ public:
 
   int Initialize(bool is_enable_validation);
   int UnInitialize();
-  void PrintDeviceInfo(int id = 0) const;
+  void PrintDevicesInfo() const;
 
 private: 
   // filter list of desired extensions to include only those supported by current Vulkan instance.
@@ -80,8 +81,10 @@ private:
 
 private:
   vk::Instance instance_;
-  std::vector<vk::PhysicalDevice> physical_devices_;
 
+  // TODO: DeviceInfo has a PhysicalDevice member. There is redundancy.
+  //       But DeviceInfo *devices_info_ is an array with no number of tags.
+  std::vector<vk::PhysicalDevice> physical_devices_;
   DeviceInfo *devices_info_;
 }; // class DeviceManager
 
@@ -440,7 +443,7 @@ private:
     return device_.createShaderModule(shader_module_create_info);
   }
 
-  vk::Device &CreateDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
+  vk::Device CreateDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
     // create logical device to interact with the physical one
     // When creating the device specify what queues it has
     // TODO: when physical device is a discrete gpu, transfer queue needs to be included
