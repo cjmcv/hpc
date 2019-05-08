@@ -13,10 +13,7 @@ inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 
 // TODO: Handle exeception.
 // TODO: Release resource.
-
-// TODO: Change to a variate. 
-constexpr uint32_t WORKGROUP_SIZE = 16; ///< compute shader workgroup dimension is WORKGROUP_SIZE x WORKGROUP_SIZE
-
+// TODO: Specify a transfer pipeline for buffer copy.
 class DeviceInfo {
 public:
   vk::PhysicalDevice physical_device_;
@@ -96,6 +93,7 @@ public:
 
 private:
   vk::Buffer buffer_;
+  int buffer_range_;
 };
 
 class Pipeline {
@@ -157,27 +155,113 @@ public:
     return 0;
   }
 
-  // TODO: Recheck the number: 2.
+  // TODO: Use it in funciton CreatePipeline.
+  void SetOptimalLocalSizeXYZ(DeviceInfo &info, int width, int height, int channel) {
+    uint32_t local_size_x = 0;
+    uint32_t local_size_y = 0;
+    uint32_t local_size_z = 0;
+
+    if (channel > 0) {
+      local_size_z = info.max_workgroup_size_[2];
+      while ((uint32_t)channel < local_size_z) {
+        local_size_z /= 2;
+      }
+    }
+    else {
+      local_size_z = std::min((uint32_t)128, info.max_workgroup_size_[2]);
+    }
+
+    uint32_t max_local_size_xy = info.max_workgroup_invocations_ / local_size_z;
+
+    if (height == width || (height < 0 && width < 0)) {
+      uint32_t local_size_xy = std::sqrt(max_local_size_xy);
+      uint32_t local_size_xy_prefer = 128;
+      while (local_size_xy < local_size_xy_prefer) {
+        local_size_xy_prefer /= 2;
+      }
+      local_size_x = local_size_xy_prefer;
+      local_size_y = local_size_xy_prefer;
+    }
+
+    if (height > 0 && width > 0) {
+      if (height > width) {
+        float ps = height / (float)width;
+        float local_size_xy = sqrt(max_local_size_xy / ps);
+        local_size_y = local_size_xy * ps;
+        local_size_x = std::max((uint32_t)local_size_xy, (uint32_t)1);
+      }
+      else {
+        float ps = width / (float)height;
+        float local_size_xy = sqrt(max_local_size_xy / ps);
+        local_size_y = std::max((uint32_t)local_size_xy, (uint32_t)1);
+        local_size_x = local_size_xy * ps;
+      }
+
+      uint32_t local_size_y_prefer = std::min((uint32_t)128, info.max_workgroup_size_[1]);
+      while (local_size_y < local_size_y_prefer) {
+        local_size_y_prefer /= 2;
+      }
+
+      uint32_t local_size_x_prefer = std::min((uint32_t)128, info.max_workgroup_size_[0]);
+      while (local_size_x < local_size_x_prefer)
+      {
+        local_size_x_prefer /= 2;
+      }
+
+      local_size_y = local_size_y_prefer;
+      local_size_x = local_size_x_prefer;
+    }
+    else if (height > 0) {
+      local_size_y = std::min(max_local_size_xy, info.max_workgroup_size_[1]);
+      while ((uint32_t)height < local_size_y) {
+        local_size_y /= 2;
+      }
+
+      uint32_t max_local_size_x = max_local_size_xy / local_size_y;
+      local_size_x = std::min(max_local_size_x, info.max_workgroup_size_[0]);
+    }
+    else if (width > 0) {
+      local_size_x = std::min(max_local_size_xy, info.max_workgroup_size_[0]);
+      while ((uint32_t)width < local_size_x) {
+        local_size_x /= 2;
+      }
+
+      uint32_t max_local_size_y = max_local_size_xy / local_size_x;
+      local_size_y = std::min(max_local_size_y, info.max_workgroup_size_[1]);
+    }
+  }
+
   // Create compute pipeline consisting of a single stage with compute shader.
   // Specialization constants specialized here.
   int CreatePipeline(const vk::ShaderModule shader) {
     pipe_cache_ = device_.createPipelineCache(vk::PipelineCacheCreateInfo());
 
     // specialize constants of the shader
-    auto spec_entries = std::array<vk::SpecializationMapEntry, 2>{
-      { {0, 0, sizeof(int)}, { 1, 1 * sizeof(int), sizeof(int) }}
+    // {constantID, offset, size}
+    // 3: local_size_x, local_size_y, local_size_z
+    auto spec_entries = std::array<vk::SpecializationMapEntry, 3>{
+      { { 0, 0, sizeof(int) }, 
+        { 1, 1 * sizeof(int), sizeof(int) },
+        { 2, 2 * sizeof(int), sizeof(int) } }
     };
-    auto spec_values = std::array<int, 2>{WORKGROUP_SIZE, WORKGROUP_SIZE};
+    // TODO: Replace it by SetOptimalLocalSizeXYZ.
+    uint32_t WORKGROUP_SIZE = 16;
+    auto spec_values = std::array<int, 3>{WORKGROUP_SIZE, WORKGROUP_SIZE, 1};
     auto spec_info = vk::SpecializationInfo(spec_entries.size(), spec_entries.data(),
-      spec_values.size() * sizeof(int), spec_values.data());
+      spec_values.size() * sizeof(int), spec_values.data());   // TODO: Change sizeof(int) to a manual type?
 
     // Specify the compute shader stage, and it's entry point (main), and specializations
     auto stage_create_info = vk::PipelineShaderStageCreateInfo(
       vk::PipelineShaderStageCreateFlags(),
-      vk::ShaderStageFlagBits::eCompute, shader, "main", &spec_info);
+      vk::ShaderStageFlagBits::eCompute, 
+      shader, 
+      "main",
+      &spec_info);
+
     auto pipeline_create_info = vk::ComputePipelineCreateInfo(
       vk::PipelineCreateFlags(),
-      stage_create_info, pipeline_layout_);
+      stage_create_info, 
+      pipeline_layout_);
 
     pipeline_ = device_.createComputePipeline(pipe_cache_, pipeline_create_info, nullptr);
 
@@ -242,7 +326,7 @@ private:
   vk::Device device_;
 
   vk::ShaderModule local_shader_module_; 
-  vk::DescriptorSetLayout descriptor_set_layout_; // c++ definition of the shader binding interface
+  vk::DescriptorSetLayout descriptor_set_layout_; // channel++ definition of the shader binding interface
   vk::DescriptorPool descriptor_pool_;  // descriptors pool
   vk::DescriptorSet descriptor_set_; 
 
@@ -310,7 +394,6 @@ public:
     cmd_buffer_.pushConstants(pipeline->pipeline_layout(), vk::ShaderStageFlagBits::eCompute, 0, params_size, params);
     // Start the compute pipeline, and execute the compute shader.
     // The number of workgroups is specified in the arguments.
-    // cmd_buffer_.dispatch(div_up(p.width, WORKGROUP_SIZE), div_up(p.height, WORKGROUP_SIZE), 1);
     cmd_buffer_.dispatch(group_count_xyz[0], group_count_xyz[1], group_count_xyz[2]);
   }
 
@@ -331,8 +414,9 @@ private:
   vk::Fence fence_;
 }; // class Command
 
-// TODO: Operator -> OperatorA
-//                -> OperatorB
+// TODO: Operator -> GeneralOp => One Pipeline, manual setup IO
+//                -> CustomizedOp -> COp1 => 1.Pipeline and IO are fixed.
+//                                -> COp2... 2.Can be designed externally.
 class OperatorA {
 public:
   int Initialize(const vk::Device device, const vk::ShaderModule shader) {
@@ -457,9 +541,7 @@ private:
   std::map<std::string, vk::ShaderModule> shaders_map_;
 
   Command *comd_;
-  // TODO: std::vector<OperatorA *> ops_;
-  //       Each op is independent, but an op can consist of multiple shaders,
-  //    that is, multiple pipelines
+  // TODO: GeneralOp and CustomizedOp.
   OperatorA *op_;
 
 }; // class Executor
