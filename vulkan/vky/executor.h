@@ -7,6 +7,8 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include "device.h"
+
 namespace vky {
 
 inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
@@ -14,87 +16,6 @@ inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 // TODO: Handle exeception.
 // TODO: Release resource.
 // TODO: Specify a transfer pipeline for buffer copy.
-class DeviceInfo {
-public:
-  vk::PhysicalDevice physical_device_;
-
-  // info
-  char device_name_[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
-  uint32_t api_version_;
-  uint32_t driver_version_;
-  uint32_t vendor_id_;
-  uint32_t device_id_;
-
-  // eOther = VK_PHYSICAL_DEVICE_TYPE_OTHER,
-  // eIntegratedGpu = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
-  // eDiscreteGpu = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-  // eVirtualGpu = VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
-  // eCpu = VK_PHYSICAL_DEVICE_TYPE_CPU
-  vk::PhysicalDeviceType type_;
-
-  // hardware capability
-  uint32_t max_shared_memory_size_;
-  uint32_t max_workgroup_count_[3];
-  uint32_t max_workgroup_invocations_;
-  uint32_t max_workgroup_size_[3];
-
-  uint32_t memory_map_alignment_;
-  uint32_t buffer_offset_alignment_;
-
-  // runtime
-  uint32_t compute_queue_familly_id_;
-};
-
-class DeviceManager {
-public:
-  DeviceManager() {}
-  ~DeviceManager() {}
-
-  int device_count() const { return physical_devices_.size(); }
-  vk::PhysicalDevice physical_device(int id) const { return physical_devices_[id]; }
-  DeviceInfo &device_info(int id) const { return devices_info_[id]; }
-
-  int Initialize(bool is_enable_validation);
-  int UnInitialize();
-  void PrintDevicesInfo() const;
-
-private: 
-  // filter list of desired extensions to include only those supported by current Vulkan instance.
-  std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const;
-
-  // filter list of desired extensions to include only those supported by current Vulkan instance
-  std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const;
-
-  int CreateInstance(std::vector<const char*> &layers, std::vector<const char*> &extensions);
-
-  // @return the index of a queue family that supports compute operations.
-  // Groups of queues that have the same capabilities (for instance, they all supports graphics
-  // and computer operations), are grouped into queue families.
-  // When submitting a command buffer, you must specify to which queue in the family you are submitting to.
-  uint32_t GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const;
-
-  int QueryPhysicalDevices();
-
-private:
-  vk::Instance instance_;
-
-  // TODO: DeviceInfo has a PhysicalDevice member. There is redundancy.
-  //       But DeviceInfo *devices_info_ is an array with no number of tags.
-  std::vector<vk::PhysicalDevice> physical_devices_;
-  DeviceInfo *devices_info_;
-}; // class DeviceManager
-
-// TODO: The basic data unit in here.
-class Data {
-public:
-  int Initialize() {
-
-  }
-
-private:
-  vk::Buffer buffer_;
-  int buffer_range_;
-};
 
 class Pipeline {
 
@@ -245,7 +166,7 @@ public:
         { 2, 2 * sizeof(int), sizeof(int) } }
     };
     // TODO: Replace it by SetOptimalLocalSizeXYZ.
-    uint32_t WORKGROUP_SIZE = 16;
+    int WORKGROUP_SIZE = 16;
     auto spec_values = std::array<int, 3>{WORKGROUP_SIZE, WORKGROUP_SIZE, 1};
     auto spec_info = vk::SpecializationInfo(spec_entries.size(), spec_entries.data(),
       spec_values.size() * sizeof(int), spec_values.data());   // TODO: Change sizeof(int) to a manual type?

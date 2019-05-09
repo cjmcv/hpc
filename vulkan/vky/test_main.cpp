@@ -34,8 +34,8 @@ int main(int argc, char* argv[]) {
   vky::Executor *executor = new vky::Executor();
   executor->Initialize(selected_device_info, shaders_dir_path);
   
-  vky::Allocator<float> d_x = vky::Allocator<float>::fromHost(x, width * height, executor->device(), selected_device_info.physical_device_);
-  vky::Allocator<float> d_y = vky::Allocator<float>::fromHost(y, width * height, executor->device(), selected_device_info.physical_device_);
+  vky::Allocator2<float> d_x = vky::Allocator2<float>::fromHost(x, width * height, executor->device(), selected_device_info.physical_device_);
+  vky::Allocator2<float> d_y = vky::Allocator2<float>::fromHost(y, width * height, executor->device(), selected_device_info.physical_device_);
 
   clock_t time = clock();
  
@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
   delete[]out;
 
   // TODO: Check Release. 
-  //       The reason may be related to the life cycle of vky::Allocator.
+  //       The reason may be related to the life cycle of vky::Allocator2.
   //delete devm;
   //delete executor;
 

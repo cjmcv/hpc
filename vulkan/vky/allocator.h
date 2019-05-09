@@ -4,14 +4,15 @@
 #include <iostream>
 #include <fstream>
 #include <type_traits>
-
 #include <vulkan/vulkan.hpp>
+
+#include <device.h>
 
 namespace vky {
 
 /// Device buffer owning its chunk of memory.
 template<class T>
-class Allocator {
+class Allocator2 {
   // Helper class to access to (host-visible!!!) device memory from the host. 
   // Unmapping memory is not necessary.
   struct BufferHostView {
@@ -36,12 +37,12 @@ class Allocator {
 public:
   using value_type = T;
 
-  Allocator(Allocator&&) = default;
-  auto operator=(Allocator&&)->Allocator& = default;
+  Allocator2(Allocator2&&) = default;
+  auto operator=(Allocator2&&)->Allocator2& = default;
 
   // Constructor
   // construction and binding.
-  explicit Allocator(const vk::Device& device, const vk::PhysicalDevice& phys_device,
+  explicit Allocator2(const vk::Device& device, const vk::PhysicalDevice& phys_device,
     uint32_t n_elements,
     vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
     vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eStorageBuffer)
@@ -57,7 +58,7 @@ public:
   }
 
   /// Destructor
-  ~Allocator() noexcept {
+  ~Allocator2() noexcept {
     if (dev_) {
       dev_->freeMemory(mem_);
       dev_->destroyBuffer(buf_);
@@ -67,18 +68,17 @@ public:
 
   size_t size() const { return size_; } /// @return number of items in the buffer
   operator vk::Buffer& () {
-    return *reinterpret_cast<vk::Buffer*>(this + offsetof(Allocator, buf_));
+    return *reinterpret_cast<vk::Buffer*>(this + offsetof(Allocator2, buf_));
   }
   operator const vk::Buffer& () const {
-    return *reinterpret_cast<const vk::Buffer*>(this + offsetof(Allocator, buf_));
+    return *reinterpret_cast<const vk::Buffer*>(this + offsetof(Allocator2, buf_));
   }
 
-  static Allocator fromHost(T *in_data, int len, const vk::Device& device, const vk::PhysicalDevice& physDev,
+  static Allocator2 fromHost(T *in_data, int len, const vk::Device& device, const vk::PhysicalDevice& physDev,
     vk::MemoryPropertyFlags properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
     vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eStorageBuffer);
 
   void to_host(T *out_data, int len);
-
 
 private:
   ///
@@ -135,7 +135,7 @@ private:
 #define ALL(x) begin(x), end(x)
     auto queueFamilies = physicalDevice.getQueueFamilyProperties();
 
-    // prefer using compute-only queue
+    // prefer using compute-only queue. eTransfer / eCompute
     auto queue_it = std::find_if(ALL(queueFamilies), [](auto& f) {
       auto maskedFlags = ~vk::QueueFlagBits::eSparseBinding & f.queueFlags; // ignore sparse binding flag 
       return 0 < f.queueCount                                               // queue family does have some queues in it
@@ -166,7 +166,29 @@ private:
   vk::MemoryPropertyFlags flags_;         ///< Actual flags of allocated memory. Can be a superset of requested flags.
   size_t size_;                           ///< number of elements. actual allocated memory may be a bit bigger than necessary.
 
+}; // Allocator2
+
+class Allocator {
+public:
+  Allocator() {};
+  virtual ~Allocator() {}
+
 }; // Allocator
+
+// TODO: The basic data unit.
+// TODO: template <typename Dtype>
+class VkyData {
+public:
+  VkyData() {};
+  VkyData(int channels, int height, int width) {};
+
+private:
+  Allocator *allocator_;
+  float *cpu_data_;
+
+  vk::Buffer buffer_;
+  int buffer_range_;
+}; // Data
 
 } // namespace vky
 

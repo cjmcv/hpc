@@ -1,4 +1,4 @@
-#include "executor.h"
+#include "device.h"
 
 namespace vky {
 
@@ -30,9 +30,9 @@ int DeviceManager::UnInitialize() {
 }
 
 void DeviceManager::PrintDevicesInfo() const {
-  std::cout << "device count: " << physical_devices_.size() << std::endl;
+  std::cout << "device count: " << devices_count_ << std::endl;
 
-  for (int i = 0; i < physical_devices_.size(); i++) {
+  for (int i = 0; i < devices_count_; i++) {
     DeviceInfo &info = devices_info_[i];
 
     ///////////////////////////////////
@@ -73,6 +73,8 @@ void DeviceManager::PrintDevicesInfo() const {
     std::cout << "buffer offset alignment: " << info.buffer_offset_alignment_ << std::endl;
     std::cout << "compute queue familly id: " << info.compute_queue_familly_id_ << std::endl;
   }
+
+  std::cout << std::endl << "//////////////////////////////////////////" << std::endl;
 }
 
 ///////////////
@@ -149,17 +151,19 @@ uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physic
 }
 
 int DeviceManager::QueryPhysicalDevices() {
-  uint32_t device_count = 0;
-  vkEnumeratePhysicalDevices(instance_, &device_count, NULL);
-  if (device_count == 0) {
+
+  vkEnumeratePhysicalDevices(instance_, &devices_count_, NULL);
+  if (devices_count_ == 0) {
     throw std::runtime_error("could not find a device with vulkan support");
   }
-  physical_devices_.resize(device_count);
-  instance_.enumeratePhysicalDevices(&device_count, physical_devices_.data());
 
-  devices_info_ = new DeviceInfo[device_count];
-  for (uint32_t i = 0; i < device_count; i++) {
-    const vk::PhysicalDevice& physical_device = physical_devices_[i];
+  std::vector<vk::PhysicalDevice> physical_devices;
+  physical_devices.resize(devices_count_);
+  instance_.enumeratePhysicalDevices(&devices_count_, physical_devices.data());
+
+  devices_info_ = new DeviceInfo[devices_count_];
+  for (uint32_t i = 0; i < devices_count_; i++) {
+    const vk::PhysicalDevice& physical_device = physical_devices[i];
     DeviceInfo &info = devices_info_[i];
 
     vk::PhysicalDeviceProperties device_properties;
