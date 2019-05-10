@@ -122,7 +122,7 @@ private:
     device.destroyCommandPool(cmd_pool);
   }
 
-  /// Create buffer on a device_. Does NOT allocate memory.
+  /// Create buffer on a device. Does NOT allocate memory.
   vk::Buffer CreateBuffer(const vk::Device& device,
     uint32_t buf_size,
     vk::BufferUsageFlags usage) const;
@@ -170,25 +170,101 @@ private:
 
 class Allocator {
 public:
-  Allocator() {};
+  Allocator(const vk::Device& device, const vk::PhysicalDevice& physical_device) :
+    device_(device), physical_device_(physical_device) {
+
+  };
   virtual ~Allocator() {}
 
+private:
+  vk::Buffer CreateBuffer(const vk::Device& device,
+    uint32_t buffer_size,
+    vk::BufferUsageFlags usage) const {
+    auto create_info = vk::BufferCreateInfo(vk::BufferCreateFlags(), buffer_size, usage);
+    return device.createBuffer(create_info);
+  }
+
+  vk::DeviceMemory AllocateMemory(size_t size, uint32_t memory_type_index) {
+    vk::MemoryAllocateInfo alloc_info;
+    alloc_info.setAllocationSize(size);
+    alloc_info.setMemoryTypeIndex(memory_type_index);
+
+    return device_.allocateMemory(alloc_info);
+  }
+
+  // TODO: test.
+  vk::DeviceMemory AllocateDedicatedMemory(size_t size, uint32_t memory_type_index, VkBuffer buffer) {
+    vk::MemoryAllocateInfo alloc_info;
+    alloc_info.setAllocationSize(size);
+    alloc_info.setMemoryTypeIndex(memory_type_index);
+
+    vk::MemoryDedicatedAllocateInfoKHR dedicated_alloc_info;
+    dedicated_alloc_info.setPNext(0);
+    dedicated_alloc_info.setBuffer(buffer);
+
+    alloc_info.setPNext(&dedicated_alloc_info);
+
+    return device_.allocateMemory(alloc_info);
+  }
+
+private:
+  vk::Device device_;
+  vk::PhysicalDevice physical_device_;
+
+  vk::MemoryPropertyFlags flags_;
 }; // Allocator
 
 // TODO: The basic data unit.
+// TODO: The allocator is given by executor?
 // TODO: template <typename Dtype>
 class VkyData {
 public:
-  VkyData() {};
-  VkyData(int channels, int height, int width) {};
+  VkyData(Allocator *allocator, int channels, int height, int width, float *data = nullptr) {
+    allocator_ = allocator;
+
+    channels_ = channels;
+    height_ = height;
+    width_ = width;
+
+    if (data == nullptr) {
+      cpu_data_ = new float[channels_ * height_ * width_];
+      is_cpu_data_hold_ = true;
+    }
+    else {
+      cpu_data_ = data;
+      is_cpu_data_hold_ = false;
+    }
+  }
+
+  VkyData(Allocator *allocator,int len, float *data = nullptr)
+    : VkyData(allocator, 1, 1, len, data) {};
+
+  float *cpu_data() const { return cpu_data_; }
+  vk::Buffer &gpu_data() { return buffer_; }
+
+  int channels() const { return channels_; }
+  int height() const { return height_; }
+  int width() const { return width_; }
+
+  ~VkyData() {
+    if (is_cpu_data_hold_) {
+      delete[]cpu_data_;
+      cpu_data_ = nullptr;
+    }
+  }
 
 private:
   Allocator *allocator_;
   float *cpu_data_;
+  bool is_cpu_data_hold_;
 
   vk::Buffer buffer_;
-  int buffer_range_;
-}; // Data
+  int buffer_range_;  
+  
+  int channels_;
+  int height_;
+  int width_;
+}; // VkyData
 
 } // namespace vky
 

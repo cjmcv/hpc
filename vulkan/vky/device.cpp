@@ -5,7 +5,7 @@ namespace vky {
 ///////////////
 // <Public
 int DeviceManager::Initialize(bool is_enable_validation) {
-  devices_info_ = NULL;
+  devices_info_ = nullptr;
 
   std::vector<const char*> layers = std::vector<const char*>{};
   std::vector<const char*> extensions = std::vector<const char*>{};
@@ -22,9 +22,9 @@ int DeviceManager::Initialize(bool is_enable_validation) {
 }
 
 int DeviceManager::UnInitialize() {
-  if (devices_info_ != NULL) {
+  if (devices_info_ != nullptr) {
     delete[]devices_info_;
-    devices_info_ = NULL;
+    devices_info_ = nullptr;
   }
   return 0;
 }
@@ -152,7 +152,7 @@ uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physic
 
 int DeviceManager::QueryPhysicalDevices() {
 
-  vkEnumeratePhysicalDevices(instance_, &devices_count_, NULL);
+  vkEnumeratePhysicalDevices(instance_, &devices_count_, nullptr);
   if (devices_count_ == 0) {
     throw std::runtime_error("could not find a device with vulkan support");
   }
