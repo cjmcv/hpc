@@ -234,13 +234,31 @@ public:
       cpu_data_ = data;
       is_cpu_data_hold_ = false;
     }
+    is_in_host_ = true;
   }
 
   VkyData(Allocator *allocator,int len, float *data = nullptr)
     : VkyData(allocator, 1, 1, len, data) {};
 
+  float *GetCpuData() { 
+    if(is_in_host_ == true)
+      return cpu_data();
+    else {
+      // Push data from device to host.
+      is_in_host_ = true;
+    }
+  }
+  vk::Buffer &GetDeviceData() { 
+    if (is_in_host_ == false)
+      return device_data();
+    else {
+      // Push data from host to device.
+      is_in_host_ = false;
+    }
+  }
+
   float *cpu_data() const { return cpu_data_; }
-  vk::Buffer &gpu_data() { return buffer_; }
+  vk::Buffer &device_data() { return buffer_; }
 
   int channels() const { return channels_; }
   int height() const { return height_; }
@@ -261,6 +279,7 @@ private:
   vk::Buffer buffer_;
   int buffer_range_;  
   
+  bool is_in_host_;
   int channels_;
   int height_;
   int width_;
