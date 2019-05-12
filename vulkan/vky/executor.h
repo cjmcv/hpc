@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "device.h"
+#include "allocator.h"
 
 namespace vky {
 
@@ -401,9 +402,18 @@ public:
     op_ = new OperatorA();
     op_->Initialize(device_, shader("saxpy"));
 
+    allocator_ = new Allocator(device_, device_info.physical_device_, device_info.compute_queue_familly_id_);
     return 0;
   }
 
+  int UnInitialize() {
+    if (allocator_ != nullptr) {
+      delete allocator_;
+      allocator_ = nullptr;
+    }
+
+    return 0;
+  }
   // TODO: Data, Bind the buffers and buffer_range together. 
   //       Create a new class for Buffer.
   int Run(const std::vector<vk::Buffer> &buffers,
@@ -415,6 +425,14 @@ public:
     op_->Run(comd_, buffers, buffer_range, group_count_xyz, params, params_size);
 
     return 0;
+  }
+
+  Allocator *GetAllocator() {
+    if (allocator_ != nullptr)
+      return allocator_;
+    else
+      return nullptr;
+    // throw error?
   }
 
 private:
@@ -465,6 +483,7 @@ private:
   // TODO: GeneralOp and CustomizedOp.
   OperatorA *op_;
 
+  Allocator *allocator_;
 }; // class Executor
 
 } // namespace vky

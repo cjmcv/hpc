@@ -11,7 +11,8 @@ struct PushParams {
   float a;         //< saxpy (\$ y = y + ax \$) scaling factor
 };
 
-int main(int argc, char* argv[]) {
+#ifdef VKY_MASK
+int TestExecutor() {
   const int width = 30;
   const int height = 30;
   const float a = 2.0f; // saxpy scaling factor
@@ -33,12 +34,12 @@ int main(int argc, char* argv[]) {
 
   vky::Executor *executor = new vky::Executor();
   executor->Initialize(selected_device_info, shaders_dir_path);
-  
+
   vky::Allocator2<float> d_x = vky::Allocator2<float>::fromHost(x, width * height, executor->device(), selected_device_info.physical_device_);
   vky::Allocator2<float> d_y = vky::Allocator2<float>::fromHost(y, width * height, executor->device(), selected_device_info.physical_device_);
 
   clock_t time = clock();
- 
+
   // The order must be the same as defined in comp.
   int group_count_xyz[3];
   //group_count_xyz[0] = (m.w + pipeline->local_size_x - 1) / pipeline->local_size_x;
@@ -81,6 +82,51 @@ int main(int argc, char* argv[]) {
   //       The reason may be related to the life cycle of vky::Allocator2.
   //delete devm;
   //delete executor;
+
+  return 0;
+}
+#endif
+
+void TestVkyData() {
+  int len = 100;
+  float *x = new float[len];
+  for (int i = 0; i < len; i++) {
+    x[i] = i;
+  }
+
+  vky::DeviceManager *devm = new vky::DeviceManager();
+  devm->Initialize(true);
+  devm->PrintDevicesInfo();
+
+  int physical_device_id = 0;
+  std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/";
+
+  vky::DeviceInfo selected_device_info = devm->device_info(physical_device_id);
+
+  vky::Executor *executor = new vky::Executor();
+  executor->Initialize(selected_device_info, shaders_dir_path);
+
+  // TODO.
+  vky::Allocator *allocator = executor->GetAllocator();
+  vky::VkyData vdata(allocator, len, x);
+
+  float *vdata_cpu = vdata.GetCpuData();
+  for (int i = 0; i < len; i++) {
+    std::cout << vdata_cpu[i] << ", ";
+  }
+
+  //float *out = new float[len];
+
+  //for (int i = 0; i < len; i++) {
+  //  std::cout << out[i] << ", ";
+  //}
+}
+
+int main(int argc, char* argv[]) {
+
+  //TestExecutor();
+
+  TestVkyData();
 
   return 0;
 }
