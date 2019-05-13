@@ -388,6 +388,7 @@ public:
   ~Executor() {}
 
   const vk::Device &device() const { return device_; }
+  Allocator *allocator() const { return allocator_; }
 
   int Initialize(const DeviceInfo &device_info, const std::string &shaders_dir_path) {
     // Init Device.
@@ -425,14 +426,6 @@ public:
     op_->Run(comd_, buffers, buffer_range, group_count_xyz, params, params_size);
 
     return 0;
-  }
-
-  Allocator *GetAllocator() {
-    if (allocator_ != nullptr)
-      return allocator_;
-    else
-      return nullptr;
-    // throw error?
   }
 
 private:

@@ -107,19 +107,23 @@ void TestVkyData() {
   executor->Initialize(selected_device_info, shaders_dir_path);
 
   // TODO.
-  vky::Allocator *allocator = executor->GetAllocator();
+  vky::Allocator *allocator = executor->allocator();
   vky::VkyData vdata(allocator, len, x);
 
-  float *vdata_cpu = vdata.GetCpuData();
+  float *vdata_cpu = vdata.cpu_data();
+
+  vdata.PushFromHost2Device();
+  memset(vdata_cpu, 0, sizeof(float) * len);
   for (int i = 0; i < len; i++) {
     std::cout << vdata_cpu[i] << ", ";
   }
+  std::cout << std::endl << "cleaned." << std::endl;
 
-  //float *out = new float[len];
+  vdata.PushFromDevice2Host();
 
-  //for (int i = 0; i < len; i++) {
-  //  std::cout << out[i] << ", ";
-  //}
+  for (int i = 0; i < len; i++) {
+    std::cout << vdata_cpu[i] << ", ";
+  }
 }
 
 int main(int argc, char* argv[]) {

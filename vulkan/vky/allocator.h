@@ -15,7 +15,7 @@ public:
   Allocator(const vk::Device& device, const vk::PhysicalDevice& physical_device, const int compute_queue_familly_id) :
     device_(device), physical_device_(physical_device) {
 
-    properties_ = vk::MemoryPropertyFlagBits::eDeviceLocal;
+    properties_ = vk::MemoryPropertyFlagBits::eHostVisible; //eDeviceLocal
 
     // Check.
     compute_queue_familly_id_ = compute_queue_familly_id;
@@ -36,9 +36,12 @@ public:
     return device_.createBuffer(create_info);
   }
 
-  vk::DeviceMemory AllocateMemory(size_t size, uint32_t memory_type_index) {
+  vk::DeviceMemory AllocateMemory(const vk::Buffer& buf, uint32_t memory_type_index) {
+
+    auto memory_reqs = device_.getBufferMemoryRequirements(buf);
+
     vk::MemoryAllocateInfo alloc_info;
-    alloc_info.setAllocationSize(size);
+    alloc_info.setAllocationSize(memory_reqs.size);
     alloc_info.setMemoryTypeIndex(memory_type_index);
 
     // TODO: move it?
@@ -79,8 +82,8 @@ public:
   void BindBufferMemory(vk::Buffer &buf, vk::DeviceMemory &mem) {
     device_.bindBufferMemory(buf, mem, 0);
   }
-  void *MapMemory(vk::DeviceMemory &mem, int len) {
-    return device_.mapMemory(mem, 0, len * sizeof(float));
+  void *MapMemory(vk::DeviceMemory &mem, int size) {
+    return device_.mapMemory(mem, 0, size);
   }
   /// Copy device_ buffers using the transient command pool.
   /// Fully sync, no latency hiding whatsoever.
@@ -132,49 +135,30 @@ public:
       cpu_data_ = data;
       is_cpu_data_hold_ = false;
     }
-    is_in_host_ = true;
 
     // Temp?
     vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eStorageBuffer;
     buffer_ = allocator_->CreateBuffer(len_ * sizeof(float), usage);
     uint32_t memory_id = allocator_->SelectMemory(buffer_);
 
-    mem_ = allocator_->AllocateMemory(len_ * sizeof(float), memory_id);
+    mem_ = allocator_->AllocateMemory(buffer_, memory_id);
 
     allocator_->BindBufferMemory(buffer_, mem_);
 
     // TODO.
-    //map_data_ = (float *)allocator_->MapMemory(mem_, len_ * sizeof(float));
+    map_data_ = (float *)allocator_->MapMemory(mem_, len_ * sizeof(float));
+    
+    printf("finish.\n");
   }
 
   VkyData(Allocator *allocator,int len, float *data = nullptr)
     : VkyData(allocator, 1, 1, len, data) {};
 
-  float *GetCpuData() { 
-    if(is_in_host_ == true)
-      return cpu_data();
-    else {
-      // Push data from device to host.
-
-      // Check?
-      std::copy(map_data_, map_data_ + sizeof(float) * len_, cpu_data_);
-
-      is_in_host_ = true;
-      return cpu_data();
-    }
+  void PushFromHost2Device() { 
+    std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, map_data_);
   }
-  vk::Buffer &GetDeviceData() { 
-    if (is_in_host_ == false)
-      return device_data();
-    else {
-      // Push data from host to device.
-
-      // Check?
-      std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, map_data_);
-
-      is_in_host_ = false;
-      return device_data();
-    }
+  void PushFromDevice2Host() {
+    std::copy(map_data_, map_data_ + sizeof(float) * len_, cpu_data_);
   }
 
   // Get data without check.
@@ -201,7 +185,6 @@ private:
   int buffer_range_;  
   float *map_data_;
 
-  bool is_in_host_;
   int channels_;
   int height_;
   int width_;
