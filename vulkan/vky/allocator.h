@@ -10,24 +10,62 @@
 
 namespace vky {
 
+class BufferMemory {
+public:
+  vk::Buffer buffer_;
+  vk::BufferUsageFlags usage_;
+  int buffer_range_;
+
+  vk::DeviceMemory memory_;
+  vk::MemoryPropertyFlags properties_;
+  float *mapped_ptr_;
+};
+
 class Allocator {
 public:
   Allocator(const vk::Device& device, const vk::PhysicalDevice& physical_device, const int compute_queue_familly_id) :
     device_(device), physical_device_(physical_device) {
-
-    properties_ = vk::MemoryPropertyFlagBits::eHostVisible; //eDeviceLocal
 
     // Check.
     compute_queue_familly_id_ = compute_queue_familly_id;
   };
   virtual ~Allocator() {}
 
+  BufferMemory* Malloc(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) {
+    BufferMemory *bm = new BufferMemory();
+
+    bm->usage_ = usage;
+    bm->properties_ = properties;
+
+    bm->buffer_ = CreateBuffer(size, usage, properties);
+    uint32_t memory_id = SelectMemory(bm->buffer_, properties);
+    bm->memory_ = AllocateMemory(bm->buffer_, memory_id);
+
+    device_.bindBufferMemory(bm->buffer_, bm->memory_, 0);
+
+    bm->mapped_ptr_ = nullptr;
+    if (properties == vk::MemoryPropertyFlagBits::eHostVisible)
+      bm->mapped_ptr_ = (float *)device_.mapMemory(bm->memory_, 0, size);
+
+    return bm;
+  }
+
+  void Free(BufferMemory *bm) {
+    if(bm->mapped_ptr_ != nullptr)
+      device_.unmapMemory(bm->memory_);
+    device_.destroyBuffer(bm->buffer_, 0);
+    device_.freeMemory(bm->memory_, 0);
+
+    delete bm;
+  }
+
 public:
   vk::Buffer CreateBuffer(uint32_t buffer_size,
-                          vk::BufferUsageFlags usage) const {
+                          vk::BufferUsageFlags usage, 
+                          vk::MemoryPropertyFlags properties) const {
 
     if (physical_device_.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu
-      && properties_ == vk::MemoryPropertyFlagBits::eDeviceLocal
+      && properties == vk::MemoryPropertyFlagBits::eDeviceLocal
       && usage == vk::BufferUsageFlagBits::eStorageBuffer) {
       usage |= vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
     }
@@ -51,7 +89,7 @@ public:
   }
 
   // TODO: test.
-  vk::DeviceMemory AllocateDedicatedMemory(size_t size, uint32_t memory_type_index, VkBuffer buffer) {
+  vk::DeviceMemory AllocateDedicatedMemory(size_t size, uint32_t memory_type_index, vk::Buffer buffer) {
     vk::MemoryAllocateInfo alloc_info;
     alloc_info.setAllocationSize(size);
     alloc_info.setMemoryTypeIndex(memory_type_index);
@@ -68,22 +106,17 @@ public:
   ////////
   vk::Device device() const { return device_; }
 
-  uint32_t SelectMemory(const vk::Buffer& buf) const {
+  uint32_t SelectMemory(const vk::Buffer& buffer, vk::MemoryPropertyFlags properties) const {
     auto mem_properties = physical_device_.getMemoryProperties();
-    auto memory_reqs = device_.getBufferMemoryRequirements(buf);
+    auto memory_reqs = device_.getBufferMemoryRequirements(buffer);
+
     for (uint32_t i = 0; i < mem_properties.memoryTypeCount; ++i) {
       if ((memory_reqs.memoryTypeBits & (1u << i))
-        && ((properties_ & mem_properties.memoryTypes[i].propertyFlags) == properties_)) {
+        && ((properties & mem_properties.memoryTypes[i].propertyFlags) == properties)) {
         return i;
       }
     }
     throw std::runtime_error("failed to select memory with required properties");
-  }
-  void BindBufferMemory(vk::Buffer &buf, vk::DeviceMemory &mem) {
-    device_.bindBufferMemory(buf, mem, 0);
-  }
-  void *MapMemory(vk::DeviceMemory &mem, int size) {
-    return device_.mapMemory(mem, 0, size);
   }
   /// Copy device_ buffers using the transient command pool.
   /// Fully sync, no latency hiding whatsoever.
@@ -109,7 +142,6 @@ private:
   vk::MemoryPropertyFlags flags_;
 
   // Temp?
-  vk::MemoryPropertyFlags properties_;
   uint32_t compute_queue_familly_id_; // Given by executor.
 }; // Allocator
 
@@ -136,62 +168,70 @@ public:
       is_cpu_data_hold_ = false;
     }
 
-    // Temp?
-    vk::BufferUsageFlags usage = vk::BufferUsageFlagBits::eStorageBuffer;
-    buffer_ = allocator_->CreateBuffer(len_ * sizeof(float), usage);
-    uint32_t memory_id = allocator_->SelectMemory(buffer_);
+    // TODO: Move to executor
+    staging_in_data_ = allocator_->Malloc(len_ * sizeof(float), 
+                                          vk::BufferUsageFlagBits::eTransferSrc, 
+                                          vk::MemoryPropertyFlagBits::eHostVisible);
+    staging_out_data_ = allocator_->Malloc(len_ * sizeof(float),
+                                           vk::BufferUsageFlagBits::eTransferDst,
+                                           vk::MemoryPropertyFlagBits::eHostVisible);
 
-    mem_ = allocator_->AllocateMemory(buffer_, memory_id);
-
-    allocator_->BindBufferMemory(buffer_, mem_);
-
-    // TODO.
-    map_data_ = (float *)allocator_->MapMemory(mem_, len_ * sizeof(float));
-    
-    printf("finish.\n");
+    data_ = allocator_->Malloc(len_ * sizeof(float),
+                               vk::BufferUsageFlagBits::eStorageBuffer,
+                               vk::MemoryPropertyFlagBits::eDeviceLocal);
   }
 
   VkyData(Allocator *allocator,int len, float *data = nullptr)
     : VkyData(allocator, 1, 1, len, data) {};
-
-  void PushFromHost2Device() { 
-    std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, map_data_);
-  }
-  void PushFromDevice2Host() {
-    std::copy(map_data_, map_data_ + sizeof(float) * len_, cpu_data_);
-  }
-
-  // Get data without check.
-  float *cpu_data() const { return cpu_data_; }
-  vk::Buffer &device_data() { return buffer_; }
-
-  int channels() const { return channels_; }
-  int height() const { return height_; }
-  int width() const { return width_; }
 
   ~VkyData() {
     if (is_cpu_data_hold_) {
       delete[]cpu_data_;
       cpu_data_ = nullptr;
     }
+
+    allocator_->Free(staging_in_data_);
+    allocator_->Free(staging_out_data_);
+    allocator_->Free(data_);
   }
+
+  void PushFromHost2Device() {
+    std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
+    allocator_->CopyBuf(staging_in_data_->buffer_, data_->buffer_, sizeof(float) * len_);
+  }
+
+  void PushFromDevice2Host() {
+    allocator_->CopyBuf(data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
+    // It shouldn't be multiplied by sizeof(float).
+    std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, cpu_data_);
+  }
+
+  // Get data without check.
+  float *cpu_data() const { return cpu_data_; }
+  vk::Buffer &device_data() { return data_->buffer_; }
+
+  int channels() const { return channels_; }
+  int height() const { return height_; }
+  int width() const { return width_; }
 
 private:
   Allocator *allocator_;
   float *cpu_data_;
   bool is_cpu_data_hold_;
 
-  vk::Buffer buffer_;
-  int buffer_range_;  
-  float *map_data_;
+  // TODO: Move in/out to executor.
+  //       Add a dimension for IO.
+  BufferMemory *staging_in_data_;
+  BufferMemory *staging_out_data_;
+  BufferMemory *data_;
 
   int channels_;
   int height_;
   int width_;
   int len_;
 
-  // Temp?
-  vk::DeviceMemory mem_;
+  //// Temp?
+  //vk::DeviceMemory memory_;
 }; // VkyData
 
 } // namespace vky

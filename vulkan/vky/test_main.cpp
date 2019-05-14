@@ -11,7 +11,6 @@ struct PushParams {
   float a;         //< saxpy (\$ y = y + ax \$) scaling factor
 };
 
-#ifdef VKY_MASK
 int TestExecutor() {
   const int width = 30;
   const int height = 30;
@@ -35,8 +34,11 @@ int TestExecutor() {
   vky::Executor *executor = new vky::Executor();
   executor->Initialize(selected_device_info, shaders_dir_path);
 
-  vky::Allocator2<float> d_x = vky::Allocator2<float>::fromHost(x, width * height, executor->device(), selected_device_info.physical_device_);
-  vky::Allocator2<float> d_y = vky::Allocator2<float>::fromHost(y, width * height, executor->device(), selected_device_info.physical_device_);
+  vky::Allocator *allocator = executor->allocator();
+  vky::VkyData vdata_x(allocator, width*height, x);
+  vky::VkyData vdata_y(allocator, width*height, y);
+  vdata_x.PushFromHost2Device();
+  vdata_y.PushFromHost2Device();
 
   clock_t time = clock();
 
@@ -50,8 +52,8 @@ int TestExecutor() {
   group_count_xyz[2] = 1;
 
   std::vector<vk::Buffer> buffers;
-  buffers.push_back(d_y);
-  buffers.push_back(d_x);
+  buffers.push_back(vdata_y.device_data());
+  buffers.push_back(vdata_x.device_data());
 
   PushParams params;
   params.width = width;
@@ -59,24 +61,25 @@ int TestExecutor() {
   params.a = a;
 
   int buffer_range = params.width * params.height * sizeof(float);
-  for (int i = 0; i < 10; i++) {
+  //for (int i = 0; i < 10; i++) {
     executor->Run(buffers, buffer_range, group_count_xyz, &params, sizeof(params));
-  }
+  //}
 
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
 
-  float *out = new float[width*height];
-  d_y.to_host(out, width*height);
+
+  float *vdata_cpu = vdata_y.cpu_data();
+  //memset(vdata_cpu, 0, sizeof(float) * width*height);
+  vdata_y.PushFromDevice2Host();
 
   for (int i = 0; i < width * height; i++) {
-    std::cout << out[i] << ", ";
+    std::cout << vdata_cpu[i] << ", ";
   }
 
   // TODO: UnInitialize.
 
   delete[]x;
   delete[]y;
-  delete[]out;
 
   // TODO: Check Release. 
   //       The reason may be related to the life cycle of vky::Allocator2.
@@ -85,7 +88,6 @@ int TestExecutor() {
 
   return 0;
 }
-#endif
 
 void TestVkyData() {
   int len = 100;
@@ -128,9 +130,9 @@ void TestVkyData() {
 
 int main(int argc, char* argv[]) {
 
-  //TestExecutor();
+  TestExecutor();
 
-  TestVkyData();
+  //TestVkyData();
 
   return 0;
 }
