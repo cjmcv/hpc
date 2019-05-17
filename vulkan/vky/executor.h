@@ -435,7 +435,13 @@ private:
     shaders_map_["saxpy"] = CreateShaderModule(shaders_dir_path + "shaders/saxpy.spv");
   }
 
-  vk::ShaderModule shader(std::string str) const { return shaders_map_.find(str)->second; }
+  vk::ShaderModule shader(const std::string &str) {
+    std::map<std::string, vk::ShaderModule>::iterator it = shaders_map_.find(str);
+    if (it == shaders_map_.end()) {
+      throw std::runtime_error(std::string("could not find shader: ") + it->first);
+    }
+    return it->second;
+  }
 
   vk::ShaderModule CreateShaderModule(const std::string &filename) {
     // Read binary shader file into array of uint32_t. little endian assumed.
@@ -468,7 +474,6 @@ private:
   }
 
 private:  
-  //uint32_t compute_queue_familly_id_;
   vk::Device device_;    // logical device providing access to a physical one 
   std::map<std::string, vk::ShaderModule> shaders_map_;
 
