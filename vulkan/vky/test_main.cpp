@@ -37,8 +37,6 @@ int TestExecutor() {
   vky::Allocator *allocator = executor->allocator();
   vky::VkyData vdata_x(allocator, width*height, x);
   vky::VkyData vdata_y(allocator, width*height, y);
-  vdata_x.PushFromHost2Device();
-  vdata_y.PushFromHost2Device();
 
   clock_t time = clock();
 
@@ -61,16 +59,14 @@ int TestExecutor() {
   params.a = a;
 
   int buffer_range = params.width * params.height * sizeof(float);
-  //for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++) {
     executor->Run(buffers, buffer_range, group_count_xyz, &params, sizeof(params));
-  //}
+  }
 
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
 
 
   float *vdata_cpu = vdata_y.cpu_data();
-  //memset(vdata_cpu, 0, sizeof(float) * width*height);
-  vdata_y.PushFromDevice2Host();
 
   for (int i = 0; i < width * height; i++) {
     std::cout << vdata_cpu[i] << ", ";
@@ -89,6 +85,7 @@ int TestExecutor() {
   return 0;
 }
 
+#ifdef ABC
 void TestVkyData() {
   int len = 100;
   float *x = new float[len];
@@ -127,6 +124,7 @@ void TestVkyData() {
     std::cout << vdata_cpu[i] << ", ";
   }
 }
+#endif
 
 int main(int argc, char* argv[]) {
 

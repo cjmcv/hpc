@@ -96,20 +96,32 @@ public:
     }
   }
 
-  // TODO: Use some variable from executor£¿
+  // TODO: Use some variable from executor
   /// Copy device_ buffers using the transient command pool.
   /// Fully sync, no latency hiding whatsoever.
   void CopyBuf(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size) {
+    //auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), compute_queue_familly_id_);
+    //auto cmd_pool = device_.createCommandPool(command_pool_create_info);
+
+    //auto alloc_info = vk::CommandBufferAllocateInfo(cmd_pool_, vk::CommandBufferLevel::ePrimary, 1);
+    //auto cmd_buf = device_.allocateCommandBuffers(alloc_info)[0];
+
+    // TODO: Add a Command from executor to here.
     auto cmd_pool = device_.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, compute_queue_familly_id_ });
     auto cmd_buf = device_.allocateCommandBuffers({ cmd_pool, vk::CommandBufferLevel::ePrimary, 1 })[0];
+    auto queue = device_.getQueue(compute_queue_familly_id_, 0);
+
     cmd_buf.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+
     auto region = vk::BufferCopy(0, 0, size);
     cmd_buf.copyBuffer(src, dst, 1, &region);
+
     cmd_buf.end();
-    auto queue = device_.getQueue(compute_queue_familly_id_, 0);
+
     auto submit_info = vk::SubmitInfo(0, nullptr, nullptr, 1, &cmd_buf);
     queue.submit({ submit_info }, nullptr);
     queue.waitIdle();
+
     device_.freeCommandBuffers(cmd_pool, 1, &cmd_buf);
     device_.destroyCommandPool(cmd_pool);
   }
@@ -195,6 +207,12 @@ private:
 
 // TODO: template <typename Dtype>
 class VkyData {
+
+enum MemoryHead {
+  AT_CPU = 0,
+  AT_GPU = 1
+};
+
 public:
   VkyData(Allocator *allocator, int channels, int height, int width, float *data = nullptr) {
     allocator_ = allocator;
@@ -213,6 +231,8 @@ public:
       cpu_data_ = data;
       is_cpu_data_hold_ = false;
     }
+
+    memory_head_ = MemoryHead::AT_CPU;
 
     staging_in_data_ = allocator_->GetInBufferMemory(len_ * sizeof(float));
     staging_out_data_ = allocator_->GetOutBufferMemory(len_ * sizeof(float));
@@ -233,20 +253,36 @@ public:
     allocator_->Free(data_);
   }
 
-  void PushFromHost2Device() {
-    std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
-    allocator_->CopyBuf(staging_in_data_->buffer_, data_->buffer_, sizeof(float) * len_);
-  }
-
-  void PushFromDevice2Host() {
-    allocator_->CopyBuf(data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
-    // It shouldn't be multiplied by sizeof(float).
-    std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, cpu_data_);
-  }
-
   // Get data without check.
-  float *cpu_data() const { return cpu_data_; }
-  vk::Buffer &device_data() { return data_->buffer_; }
+  float *cpu_data() { 
+    if (memory_head_ == AT_CPU)
+      return cpu_data_; 
+    else {
+      // Copy data from device to host.
+      // 1. Copy data to staging buffer; 
+      // 2. Copy the data from staging buffer to host.
+      allocator_->CopyBuf(data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
+      // It shouldn't be multiplied by sizeof(float).
+      std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, cpu_data_);
+
+      memory_head_ = AT_CPU;
+      return cpu_data_;
+    }
+  }
+  vk::Buffer &device_data() { 
+    if (memory_head_ == AT_GPU)
+      return data_->buffer_;
+    else {
+      // Copy data from host to device.
+      // 1. Copy data to staging buffer; 
+      // 2. Copy the data from staging buffer to normal buffer.
+      std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
+      allocator_->CopyBuf(staging_in_data_->buffer_, data_->buffer_, sizeof(float) * len_);
+
+      memory_head_ = AT_GPU;
+      return data_->buffer_;
+    }
+  }
 
   int channels() const { return channels_; }
   int height() const { return height_; }
@@ -256,6 +292,8 @@ private:
   Allocator *allocator_;
   float *cpu_data_;
   bool is_cpu_data_hold_;
+
+  MemoryHead memory_head_;
 
   // Not owned. Getting from allocator.
   BufferMemory *staging_in_data_;
