@@ -8,7 +8,8 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include <device.h>
+#include "device.h"
+#include "command.h"
 
 namespace vky {
 
@@ -25,181 +26,44 @@ public:
 
 class Allocator {
 public:
-  Allocator(const vk::Device& device, const vk::PhysicalDevice& physical_device, const int compute_queue_familly_id) :
-    device_(device), physical_device_(physical_device) {
-
-    // Check.
-    compute_queue_familly_id_ = compute_queue_familly_id;
-  };
+  Allocator(const vk::Device& device, const vk::PhysicalDevice& physical_device, Command *command) :
+    device_(device), physical_device_(physical_device), command_(command) {};
+  
   ~Allocator() {
     ClearIOBufferMemory();
   }
 
-  BufferMemory* Malloc(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) {
-    BufferMemory *bm = new BufferMemory();
+  BufferMemory* Malloc(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties);
 
-    bm->usage_ = usage;
-    bm->properties_ = properties;
+  void Free(BufferMemory *bm);
 
-    bm->buffer_ = CreateBuffer(size, usage, properties);
-    uint32_t memory_id = SelectMemory(bm->buffer_, properties);
-    bm->memory_ = AllocateMemory(bm->buffer_, memory_id);
+  BufferMemory *GetInBufferMemory(int size);
+  BufferMemory *GetOutBufferMemory(int size);
 
-    device_.bindBufferMemory(bm->buffer_, bm->memory_, 0);
-
-    bm->mapped_ptr_ = nullptr;
-    if (properties == vk::MemoryPropertyFlagBits::eHostVisible)
-      bm->mapped_ptr_ = (float *)device_.mapMemory(bm->memory_, 0, size);
-
-    return bm;
-  }
-
-  void Free(BufferMemory *bm) {
-    if (bm == nullptr)
-      return;
-
-    if(bm->mapped_ptr_ != nullptr)
-      device_.unmapMemory(bm->memory_);
-    device_.destroyBuffer(bm->buffer_, 0);
-    device_.freeMemory(bm->memory_, 0);
-
-    delete bm;
-    bm = nullptr;
-  }
-
-  BufferMemory *GetInBufferMemory(int size) {
-    std::map<int, BufferMemory*>::iterator it = staging_in_datas_.find(size);
-    if (it == staging_in_datas_.end()) {
-      BufferMemory *new_one = Malloc(size,
-        vk::BufferUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eHostVisible);
-
-      staging_in_datas_[size] = new_one;
-      return new_one;
-    }
-    else {
-      return it->second;
-    }
-  }
-  BufferMemory *GetOutBufferMemory(int size) {
-    std::map<int, BufferMemory*>::iterator it = staging_out_datas_.find(size);
-    if (it == staging_out_datas_.end()) {
-      BufferMemory *new_one = Malloc(size,
-        vk::BufferUsageFlagBits::eTransferDst,
-        vk::MemoryPropertyFlagBits::eHostVisible);
-
-      staging_out_datas_[size] = new_one;
-      return new_one;
-    }
-    else {
-      return it->second;
-    }
-  }
-
-  // TODO: Use some variable from executor
-  /// Copy device_ buffers using the transient command pool.
+  /// Copy device buffers using the transient command pool.
   /// Fully sync, no latency hiding whatsoever.
   void CopyBuf(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size) {
-    //auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), compute_queue_familly_id_);
-    //auto cmd_pool = device_.createCommandPool(command_pool_create_info);
-
-    //auto alloc_info = vk::CommandBufferAllocateInfo(cmd_pool_, vk::CommandBufferLevel::ePrimary, 1);
-    //auto cmd_buf = device_.allocateCommandBuffers(alloc_info)[0];
-
-    // TODO: Add a Command from executor to here.
-    auto cmd_pool = device_.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, compute_queue_familly_id_ });
-    auto cmd_buf = device_.allocateCommandBuffers({ cmd_pool, vk::CommandBufferLevel::ePrimary, 1 })[0];
-    auto queue = device_.getQueue(compute_queue_familly_id_, 0);
-
-    cmd_buf.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
-    auto region = vk::BufferCopy(0, 0, size);
-    cmd_buf.copyBuffer(src, dst, 1, &region);
-
-    cmd_buf.end();
-
-    auto submit_info = vk::SubmitInfo(0, nullptr, nullptr, 1, &cmd_buf);
-    queue.submit({ submit_info }, nullptr);
-    queue.waitIdle();
-
-    device_.freeCommandBuffers(cmd_pool, 1, &cmd_buf);
-    device_.destroyCommandPool(cmd_pool);
+    command_->Submit(src, dst, size);
   }
 
 private:
-  void ClearIOBufferMemory() {
-    std::map<int, BufferMemory*>::iterator it;
-    for (it = staging_in_datas_.begin(); it != staging_in_datas_.end(); ++it)
-      Free(it->second);
-
-    for (it = staging_out_datas_.begin(); it != staging_out_datas_.end(); ++it)
-      Free(it->second);
-  }
+  void ClearIOBufferMemory();
   vk::Buffer CreateBuffer(uint32_t buffer_size,
-                          vk::BufferUsageFlags usage, 
-                          vk::MemoryPropertyFlags properties) const {
+    vk::BufferUsageFlags usage,
+    vk::MemoryPropertyFlags properties) const;
 
-    if (physical_device_.getProperties().deviceType == vk::PhysicalDeviceType::eDiscreteGpu
-      && properties == vk::MemoryPropertyFlagBits::eDeviceLocal
-      && usage == vk::BufferUsageFlagBits::eStorageBuffer) {
-      usage |= vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst;
-    }
-
-    auto create_info = vk::BufferCreateInfo(vk::BufferCreateFlags(), buffer_size, usage);
-    return device_.createBuffer(create_info);
-  }
-
-  vk::DeviceMemory AllocateMemory(const vk::Buffer& buf, uint32_t memory_type_index) {
-
-    auto memory_reqs = device_.getBufferMemoryRequirements(buf);
-
-    vk::MemoryAllocateInfo alloc_info;
-    alloc_info.setAllocationSize(memory_reqs.size);
-    alloc_info.setMemoryTypeIndex(memory_type_index);
-
-    // TODO: move it?
-    //flags_ = physical_device_.getMemoryProperties().memoryTypes[memory_type_index].propertyFlags;
-
-    return device_.allocateMemory(alloc_info);
-  }
+  vk::DeviceMemory AllocateMemory(const vk::Buffer& buf, uint32_t memory_type_index);
 
   // TODO: test.
-  vk::DeviceMemory AllocateDedicatedMemory(size_t size, uint32_t memory_type_index, vk::Buffer buffer) {
-    vk::MemoryAllocateInfo alloc_info;
-    alloc_info.setAllocationSize(size);
-    alloc_info.setMemoryTypeIndex(memory_type_index);
+  vk::DeviceMemory AllocateDedicatedMemory(size_t size, uint32_t memory_type_index, vk::Buffer buffer);
 
-    vk::MemoryDedicatedAllocateInfoKHR dedicated_alloc_info;
-    dedicated_alloc_info.setPNext(0);
-    dedicated_alloc_info.setBuffer(buffer);
-
-    alloc_info.setPNext(&dedicated_alloc_info);
-
-    return device_.allocateMemory(alloc_info);
-  }
-
-  ////////
-  uint32_t SelectMemory(const vk::Buffer& buffer, vk::MemoryPropertyFlags properties) const {
-    auto mem_properties = physical_device_.getMemoryProperties();
-    auto memory_reqs = device_.getBufferMemoryRequirements(buffer);
-
-    for (uint32_t i = 0; i < mem_properties.memoryTypeCount; ++i) {
-      if ((memory_reqs.memoryTypeBits & (1u << i))
-        && ((properties & mem_properties.memoryTypes[i].propertyFlags) == properties)) {
-        return i;
-      }
-    }
-    throw std::runtime_error("failed to select memory with required properties");
-  }
+  uint32_t SelectMemory(const vk::Buffer& buffer, vk::MemoryPropertyFlags properties) const;
 
 private:
   vk::Device device_;
   vk::PhysicalDevice physical_device_;
 
-  //vk::MemoryPropertyFlags flags_;
-
-  // Temp?
-  uint32_t compute_queue_familly_id_; // Given by executor.
+  Command *command_;
 
   std::map<int, BufferMemory *> staging_in_datas_;
   std::map<int, BufferMemory *> staging_out_datas_;
@@ -209,8 +73,8 @@ private:
 class VkyData {
 
 enum MemoryHead {
-  AT_CPU = 0,
-  AT_GPU = 1
+  AT_HOST = 0,
+  AT_DEVICE = 1
 };
 
 public:
@@ -231,15 +95,9 @@ public:
       cpu_data_ = data;
       is_cpu_data_hold_ = false;
     }
+    memory_head_ = MemoryHead::AT_HOST;
 
-    memory_head_ = MemoryHead::AT_CPU;
-
-    staging_in_data_ = allocator_->GetInBufferMemory(len_ * sizeof(float));
-    staging_out_data_ = allocator_->GetOutBufferMemory(len_ * sizeof(float));
-
-    data_ = allocator_->Malloc(len_ * sizeof(float),
-                               vk::BufferUsageFlagBits::eStorageBuffer,
-                               vk::MemoryPropertyFlagBits::eDeviceLocal);
+    device_data_ = nullptr;
   }
 
   VkyData(Allocator *allocator,int len, float *data = nullptr)
@@ -250,37 +108,42 @@ public:
       delete[]cpu_data_;
       cpu_data_ = nullptr;
     }
-    allocator_->Free(data_);
+    if (device_data_ != nullptr) {
+      allocator_->Free(device_data_);
+      device_data_ = nullptr;
+    }
   }
 
   // Get data without check.
   float *cpu_data() { 
-    if (memory_head_ == AT_CPU)
+    if (memory_head_ == AT_HOST)
       return cpu_data_; 
     else {
       // Copy data from device to host.
       // 1. Copy data to staging buffer; 
       // 2. Copy the data from staging buffer to host.
-      allocator_->CopyBuf(data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
+      allocator_->CopyBuf(device_data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
       // It shouldn't be multiplied by sizeof(float).
       std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, cpu_data_);
 
-      memory_head_ = AT_CPU;
+      memory_head_ = AT_HOST;
       return cpu_data_;
     }
   }
+
   vk::Buffer &device_data() { 
-    if (memory_head_ == AT_GPU)
-      return data_->buffer_;
+    if (memory_head_ == AT_DEVICE)
+      return device_data_->buffer_;
     else {
+      CheckMalloc();
       // Copy data from host to device.
       // 1. Copy data to staging buffer; 
       // 2. Copy the data from staging buffer to normal buffer.
       std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
-      allocator_->CopyBuf(staging_in_data_->buffer_, data_->buffer_, sizeof(float) * len_);
+      allocator_->CopyBuf(staging_in_data_->buffer_, device_data_->buffer_, sizeof(float) * len_);
 
-      memory_head_ = AT_GPU;
-      return data_->buffer_;
+      memory_head_ = AT_DEVICE;
+      return device_data_->buffer_;
     }
   }
 
@@ -288,6 +151,18 @@ public:
   int height() const { return height_; }
   int width() const { return width_; }
 
+private:
+  void CheckMalloc() {
+    if (device_data_ != nullptr)
+      return;
+
+    staging_in_data_ = allocator_->GetInBufferMemory(len_ * sizeof(float));
+    staging_out_data_ = allocator_->GetOutBufferMemory(len_ * sizeof(float));
+
+    device_data_ = allocator_->Malloc(len_ * sizeof(float),
+                               vk::BufferUsageFlagBits::eStorageBuffer,
+                               vk::MemoryPropertyFlagBits::eDeviceLocal);
+  }
 private:
   Allocator *allocator_;
   float *cpu_data_;
@@ -299,7 +174,7 @@ private:
   BufferMemory *staging_in_data_;
   BufferMemory *staging_out_data_;
   // Owned.
-  BufferMemory *data_;
+  BufferMemory *device_data_;
 
   int channels_;
   int height_;

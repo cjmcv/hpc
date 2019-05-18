@@ -78,14 +78,14 @@ public:
     RegisterShaders(shaders_dir_path);
 
     // Init command.
-    comd_ = new Command();
-    comd_->Initialize(device_, device_info.compute_queue_familly_id_);
+    command_ = new Command();
+    command_->Initialize(device_, device_info.compute_queue_familly_id_);
 
     // Init Operators.
     op_ = new OperatorA();
     op_->Initialize(device_, shader("saxpy"));
 
-    allocator_ = new Allocator(device_, device_info.physical_device_, device_info.compute_queue_familly_id_);
+    allocator_ = new Allocator(device_, device_info.physical_device_, command_);
     return 0;
   }
 
@@ -99,10 +99,10 @@ public:
       delete op_;
       op_ = nullptr;
     }
-    if (comd_ != nullptr) {
-      comd_->UnInitialize();
-      delete comd_;
-      comd_ = nullptr;
+    if (command_ != nullptr) {
+      command_->UnInitialize();
+      delete command_;
+      command_ = nullptr;
     }
     return 0;
   }
@@ -114,7 +114,7 @@ public:
     const void *params, 
     const int params_size) const {
 
-    op_->Run(comd_, buffers, buffer_range, group_count_xyz, params, params_size);
+    op_->Run(command_, buffers, buffer_range, group_count_xyz, params, params_size);
 
     return 0;
   }
@@ -168,7 +168,7 @@ private:
   vk::Device device_;    // logical device providing access to a physical one 
   std::map<std::string, vk::ShaderModule> shaders_map_;
 
-  Command *comd_;
+  Command *command_;
   // TODO: GeneralOp and CustomizedOp.
   OperatorA *op_;
 
