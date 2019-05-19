@@ -50,8 +50,8 @@ int TestExecutor() {
   group_count_xyz[2] = 1;
 
   std::vector<vk::Buffer> buffers;
-  buffers.push_back(vdata_y.device_data());
-  buffers.push_back(vdata_x.device_data());
+  buffers.push_back(vdata_y.get_device_data()->buffer_);
+  buffers.push_back(vdata_x.get_device_data()->buffer_);
 
   PushParams params;
   params.width = width;
@@ -66,7 +66,7 @@ int TestExecutor() {
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
 
 
-  float *vdata_cpu = vdata_y.cpu_data();
+  float *vdata_cpu = vdata_y.get_host_data();
 
   for (int i = 0; i < width * height; i++) {
     std::cout << vdata_cpu[i] << ", ";
@@ -85,7 +85,6 @@ int TestExecutor() {
   return 0;
 }
 
-#ifdef ABC
 void TestVkyData() {
   int len = 100;
   float *x = new float[len];
@@ -109,28 +108,26 @@ void TestVkyData() {
   vky::Allocator *allocator = executor->allocator();
   vky::VkyData vdata(allocator, len, x);
 
-  float *vdata_cpu = vdata.cpu_data();
+  float *vdata_host = vdata.host_data();
+  vky::BufferMemory *data_device = vdata.get_device_data();
 
-  vdata.PushFromHost2Device();
-  memset(vdata_cpu, 0, sizeof(float) * len);
+  memset(vdata_host, 0, sizeof(float) * len);
   for (int i = 0; i < len; i++) {
-    std::cout << vdata_cpu[i] << ", ";
+    std::cout << vdata_host[i] << ", ";
   }
   std::cout << std::endl << "cleaned." << std::endl;
 
-  vdata.PushFromDevice2Host();
-
+  vdata_host = vdata.get_host_data();
   for (int i = 0; i < len; i++) {
-    std::cout << vdata_cpu[i] << ", ";
+    std::cout << vdata_host[i] << ", ";
   }
 }
-#endif
 
 int main(int argc, char* argv[]) {
 
-  TestExecutor();
+  //TestExecutor();
 
-  //TestVkyData();
+  TestVkyData();
 
   return 0;
 }

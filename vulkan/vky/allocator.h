@@ -88,12 +88,12 @@ public:
     len_ = channels_ * height_ * width_;
 
     if (data == nullptr) {
-      cpu_data_ = new float[len_];
-      is_cpu_data_hold_ = true;
+      host_data_ = new float[len_];
+      is_host_data_hold_ = true;
     }
     else {
-      cpu_data_ = data;
-      is_cpu_data_hold_ = false;
+      host_data_ = data;
+      is_host_data_hold_ = false;
     }
     memory_head_ = MemoryHead::AT_HOST;
 
@@ -104,9 +104,9 @@ public:
     : VkyData(allocator, 1, 1, len, data) {};
 
   ~VkyData() {
-    if (is_cpu_data_hold_) {
-      delete[]cpu_data_;
-      cpu_data_ = nullptr;
+    if (is_host_data_hold_) {
+      delete[]host_data_;
+      host_data_ = nullptr;
     }
     if (device_data_ != nullptr) {
       allocator_->Free(device_data_);
@@ -114,42 +114,44 @@ public:
     }
   }
 
+  float *host_data() const { return host_data_; }
+  BufferMemory *device_data() { return device_data_; }
+  int channels() const { return channels_; }
+  int height() const { return height_; }
+  int width() const { return width_; }
+
   // Get data without check.
-  float *cpu_data() { 
+  float *get_host_data() { 
     if (memory_head_ == AT_HOST)
-      return cpu_data_; 
+      return host_data_; 
     else {
       // Copy data from device to host.
       // 1. Copy data to staging buffer; 
       // 2. Copy the data from staging buffer to host.
       allocator_->CopyBuf(device_data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
       // It shouldn't be multiplied by sizeof(float).
-      std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, cpu_data_);
+      std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, host_data_);
 
       memory_head_ = AT_HOST;
-      return cpu_data_;
+      return host_data_;
     }
   }
 
-  vk::Buffer &device_data() { 
+  BufferMemory *get_device_data() {
     if (memory_head_ == AT_DEVICE)
-      return device_data_->buffer_;
+      return device_data_;
     else {
       CheckMalloc();
       // Copy data from host to device.
       // 1. Copy data to staging buffer; 
       // 2. Copy the data from staging buffer to normal buffer.
-      std::copy(cpu_data_, cpu_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
+      std::copy(host_data_, host_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
       allocator_->CopyBuf(staging_in_data_->buffer_, device_data_->buffer_, sizeof(float) * len_);
 
       memory_head_ = AT_DEVICE;
-      return device_data_->buffer_;
+      return device_data_;
     }
   }
-
-  int channels() const { return channels_; }
-  int height() const { return height_; }
-  int width() const { return width_; }
 
 private:
   void CheckMalloc() {
@@ -165,8 +167,8 @@ private:
   }
 private:
   Allocator *allocator_;
-  float *cpu_data_;
-  bool is_cpu_data_hold_;
+  float *host_data_;
+  bool is_host_data_hold_;
 
   MemoryHead memory_head_;
 
