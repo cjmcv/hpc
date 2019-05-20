@@ -15,6 +15,7 @@ BufferMemory* Allocator::Malloc(size_t size,
   bm->usage_ = usage;
   bm->properties_ = properties;
 
+  bm->buffer_range_ = size;
   bm->buffer_ = CreateBuffer(size, usage, properties);
   uint32_t memory_id = SelectMemory(bm->buffer_, properties);
   bm->memory_ = AllocateMemory(bm->buffer_, memory_id);
@@ -103,9 +104,6 @@ vk::DeviceMemory Allocator::AllocateMemory(const vk::Buffer& buf, uint32_t memor
   vk::MemoryAllocateInfo alloc_info;
   alloc_info.setAllocationSize(memory_reqs.size);
   alloc_info.setMemoryTypeIndex(memory_type_index);
-
-  // TODO: move it?
-  //flags_ = physical_device_.getMemoryProperties().memoryTypes[memory_type_index].propertyFlags;
 
   return device_.allocateMemory(alloc_info);
 }
