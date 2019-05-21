@@ -29,7 +29,7 @@ int TestExecutor() {
   int physical_device_id = 0;
   std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/";
 
-  vky::DeviceInfo selected_device_info = devm->device_info(physical_device_id);
+  vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
 
   vky::Executor *executor = new vky::Executor();
   executor->Initialize(selected_device_info, shaders_dir_path);
@@ -97,7 +97,7 @@ void TestVkyData() {
   int physical_device_id = 0;
   std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/";
 
-  vky::DeviceInfo selected_device_info = devm->device_info(physical_device_id);
+  vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
 
   vky::Executor *executor = new vky::Executor();
   executor->Initialize(selected_device_info, shaders_dir_path);

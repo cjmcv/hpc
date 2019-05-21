@@ -44,7 +44,7 @@ public:
 
   int device_count() const { return devices_count_; }
   vk::PhysicalDevice physical_device(int id) const { return devices_info_[id].physical_device_; }
-  DeviceInfo &device_info(int id) const { return devices_info_[id]; }
+  DeviceInfo *device_info(int id) const { return &devices_info_[id]; }
 
   int Initialize(bool is_enable_validation);
   int UnInitialize();

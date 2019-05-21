@@ -27,9 +27,17 @@ inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 //                                -> COp2... 2.Can be designed externally.
 class OperatorA {
 public:
-  int Initialize(const vk::Device device, const vk::ShaderModule shader) {
+  int Initialize(const vk::Device device, 
+    const uint32_t *max_workgroup_size,
+    const uint32_t max_workgroup_invocations,
+    const vk::ShaderModule shader) {
+
     pipes_ = new Pipeline();
-    pipes_->Initialize(device, shader, 2, 3);
+    buffer_count_ = 2;
+    push_constant_count_ = 3;
+    pipes_->Initialize(device, max_workgroup_size, max_workgroup_invocations, 
+                       shader, buffer_count_, push_constant_count_);
+
     return 0;
   }
   void UnInitialize() {
@@ -38,29 +46,31 @@ public:
       pipes_ = nullptr;
     }
   }
+
   int Run(Command *command,
     const std::vector<vky::BufferMemory *> &buffer_memorys,
     const int *group_count_xyz,
     const void *params,
     const int params_size) {
-    
-    pipes_->CreateDescriptorPool();
-    pipes_->AllocateDescriptorSet();
+
     pipes_->UpdateDescriptorSet(buffer_memorys);
-    ////
 
+    // TODO: Save itself, and it needn't be set every time.
+    // TODO: Replace group_count_xyz.
+    pipes_->SetOptimalLocalSizeXYZ(buffer_memorys[0]->height_, 
+                                   buffer_memorys[0]->width_,
+                                   buffer_memorys[0]->channels_);
     command->Submit(pipes_, group_count_xyz, params, params_size);
-
-    // UnbindParameters
-    pipes_->ReleaseDescriptorPool();
-
     return 0;
   }
 
 private:
+  DeviceInfo *device_info_;
   // TODO: std::vector<Pipeline *> pipes_;
   Pipeline *pipes_;
 
+  uint32_t buffer_count_;
+  uint32_t push_constant_count_;
 }; // class Operator
 
 class Executor {
@@ -73,20 +83,21 @@ public:
   const vk::Device &device() const { return device_; }
   Allocator *allocator() const { return allocator_; }
 
-  int Initialize(const DeviceInfo &device_info, const std::string &shaders_dir_path) {
+  int Initialize(const DeviceInfo *device_info, const std::string &shaders_dir_path) {
     // Init Device.
-    device_ = CreateDevice(device_info.physical_device_, device_info.compute_queue_familly_id_);
+    device_ = CreateDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
     RegisterShaders(shaders_dir_path);
 
     // Init command.
     command_ = new Command();
-    command_->Initialize(device_, device_info.compute_queue_familly_id_);
+    command_->Initialize(device_, device_info->compute_queue_familly_id_);
 
     // Init Operators.
     op_ = new OperatorA();
-    op_->Initialize(device_, shader("saxpy"));
+    op_->Initialize(device_, device_info->max_workgroup_size_, 
+                    device_info->max_workgroup_invocations_, shader("saxpy"));
 
-    allocator_ = new Allocator(device_, device_info.physical_device_, command_);
+    allocator_ = new Allocator(device_, device_info->physical_device_, command_);
     return 0;
   }
 

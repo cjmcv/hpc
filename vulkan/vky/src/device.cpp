@@ -161,6 +161,11 @@ int DeviceManager::QueryPhysicalDevices() {
   physical_devices.resize(devices_count_);
   instance_.enumeratePhysicalDevices(&devices_count_, physical_devices.data());
 
+  if (devices_info_ != nullptr) {
+    delete[]devices_info_;
+    devices_info_ = nullptr;
+  }
+
   devices_info_ = new DeviceInfo[devices_count_];
   for (uint32_t i = 0; i < devices_count_; i++) {
     const vk::PhysicalDevice& physical_device = physical_devices[i];

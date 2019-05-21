@@ -4,39 +4,51 @@ namespace vky {
 
 ///////////////
 // <Public
-int Pipeline::Initialize(const vk::Device device, const vk::ShaderModule shader,
-  const int buffer_count, const int push_constant_count) {
+int Pipeline::Initialize(const vk::Device device, 
+  const uint32_t *max_workgroup_size,
+  const uint32_t max_workgroup_invocations,
+  const vk::ShaderModule shader, 
+  const uint32_t buffer_count,
+  const uint32_t push_constant_count) {
 
   device_ = device;
+  max_workgroup_size_[0] = max_workgroup_size[0];
+  max_workgroup_size_[1] = max_workgroup_size[1];
+  max_workgroup_size_[2] = max_workgroup_size[2];
+  max_workgroup_invocations_ = max_workgroup_invocations;
+
   num_descriptors_ = buffer_count;
   push_constant_count_ = push_constant_count;
 
   CreateDescriptorsetLayout();  // num_descriptors_
   CreatePipelineLayout();       // push_constant_count_
-  CreatePipeline(shader);
+  CreatePipeline(shader);       // pipe_cache_ and pipeline_
+
+  CreateDescriptorPool();
+  AllocateDescriptorSet();
   return 0;
 }
 void Pipeline::UnInitialize() {
-  // TODO.
+  FreeDescriptorSet();
+  DestroyDescriptorPool();
+
+  DestroyPipeline();
+  DestroyPipelineLayout();
+  DestroyDescriptorsetLayout();
 }
 
-// TODO: Use it in funciton CreatePipeline.
-void Pipeline::SetOptimalLocalSizeXYZ(DeviceInfo &info, int width, int height, int channel) {
-  uint32_t local_size_x = 0;
-  uint32_t local_size_y = 0;
-  uint32_t local_size_z = 0;
-
-  if (channel > 0) {
-    local_size_z = info.max_workgroup_size_[2];
-    while ((uint32_t)channel < local_size_z) {
-      local_size_z /= 2;
+void Pipeline::SetOptimalLocalSizeXYZ(const int height, const int width, const int channels) {
+  if (channels > 0) {
+    local_size_z_ = max_workgroup_size_[2];
+    while ((uint32_t)channels < local_size_z_) {
+      local_size_z_ /= 2;
     }
   }
   else {
-    local_size_z = std::min((uint32_t)128, info.max_workgroup_size_[2]);
+    local_size_z_ = std::min((uint32_t)128, max_workgroup_size_[2]);
   }
 
-  uint32_t max_local_size_xy = info.max_workgroup_invocations_ / local_size_z;
+  uint32_t max_local_size_xy = max_workgroup_invocations_ / local_size_z_;
 
   if (height == width || (height < 0 && width < 0)) {
     uint32_t local_size_xy = std::sqrt(max_local_size_xy);
@@ -44,55 +56,55 @@ void Pipeline::SetOptimalLocalSizeXYZ(DeviceInfo &info, int width, int height, i
     while (local_size_xy < local_size_xy_prefer) {
       local_size_xy_prefer /= 2;
     }
-    local_size_x = local_size_xy_prefer;
-    local_size_y = local_size_xy_prefer;
+    local_size_x_ = local_size_xy_prefer;
+    local_size_y_ = local_size_xy_prefer;
   }
 
   if (height > 0 && width > 0) {
     if (height > width) {
       float ps = height / (float)width;
       float local_size_xy = sqrt(max_local_size_xy / ps);
-      local_size_y = local_size_xy * ps;
-      local_size_x = std::max((uint32_t)local_size_xy, (uint32_t)1);
+      local_size_y_ = local_size_xy * ps;
+      local_size_x_ = std::max((uint32_t)local_size_xy, (uint32_t)1);
     }
     else {
       float ps = width / (float)height;
       float local_size_xy = sqrt(max_local_size_xy / ps);
-      local_size_y = std::max((uint32_t)local_size_xy, (uint32_t)1);
-      local_size_x = local_size_xy * ps;
+      local_size_y_ = std::max((uint32_t)local_size_xy, (uint32_t)1);
+      local_size_x_ = local_size_xy * ps;
     }
 
-    uint32_t local_size_y_prefer = std::min((uint32_t)128, info.max_workgroup_size_[1]);
-    while (local_size_y < local_size_y_prefer) {
+    uint32_t local_size_y_prefer = std::min((uint32_t)128, max_workgroup_size_[1]);
+    while (local_size_y_ < local_size_y_prefer) {
       local_size_y_prefer /= 2;
     }
 
-    uint32_t local_size_x_prefer = std::min((uint32_t)128, info.max_workgroup_size_[0]);
-    while (local_size_x < local_size_x_prefer)
+    uint32_t local_size_x_prefer = std::min((uint32_t)128, max_workgroup_size_[0]);
+    while (local_size_x_ < local_size_x_prefer)
     {
       local_size_x_prefer /= 2;
     }
 
-    local_size_y = local_size_y_prefer;
-    local_size_x = local_size_x_prefer;
+    local_size_y_ = local_size_y_prefer;
+    local_size_x_ = local_size_x_prefer;
   }
   else if (height > 0) {
-    local_size_y = std::min(max_local_size_xy, info.max_workgroup_size_[1]);
-    while ((uint32_t)height < local_size_y) {
-      local_size_y /= 2;
+    local_size_y_ = std::min(max_local_size_xy, (uint32_t)max_workgroup_size_[1]);
+    while ((uint32_t)height < local_size_y_) {
+      local_size_y_ /= 2;
     }
 
-    uint32_t max_local_size_x = max_local_size_xy / local_size_y;
-    local_size_x = std::min(max_local_size_x, info.max_workgroup_size_[0]);
+    uint32_t max_local_size_x = max_local_size_xy / local_size_y_;
+    local_size_x_ = std::min(max_local_size_x, (uint32_t)max_workgroup_size_[0]);
   }
   else if (width > 0) {
-    local_size_x = std::min(max_local_size_xy, info.max_workgroup_size_[0]);
-    while ((uint32_t)width < local_size_x) {
-      local_size_x /= 2;
+    local_size_x_ = std::min(max_local_size_xy, (uint32_t)max_workgroup_size_[0]);
+    while ((uint32_t)width < local_size_x_) {
+      local_size_x_ /= 2;
     }
 
-    uint32_t max_local_size_y = max_local_size_xy / local_size_x;
-    local_size_y = std::min(max_local_size_y, info.max_workgroup_size_[1]);
+    uint32_t max_local_size_y = max_local_size_xy / local_size_x_;
+    local_size_y_ = std::min(max_local_size_y, (uint32_t)max_workgroup_size_[1]);
   }
 }
 
@@ -107,7 +119,7 @@ int Pipeline::CreateDescriptorPool() {
   return 0;
 }
 
-int Pipeline::ReleaseDescriptorPool() {
+int Pipeline::DestroyDescriptorPool() {
   device_.destroyDescriptorPool(descriptor_pool_);
   return 0;
 }
@@ -121,8 +133,10 @@ int Pipeline::AllocateDescriptorSet() {
   descriptor_set_ = device_.allocateDescriptorSets(allocate_info)[0];
   return 0;
 }
+void Pipeline::FreeDescriptorSet() {
+  device_.freeDescriptorSets(descriptor_pool_, 1, &descriptor_set_);
+}
 
-// TODO: Now, the size of the buffers has to be the same .
 int Pipeline::UpdateDescriptorSet(const std::vector<vky::BufferMemory *> &buffer_memorys) {
   if (buffer_memorys.size() != num_descriptors_) {
     throw std::runtime_error("UpdateDescriptorSet -> buffers.size() != num_descriptors_");
@@ -169,6 +183,9 @@ int Pipeline::CreateDescriptorsetLayout() {
 
   return 0;
 }
+void Pipeline::DestroyDescriptorsetLayout() {
+  device_.destroyDescriptorSetLayout(descriptor_set_layout_);
+}
 
 int Pipeline::CreatePipelineLayout() {
 
@@ -179,6 +196,9 @@ int Pipeline::CreatePipelineLayout() {
   pipeline_layout_ = device_.createPipelineLayout(pipe_layout_create_info);
 
   return 0;
+}
+void Pipeline::DestroyPipelineLayout() {
+  device_.destroyPipelineLayout(pipeline_layout_);
 }
 
 // Create compute pipeline consisting of a single stage with compute shader.
@@ -217,4 +237,10 @@ int Pipeline::CreatePipeline(const vk::ShaderModule shader) {
 
   return 0;
 }
+
+void Pipeline::DestroyPipeline() {
+  device_.destroyPipeline(pipeline_);
+  device_.destroyPipelineCache(pipe_cache_);
+}
+
 } // namespace vky

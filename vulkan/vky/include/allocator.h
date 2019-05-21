@@ -154,6 +154,9 @@ private:
     device_data_ = allocator_->Malloc(len_ * sizeof(float),
                                vk::BufferUsageFlagBits::eStorageBuffer,
                                vk::MemoryPropertyFlagBits::eDeviceLocal);
+    device_data_->height_ = height_;
+    device_data_->width_ = width_;
+    device_data_->channels_ = channels_;
   }
 private:
   Allocator *allocator_;
@@ -168,9 +171,9 @@ private:
   // Owned.
   BufferMemory *device_data_;
 
-  int channels_;
   int height_;
   int width_;
+  int channels_;
 
   int len_;
 }; // VkyData

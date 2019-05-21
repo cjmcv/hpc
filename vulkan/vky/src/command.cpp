@@ -23,7 +23,8 @@ int Command::Initialize(const vk::Device device, const uint32_t compute_queue_fa
   return 0;
 }
 
-void Command::UnInitialize() {
+void Command::UnInitialize() { 
+  device_.destroyFence(fence_);
   device_.freeCommandBuffers(cmd_pool_, 1, &cmd_buffer_);
   device_.destroyCommandPool(cmd_pool_);
   // TODO more?

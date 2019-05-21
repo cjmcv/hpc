@@ -7,6 +7,10 @@ namespace vky {
 
 class BufferMemory {
 public:
+  int height_;
+  int width_;
+  int channels_;
+
   vk::Buffer buffer_;
   vk::BufferUsageFlags usage_;
   int buffer_range_;

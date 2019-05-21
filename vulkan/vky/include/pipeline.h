@@ -19,6 +19,10 @@ public:
     descriptor_set_layout_ = nullptr;
     pipeline_layout_ = nullptr;
     pipeline_ = nullptr;
+
+    local_size_x_ = 0;
+    local_size_y_ = 0;
+    local_size_z_ = 0;
   }
 
   vk::PipelineLayout pipeline_layout() const { return pipeline_layout_; }
@@ -26,30 +30,43 @@ public:
 
   vk::DescriptorSet descriptor_set() const { return descriptor_set_; }
 
-  int Initialize(const vk::Device device, const vk::ShaderModule shader,
-    const int buffer_count, const int push_constant_count);
+  int Initialize(const vk::Device device, 
+    const uint32_t *max_workgroup_size,
+    const uint32_t max_workgroup_invocations,
+    const vk::ShaderModule shader, 
+    const uint32_t buffer_count,
+    const uint32_t push_constant_count);
   void UnInitialize();
 
   // TODO: Use it in funciton CreatePipeline.
-  void SetOptimalLocalSizeXYZ(DeviceInfo &info, int width, int height, int channel);
+  void SetOptimalLocalSizeXYZ(const int height, const int width, const int channels);
 
   int CreateDescriptorPool();
+  int DestroyDescriptorPool();
 
-  int ReleaseDescriptorPool();
   int AllocateDescriptorSet();
+  void FreeDescriptorSet();
 
-  // TODO: Now, the size of the buffers has to be the same .
   int UpdateDescriptorSet(const std::vector<vky::BufferMemory *> &buffer_memorys);
 
 private:
   int CreateDescriptorsetLayout();
+  void DestroyDescriptorsetLayout();
   int CreatePipelineLayout();
+  void DestroyPipelineLayout();
   // Create compute pipeline consisting of a single stage with compute shader.
   // Specialization constants specialized here.
   int CreatePipeline(const vk::ShaderModule shader);
+  void DestroyPipeline();
 
 private:
   vk::Device device_;
+  uint32_t max_workgroup_size_[3];
+  uint32_t max_workgroup_invocations_;
+
+  uint32_t local_size_x_;
+  uint32_t local_size_y_;
+  uint32_t local_size_z_;
 
   vk::ShaderModule local_shader_module_;
   vk::DescriptorSetLayout descriptor_set_layout_; // channel++ definition of the shader binding interface

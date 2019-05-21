@@ -30,16 +30,12 @@ BufferMemory* Allocator::Malloc(size_t size,
 }
 
 void Allocator::Free(BufferMemory *bm) {
-  if (bm == nullptr)
-    return;
-
   if (bm->mapped_ptr_ != nullptr)
     device_.unmapMemory(bm->memory_);
   device_.destroyBuffer(bm->buffer_, 0);
   device_.freeMemory(bm->memory_, 0);
 
   delete bm;
-  bm = nullptr;
 }
 
 BufferMemory *Allocator::GetInBufferMemory(int size) {
