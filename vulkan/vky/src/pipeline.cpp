@@ -123,16 +123,16 @@ int Pipeline::AllocateDescriptorSet() {
 }
 
 // TODO: Now, the size of the buffers has to be the same .
-int Pipeline::UpdateDescriptorSet(const std::vector<vk::Buffer> &buffers, const int size) {
-  if (buffers.size() != num_descriptors_) {
+int Pipeline::UpdateDescriptorSet(const std::vector<vky::BufferMemory *> &buffer_memorys) {
+  if (buffer_memorys.size() != num_descriptors_) {
     throw std::runtime_error("UpdateDescriptorSet -> buffers.size() != num_descriptors_");
   }
 
   std::vector<vk::DescriptorBufferInfo> buffers_info(num_descriptors_);
   for (int i = 0; i < num_descriptors_; i++) {
-    buffers_info[i].setBuffer(buffers[i]);
+    buffers_info[i].setBuffer(buffer_memorys[i]->buffer_);
     buffers_info[i].setOffset(0);
-    buffers_info[i].setRange(size);
+    buffers_info[i].setRange(buffer_memorys[i]->buffer_range_);
   }
 
   std::vector<vk::WriteDescriptorSet> write_descriptor_sets(num_descriptors_);

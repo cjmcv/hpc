@@ -3,26 +3,16 @@
 
 #include <iostream>
 #include <fstream>
-#include <type_traits>
 #include <map>
 
 #include <vulkan/vulkan.hpp>
+
+#include "data_type.h"
 
 #include "device.h"
 #include "command.h"
 
 namespace vky {
-
-class BufferMemory {
-public:
-  vk::Buffer buffer_;
-  vk::BufferUsageFlags usage_;
-  int buffer_range_;
-
-  vk::DeviceMemory memory_;
-  vk::MemoryPropertyFlags properties_;
-  float *mapped_ptr_;
-};
 
 class Allocator {
 public:

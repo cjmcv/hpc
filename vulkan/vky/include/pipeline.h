@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vulkan/vulkan.hpp>
 
+#include "data_type.h"
 #include "device.h"
 
 namespace vky {
@@ -38,7 +39,7 @@ public:
   int AllocateDescriptorSet();
 
   // TODO: Now, the size of the buffers has to be the same .
-  int UpdateDescriptorSet(const std::vector<vk::Buffer> &buffers, const int size);
+  int UpdateDescriptorSet(const std::vector<vky::BufferMemory *> &buffer_memorys);
 
 private:
   int CreateDescriptorsetLayout();

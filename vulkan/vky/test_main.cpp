@@ -49,22 +49,20 @@ int TestExecutor() {
   group_count_xyz[1] = vky::div_up(height, 16);
   group_count_xyz[2] = 1;
 
-  std::vector<vk::Buffer> buffers;
-  buffers.push_back(vdata_y.get_device_data()->buffer_);
-  buffers.push_back(vdata_x.get_device_data()->buffer_);
+  std::vector<vky::BufferMemory *> buffer_mems;
+  buffer_mems.push_back(vdata_y.get_device_data());
+  buffer_mems.push_back(vdata_x.get_device_data());
 
   PushParams params;
   params.width = width;
   params.height = height;
   params.a = a;
 
-  int buffer_range = params.width * params.height * sizeof(float);
   for (int i = 0; i < 10; i++) {
-    executor->Run(buffers, buffer_range, group_count_xyz, &params, sizeof(params));
+    executor->Run(buffer_mems, group_count_xyz, &params, sizeof(params));
   }
 
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
-
 
   float *vdata_cpu = vdata_y.get_host_data();
 
@@ -104,7 +102,6 @@ void TestVkyData() {
   vky::Executor *executor = new vky::Executor();
   executor->Initialize(selected_device_info, shaders_dir_path);
 
-  // TODO.
   vky::Allocator *allocator = executor->allocator();
   vky::VkyData vdata(allocator, len, x);
 
@@ -125,9 +122,9 @@ void TestVkyData() {
 
 int main(int argc, char* argv[]) {
 
-  //TestExecutor();
+  TestExecutor();
 
-  TestVkyData();
+  //TestVkyData();
 
   return 0;
 }

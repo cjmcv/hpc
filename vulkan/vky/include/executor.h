@@ -7,6 +7,8 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include "data_type.h"
+
 #include "device.h"
 #include "allocator.h"
 #include "command.h"
@@ -37,15 +39,14 @@ public:
     }
   }
   int Run(Command *command,
-    const std::vector<vk::Buffer> &buffers,
-    const int buffer_range, 
+    const std::vector<vky::BufferMemory *> &buffer_memorys,
     const int *group_count_xyz,
     const void *params,
     const int params_size) {
     
     pipes_->CreateDescriptorPool();
     pipes_->AllocateDescriptorSet();
-    pipes_->UpdateDescriptorSet(buffers, buffer_range);
+    pipes_->UpdateDescriptorSet(buffer_memorys);
     ////
 
     command->Submit(pipes_, group_count_xyz, params, params_size);
@@ -108,13 +109,12 @@ public:
   }
   // TODO: Data, Bind the buffers and buffer_range together. 
   //       Create a new class for Buffer.
-  int Run(const std::vector<vk::Buffer> &buffers,
-    const int buffer_range,
+  int Run(const std::vector<vky::BufferMemory *> &buffer_memorys,
     const int *group_count_xyz, 
     const void *params, 
     const int params_size) const {
 
-    op_->Run(command_, buffers, buffer_range, group_count_xyz, params, params_size);
+    op_->Run(command_, buffer_memorys, group_count_xyz, params, params_size);
 
     return 0;
   }
