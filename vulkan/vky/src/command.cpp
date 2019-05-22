@@ -56,7 +56,7 @@ void Command::End(CommandType type) {
   }
 }
 
-void Command::Submit(Pipeline *pipeline, const int *group_count_xyz, const void *params, const int params_size) {
+void Command::Submit(Pipeline *pipeline, const uint32_t *group_count_xyz, const void *params, const int params_size) {
   Begin(COMPUTE);
   ComputeShader(pipeline, group_count_xyz, params, params_size);
   End(COMPUTE);
@@ -70,7 +70,7 @@ void Command::Submit(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size
 ///////////////
 // <Private
 
-void Command::ComputeShader(Pipeline *pipeline, const int *group_count_xyz, const void *params, const int params_size) {
+void Command::ComputeShader(Pipeline *pipeline, const uint32_t *group_count_xyz, const void *params, const int params_size) {
   // Before dispatch bind a pipeline, AND a descriptor set.
   // The validation layer will NOT give warnings if you forget those.
   cmd_buffer_.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline->pipeline());

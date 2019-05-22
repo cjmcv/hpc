@@ -5,24 +5,19 @@ namespace vky {
 ///////////////
 // <Public
 int Pipeline::Initialize(const vk::Device device, 
-  const uint32_t *max_workgroup_size,
-  const uint32_t max_workgroup_invocations,
-  const vk::ShaderModule shader, 
-  const uint32_t buffer_count,
-  const uint32_t push_constant_count) {
+                         const vk::ShaderModule shader, 
+                         const uint32_t buffer_count,
+                         const uint32_t push_constant_count,
+                         const uint32_t *local_size) {
 
   device_ = device;
-  max_workgroup_size_[0] = max_workgroup_size[0];
-  max_workgroup_size_[1] = max_workgroup_size[1];
-  max_workgroup_size_[2] = max_workgroup_size[2];
-  max_workgroup_invocations_ = max_workgroup_invocations;
 
   num_descriptors_ = buffer_count;
   push_constant_count_ = push_constant_count;
 
   CreateDescriptorsetLayout();  // num_descriptors_
   CreatePipelineLayout();       // push_constant_count_
-  CreatePipeline(shader);       // pipe_cache_ and pipeline_
+  CreatePipeline(shader, local_size);       // pipe_cache_ and pipeline_
 
   CreateDescriptorPool();
   AllocateDescriptorSet();
@@ -35,77 +30,6 @@ void Pipeline::UnInitialize() {
   DestroyPipeline();
   DestroyPipelineLayout();
   DestroyDescriptorsetLayout();
-}
-
-void Pipeline::SetOptimalLocalSizeXYZ(const int height, const int width, const int channels) {
-  if (channels > 0) {
-    local_size_z_ = max_workgroup_size_[2];
-    while ((uint32_t)channels < local_size_z_) {
-      local_size_z_ /= 2;
-    }
-  }
-  else {
-    local_size_z_ = std::min((uint32_t)128, max_workgroup_size_[2]);
-  }
-
-  uint32_t max_local_size_xy = max_workgroup_invocations_ / local_size_z_;
-
-  if (height == width || (height < 0 && width < 0)) {
-    uint32_t local_size_xy = std::sqrt(max_local_size_xy);
-    uint32_t local_size_xy_prefer = 128;
-    while (local_size_xy < local_size_xy_prefer) {
-      local_size_xy_prefer /= 2;
-    }
-    local_size_x_ = local_size_xy_prefer;
-    local_size_y_ = local_size_xy_prefer;
-  }
-
-  if (height > 0 && width > 0) {
-    if (height > width) {
-      float ps = height / (float)width;
-      float local_size_xy = sqrt(max_local_size_xy / ps);
-      local_size_y_ = local_size_xy * ps;
-      local_size_x_ = std::max((uint32_t)local_size_xy, (uint32_t)1);
-    }
-    else {
-      float ps = width / (float)height;
-      float local_size_xy = sqrt(max_local_size_xy / ps);
-      local_size_y_ = std::max((uint32_t)local_size_xy, (uint32_t)1);
-      local_size_x_ = local_size_xy * ps;
-    }
-
-    uint32_t local_size_y_prefer = std::min((uint32_t)128, max_workgroup_size_[1]);
-    while (local_size_y_ < local_size_y_prefer) {
-      local_size_y_prefer /= 2;
-    }
-
-    uint32_t local_size_x_prefer = std::min((uint32_t)128, max_workgroup_size_[0]);
-    while (local_size_x_ < local_size_x_prefer)
-    {
-      local_size_x_prefer /= 2;
-    }
-
-    local_size_y_ = local_size_y_prefer;
-    local_size_x_ = local_size_x_prefer;
-  }
-  else if (height > 0) {
-    local_size_y_ = std::min(max_local_size_xy, (uint32_t)max_workgroup_size_[1]);
-    while ((uint32_t)height < local_size_y_) {
-      local_size_y_ /= 2;
-    }
-
-    uint32_t max_local_size_x = max_local_size_xy / local_size_y_;
-    local_size_x_ = std::min(max_local_size_x, (uint32_t)max_workgroup_size_[0]);
-  }
-  else if (width > 0) {
-    local_size_x_ = std::min(max_local_size_xy, (uint32_t)max_workgroup_size_[0]);
-    while ((uint32_t)width < local_size_x_) {
-      local_size_x_ /= 2;
-    }
-
-    uint32_t max_local_size_y = max_local_size_xy / local_size_x_;
-    local_size_y_ = std::min(max_local_size_y, (uint32_t)max_workgroup_size_[1]);
-  }
 }
 
 
@@ -203,24 +127,23 @@ void Pipeline::DestroyPipelineLayout() {
 
 // Create compute pipeline consisting of a single stage with compute shader.
 // Specialization constants specialized here.
-int Pipeline::CreatePipeline(const vk::ShaderModule shader) {
+int Pipeline::CreatePipeline(const vk::ShaderModule shader, const uint32_t *local_size) {
   pipe_cache_ = device_.createPipelineCache(vk::PipelineCacheCreateInfo());
 
   // specialize constants of the shader
   // {constantID, offset, size}
   // 3: local_size_x, local_size_y, local_size_z
   auto spec_entries = std::array<vk::SpecializationMapEntry, 3>{
-    { { 0, 0, sizeof(int) },
-    { 1, 1 * sizeof(int), sizeof(int) },
-    { 2, 2 * sizeof(int), sizeof(int) } }
+    { { 0, 0, sizeof(uint32_t) },
+      { 1, 1 * sizeof(uint32_t), sizeof(uint32_t) },
+      { 2, 2 * sizeof(uint32_t), sizeof(uint32_t) } }
   };
   // TODO: Replace it by SetOptimalLocalSizeXYZ.
-  int WORKGROUP_SIZE = 16;
-  auto spec_values = std::array<int, 3>{WORKGROUP_SIZE, WORKGROUP_SIZE, 1};
+  auto spec_values = std::array<uint32_t, 3>{local_size[0], local_size[1], local_size[2]};
   auto spec_info = vk::SpecializationInfo(spec_entries.size(), spec_entries.data(),
     spec_values.size() * sizeof(int), spec_values.data());   // TODO: Change sizeof(int) to a manual type?
 
-                                                             // Specify the compute shader stage, and it's entry point (main), and specializations
+  // Specify the compute shader stage, and it's entry point (main), and specializations
   auto stage_create_info = vk::PipelineShaderStageCreateInfo(
     vk::PipelineShaderStageCreateFlags(),
     vk::ShaderStageFlagBits::eCompute,

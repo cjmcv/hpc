@@ -26,11 +26,11 @@ public:
   void Begin(CommandType type);
   void End(CommandType type);
 
-  void Submit(Pipeline *pipeline, const int *group_count_xyz, const void *params, const int params_size);
+  void Submit(Pipeline *pipeline, const uint32_t *group_count_xyz, const void *params, const int params_size);
   void Submit(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size);
 
 private:  
-  void ComputeShader(Pipeline *pipeline, const int *group_count_xyz, const void *params, const int params_size);
+  void ComputeShader(Pipeline *pipeline, const uint32_t *group_count_xyz, const void *params, const int params_size);
   void CopyBuffer(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size);
 
 private:

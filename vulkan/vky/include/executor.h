@@ -35,8 +35,8 @@ public:
     pipes_ = new Pipeline();
     buffer_count_ = 2;
     push_constant_count_ = 3;
-    pipes_->Initialize(device, max_workgroup_size, max_workgroup_invocations, 
-                       shader, buffer_count_, push_constant_count_);
+    GetOptimalLocalSizeXYZ(max_workgroup_size, max_workgroup_invocations, 32, 32, 1);
+    pipes_->Initialize(device, shader, buffer_count_, push_constant_count_, local_size_xyz_);
 
     return 0;
   }
@@ -49,19 +49,95 @@ public:
 
   int Run(Command *command,
     const std::vector<vky::BufferMemory *> &buffer_memorys,
-    const int *group_count_xyz,
     const void *params,
     const int params_size) {
 
     pipes_->UpdateDescriptorSet(buffer_memorys);
 
-    // TODO: Save itself, and it needn't be set every time.
-    // TODO: Replace group_count_xyz.
-    pipes_->SetOptimalLocalSizeXYZ(buffer_memorys[0]->height_, 
-                                   buffer_memorys[0]->width_,
-                                   buffer_memorys[0]->channels_);
-    command->Submit(pipes_, group_count_xyz, params, params_size);
+    GetGroupCount(buffer_memorys[0]->width_, buffer_memorys[0]->height_, buffer_memorys[0]->channels_);
+    command->Submit(pipes_, group_count_xyz_, params, params_size);
     return 0;
+  }
+
+private:
+  void GetOptimalLocalSizeXYZ(const uint32_t *max_workgroup_size,
+                              const uint32_t max_workgroup_invocations,
+                              const uint32_t width = 32,
+                              const uint32_t height = 32,
+                              const uint32_t channels = 32) {
+    if (channels > 0) {
+      local_size_xyz_[2] = max_workgroup_size[2];
+      while (channels < local_size_xyz_[2]) {
+        local_size_xyz_[2] /= 2;
+      }
+    }
+    else {
+      local_size_xyz_[2] = std::min((uint32_t)128, max_workgroup_size[2]);
+    }
+
+    uint32_t max_local_size_xy = max_workgroup_invocations / local_size_xyz_[2];
+
+    if (height == width || (height < 0 && width < 0)) {
+      uint32_t local_size_xy = std::sqrt(max_local_size_xy);
+      uint32_t local_size_xy_prefer = 128;
+      while (local_size_xy < local_size_xy_prefer) {
+        local_size_xy_prefer /= 2;
+      }
+      local_size_xyz_[0] = local_size_xy_prefer;
+      local_size_xyz_[1] = local_size_xy_prefer;
+    }
+
+    if (height > 0 && width > 0) {
+      if (height > width) {
+        float ps = height / (float)width;
+        float local_size_xy = sqrt(max_local_size_xy / ps);
+        local_size_xyz_[1] = local_size_xy * ps;
+        local_size_xyz_[0] = std::max((uint32_t)local_size_xy, (uint32_t)1);
+      }
+      else {
+        float ps = width / (float)height;
+        float local_size_xy = sqrt(max_local_size_xy / ps);
+        local_size_xyz_[1] = std::max((uint32_t)local_size_xy, (uint32_t)1);
+        local_size_xyz_[0] = local_size_xy * ps;
+      }
+
+      uint32_t local_size_y_prefer = std::min((uint32_t)128, max_workgroup_size[1]);
+      while (local_size_xyz_[1] < local_size_y_prefer) {
+        local_size_y_prefer /= 2;
+      }
+
+      uint32_t local_size_x_prefer = std::min((uint32_t)128, max_workgroup_size[0]);
+      while (local_size_xyz_[0] < local_size_x_prefer) {
+        local_size_x_prefer /= 2;
+      }
+
+      local_size_xyz_[1] = local_size_y_prefer;
+      local_size_xyz_[0] = local_size_x_prefer;
+    }
+    else if (height > 0) {
+      local_size_xyz_[1] = std::min(max_local_size_xy, (uint32_t)max_workgroup_size[1]);
+      while ((uint32_t)height < local_size_xyz_[1]) {
+        local_size_xyz_[1] /= 2;
+      }
+
+      uint32_t max_local_size_x = max_local_size_xy / local_size_xyz_[1];
+      local_size_xyz_[0] = std::min(max_local_size_x, (uint32_t)max_workgroup_size[0]);
+    }
+    else if (width > 0) {
+      local_size_xyz_[0] = std::min(max_local_size_xy, (uint32_t)max_workgroup_size[0]);
+      while ((uint32_t)width < local_size_xyz_[0]) {
+        local_size_xyz_[0] /= 2;
+      }
+
+      uint32_t max_local_size_y = max_local_size_xy / local_size_xyz_[0];
+      local_size_xyz_[1] = std::min(max_local_size_y, (uint32_t)max_workgroup_size[1]);
+    }
+  }
+
+  void GetGroupCount(const uint32_t width, const uint32_t height, const uint32_t channels) {
+    group_count_xyz_[0] = (width + local_size_xyz_[0] - 1) / local_size_xyz_[0];
+    group_count_xyz_[1] = (height + local_size_xyz_[1] - 1) / local_size_xyz_[1];
+    group_count_xyz_[2] = (channels + local_size_xyz_[2] - 1) / local_size_xyz_[2];
   }
 
 private:
@@ -71,6 +147,9 @@ private:
 
   uint32_t buffer_count_;
   uint32_t push_constant_count_;
+
+  uint32_t local_size_xyz_[3];
+  uint32_t group_count_xyz_[3];
 }; // class Operator
 
 class Executor {
@@ -94,8 +173,10 @@ public:
 
     // Init Operators.
     op_ = new OperatorA();
-    op_->Initialize(device_, device_info->max_workgroup_size_, 
-                    device_info->max_workgroup_invocations_, shader("saxpy"));
+    op_->Initialize(device_, 
+                    device_info->max_workgroup_size_, 
+                    device_info->max_workgroup_invocations_, 
+                    shader("saxpy"));
 
     allocator_ = new Allocator(device_, device_info->physical_device_, command_);
     return 0;
@@ -121,11 +202,10 @@ public:
   // TODO: Data, Bind the buffers and buffer_range together. 
   //       Create a new class for Buffer.
   int Run(const std::vector<vky::BufferMemory *> &buffer_memorys,
-    const int *group_count_xyz, 
     const void *params, 
     const int params_size) const {
 
-    op_->Run(command_, buffer_memorys, group_count_xyz, params, params_size);
+    op_->Run(command_, buffer_memorys, params, params_size);
 
     return 0;
   }

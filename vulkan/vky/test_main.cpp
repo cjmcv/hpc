@@ -40,15 +40,6 @@ int TestExecutor() {
 
   clock_t time = clock();
 
-  // The order must be the same as defined in comp.
-  int group_count_xyz[3];
-  //group_count_xyz[0] = (m.w + pipeline->local_size_x - 1) / pipeline->local_size_x;
-  //group_count_xyz[1] = (m.h + pipeline->local_size_y - 1) / pipeline->local_size_y;
-  //group_count_xyz[2] = (m.c + pipeline->local_size_z - 1) / pipeline->local_size_z;
-  group_count_xyz[0] = vky::div_up(width, 16); // TODO: WORKGROUP_SIZE = 16, has been defined in executor.h.
-  group_count_xyz[1] = vky::div_up(height, 16);
-  group_count_xyz[2] = 1;
-
   std::vector<vky::BufferMemory *> buffer_mems;
   buffer_mems.push_back(vdata_y.get_device_data());
   buffer_mems.push_back(vdata_x.get_device_data());
@@ -59,7 +50,7 @@ int TestExecutor() {
   params.a = a;
 
   for (int i = 0; i < 10; i++) {
-    executor->Run(buffer_mems, group_count_xyz, &params, sizeof(params));
+    executor->Run(buffer_mems, &params, sizeof(params));
   }
 
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
