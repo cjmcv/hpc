@@ -36,7 +36,7 @@ public:
   int Initialize(const DeviceInfo *device_info, const std::string &shaders_dir_path) {
     // Init Device.
     device_ = CreateDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
-    RegisterShaders(shaders_dir_path);
+    RegisterShaderNamePath(shaders_dir_path);
 
     // Init command.
     command_ = new Command();
@@ -46,7 +46,7 @@ public:
     //       std::map<std::string, Operator *> ops;
     //       One Execitor can have multiple ops.
     // Init Operators.
-    op_ = new OperatorA();
+    op_ = new NormalOp();
     op_->Initialize(device_, 
                     device_info->max_workgroup_size_, 
                     device_info->max_workgroup_invocations_, 
@@ -76,28 +76,35 @@ public:
   // TODO: Data, Bind the buffers and buffer_range together. 
   //       Create a new class for Buffer.
   int Run(const std::vector<vky::BufferMemory *> &buffer_memorys,
-    const void *params, 
-    const int params_size) const {
+    const void *push_params, 
+    const int push_params_size) const {
 
     // TODO: Get op from map, if it is not exist, then create one by factory.
-    op_->Run(command_, buffer_memorys, params, params_size);
+    op_->Run(command_, buffer_memorys, push_params, push_params_size);
 
     return 0;
   }
 
 private:
 
-  void RegisterShaders(const std::string &shaders_dir_path) {
-    shaders_map_["add"] = CreateShaderModule(shaders_dir_path + "shaders/add.spv");
-    shaders_map_["saxpy"] = CreateShaderModule(shaders_dir_path + "shaders/saxpy.spv");
+  void RegisterShaderNamePath(const std::string &shaders_dir_path) {
+    shaders_name_path_["add"] = shaders_dir_path + "shaders/add.spv";
+    shaders_name_path_["saxpy"] = shaders_dir_path + "shaders/saxpy.spv";
   }
 
   vk::ShaderModule shader(const std::string &str) {
-    std::map<std::string, vk::ShaderModule>::iterator it = shaders_map_.find(str);
-    if (it == shaders_map_.end()) {
-      throw std::runtime_error(std::string("could not find shader: ") + it->first);
+    std::map<std::string, std::string>::iterator it_path = shaders_name_path_.find(str);
+    if (it_path == shaders_name_path_.end()) {
+      throw std::runtime_error(std::string("could not find shader name: ") + str);
     }
-    return it->second;
+
+    std::map<std::string, vk::ShaderModule>::iterator it_shader = shaders_name_obj_.find(str);
+    if (it_shader == shaders_name_obj_.end()) {
+      vk::ShaderModule shader = CreateShaderModule(it_path->second);
+      shaders_name_obj_[str] = shader;
+      return shader;
+    }
+    return it_shader->second;
   }
 
   vk::ShaderModule CreateShaderModule(const std::string &filename) {
@@ -132,11 +139,12 @@ private:
 
 private:  
   vk::Device device_;    // logical device providing access to a physical one 
-  std::map<std::string, vk::ShaderModule> shaders_map_;
+  std::map<std::string, vk::ShaderModule> shaders_name_obj_;
+  std::map<std::string, std::string> shaders_name_path_;
 
   Command *command_;
   // TODO: GeneralOp and CustomizedOp.
-  OperatorA *op_;
+  NormalOp *op_;
 
   Allocator *allocator_;
 }; // class Executor
