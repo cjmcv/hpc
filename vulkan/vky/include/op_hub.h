@@ -20,14 +20,14 @@ class OpParams {};
 class NormalOpParams :public OpParams {
 public:
   NormalOpParams() {};
-  NormalOpParams(std::string shader,
+  NormalOpParams(std::string shader_file,
     uint32_t buffer_count,
     uint32_t push_constant_count,
     uint32_t local_width,
     uint32_t local_height,
     uint32_t local_channels,
     uint32_t group_depends_id) :
-    shader_(shader),
+    shader_file_(shader_file),
     buffer_count_(buffer_count),
     push_constant_count_(push_constant_count),
     local_width_(local_width),
@@ -35,7 +35,7 @@ public:
     local_channels_(local_channels),
     group_depends_id_(group_depends_id) {};
 
-  std::string shader_;
+  std::string shader_file_;
 
   uint32_t buffer_count_;
   uint32_t push_constant_count_;
@@ -52,15 +52,19 @@ public:
   OpParams *GetOpParamsByName(std::string name) {
     std::map<std::string, OpParams*>::iterator iter = op_name_params_.find(name);
     if (iter == op_name_params_.end()) {
-      throw std::runtime_error(std::string("could not find shader name: ") + name);
+      PrintNameList();
+      throw std::runtime_error(std::string("could not find op name: ") + name);
     }
     return iter->second;
   }
+
   void PrintNameList() {
     std::map<std::string, OpParams*>::iterator iter = op_name_params_.begin();
+    std::cout << "Registered: ";
     while (iter != op_name_params_.end()) {
       std::cout << iter->first << ", ";
     }
+    std::cout << std::endl;
   }
 
   // Singleton mode. Only one instance exist.
@@ -70,16 +74,16 @@ public:
   }
 
 private:
+  // TODO: Use callback function to register new op by user.(Only for NormalOp).
   OpHub() {
-    op_name_params_["saxpy"] = new NormalOpParams("saxpy", 2, 3,
+    op_name_params_["saxpy"] = new NormalOpParams("saxpy.spv", 2, 3,
       32, 32, 1, 0);
-    op_name_params_["add"] = new NormalOpParams("add", 2, 2,
+    op_name_params_["add"] = new NormalOpParams("add.spv", 2, 2,
       32, 32, 1, 0);
   }
 
-  std::map<std::string, OpParams *> op_name_params_;
-
+  std::map<std::string, OpParams*> op_name_params_;
 }; // class OpHub
 
-}	//namespace dlex_cnn
+}	//namespace vky
 #endif VKY_OP_HUB_H_

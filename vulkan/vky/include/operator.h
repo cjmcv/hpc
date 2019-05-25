@@ -53,7 +53,7 @@ protected:
   uint32_t group_count_xyz_[3];
 };
 
-class NormalOp :private Operator {
+class NormalOp :public Operator {
 public:
   // TODO: Move this params to factory initialization.
   int Initialize(const vk::Device device, 
@@ -100,7 +100,7 @@ private:
   NormalOpParams *op_params_;
 }; // class NormalOp
 
-class MixOp :Operator {
+class HybridOp:Operator {
 private:
   std::vector<Pipeline *> pipes_;
   std::vector<NormalOpParams *> op_params_;

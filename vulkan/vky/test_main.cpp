@@ -27,7 +27,7 @@ int TestExecutor() {
   devm->PrintDevicesInfo();
 
   int physical_device_id = 0;
-  std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/";
+  std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/shaders/";
 
   vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
 
@@ -50,7 +50,7 @@ int TestExecutor() {
   params.a = a;
 
   for (int i = 0; i < 10; i++) {
-    executor->Run(buffer_mems, &params, sizeof(params));
+    executor->Run("saxpy", buffer_mems, &params, sizeof(params));
   }
 
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);

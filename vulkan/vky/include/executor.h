@@ -13,7 +13,8 @@
 #include "allocator.h"
 #include "command.h"
 #include "pipeline.h"
-#include "operator.h"
+//#include "operator.h"
+#include "op_factory.h"
 
 namespace vky {
 
@@ -36,21 +37,17 @@ public:
   int Initialize(const DeviceInfo *device_info, const std::string &shaders_dir_path) {
     // Init Device.
     device_ = CreateDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
-    RegisterShaderNamePath(shaders_dir_path);
+    //RegisterShaderNamePath(shaders_dir_path);
 
     // Init command.
     command_ = new Command();
     command_->Initialize(device_, device_info->compute_queue_familly_id_);
 
-    // TODO: 1.op factory; 2.And get Op in running.
-    //       std::map<std::string, Operator *> ops;
-    //       One Execitor can have multiple ops.
-    // Init Operators.
-    op_ = new NormalOp();
-    op_->Initialize(device_, 
-                    device_info->max_workgroup_size_, 
-                    device_info->max_workgroup_invocations_, 
-                    shader("saxpy"));
+    // One factory for one executor.
+    op_factory_ = new OpFactory(device_, 
+                                device_info->max_workgroup_size_,
+                                device_info->max_workgroup_invocations_, 
+                                shaders_dir_path);
 
     allocator_ = new Allocator(device_, device_info->physical_device_, command_);
     return 0;
@@ -61,10 +58,9 @@ public:
       delete allocator_;
       allocator_ = nullptr;
     }
-    if (op_ != nullptr) {
-      op_->UnInitialize();
-      delete op_;
-      op_ = nullptr;
+    if (op_factory_ != nullptr) {
+      delete op_factory_;
+      op_factory_ = nullptr;
     }
     if (command_ != nullptr) {
       command_->UnInitialize();
@@ -73,56 +69,22 @@ public:
     }
     return 0;
   }
-  // TODO: Data, Bind the buffers and buffer_range together. 
-  //       Create a new class for Buffer.
-  int Run(const std::vector<vky::BufferMemory *> &buffer_memorys,
-    const void *push_params, 
-    const int push_params_size) const {
 
-    // TODO: Get op from map, if it is not exist, then create one by factory.
+  int Run(const std::string op_name, 
+          const std::vector<vky::BufferMemory *> &buffer_memorys,
+          const void *push_params, 
+          const int push_params_size) {
+
+    // Get op from the map of factory first.
+    // If it is not exist, then create one by factory.
+    op_ = op_factory_->GetOpByName(op_name);
+
     op_->Run(command_, buffer_memorys, push_params, push_params_size);
 
     return 0;
   }
 
 private:
-
-  void RegisterShaderNamePath(const std::string &shaders_dir_path) {
-    shaders_name_path_["add"] = shaders_dir_path + "shaders/add.spv";
-    shaders_name_path_["saxpy"] = shaders_dir_path + "shaders/saxpy.spv";
-  }
-
-  vk::ShaderModule shader(const std::string &str) {
-    std::map<std::string, std::string>::iterator iter_path = shaders_name_path_.find(str);
-    if (iter_path == shaders_name_path_.end()) {
-      throw std::runtime_error(std::string("could not find shader name: ") + str);
-    }
-
-    std::map<std::string, vk::ShaderModule>::iterator iter_shader = shaders_name_obj_.find(str);
-    if (iter_shader == shaders_name_obj_.end()) {
-      vk::ShaderModule shader = CreateShaderModule(iter_path->second);
-      shaders_name_obj_[str] = shader;
-      return shader;
-    }
-    return iter_shader->second;
-  }
-
-  vk::ShaderModule CreateShaderModule(const std::string &filename) {
-    // Read binary shader file into array of uint32_t. little endian assumed.
-    auto fin = std::ifstream(filename.c_str(), std::ios::binary);
-    if (!fin.is_open()) {
-      throw std::runtime_error(std::string("could not open file ") + filename.c_str());
-    }
-    auto code = std::vector<char>(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
-    // Padded by 0s to a boundary of 4.
-    code.resize(4 * div_up(code.size(), size_t(4)));
-
-    vk::ShaderModuleCreateFlags flags = vk::ShaderModuleCreateFlags();
-    auto shader_module_create_info = vk::ShaderModuleCreateInfo(flags, code.size(),
-      reinterpret_cast<uint32_t*>(code.data()));
-
-    return device_.createShaderModule(shader_module_create_info);
-  }
 
   vk::Device CreateDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
     // create logical device to interact with the physical one
@@ -143,8 +105,8 @@ private:
   std::map<std::string, std::string> shaders_name_path_;
 
   Command *command_;
-  // TODO: GeneralOp and CustomizedOp.
-  NormalOp *op_;
+  Operator *op_;
+  OpFactory *op_factory_;
 
   Allocator *allocator_;
 }; // class Executor
