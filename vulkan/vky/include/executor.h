@@ -93,18 +93,18 @@ private:
   }
 
   vk::ShaderModule shader(const std::string &str) {
-    std::map<std::string, std::string>::iterator it_path = shaders_name_path_.find(str);
-    if (it_path == shaders_name_path_.end()) {
+    std::map<std::string, std::string>::iterator iter_path = shaders_name_path_.find(str);
+    if (iter_path == shaders_name_path_.end()) {
       throw std::runtime_error(std::string("could not find shader name: ") + str);
     }
 
-    std::map<std::string, vk::ShaderModule>::iterator it_shader = shaders_name_obj_.find(str);
-    if (it_shader == shaders_name_obj_.end()) {
-      vk::ShaderModule shader = CreateShaderModule(it_path->second);
+    std::map<std::string, vk::ShaderModule>::iterator iter_shader = shaders_name_obj_.find(str);
+    if (iter_shader == shaders_name_obj_.end()) {
+      vk::ShaderModule shader = CreateShaderModule(iter_path->second);
       shaders_name_obj_[str] = shader;
       return shader;
     }
-    return it_shader->second;
+    return iter_shader->second;
   }
 
   vk::ShaderModule CreateShaderModule(const std::string &filename) {
