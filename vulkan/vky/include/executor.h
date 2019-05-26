@@ -37,7 +37,6 @@ public:
   int Initialize(const DeviceInfo *device_info, const std::string &shaders_dir_path) {
     // Init Device.
     device_ = CreateDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
-    //RegisterShaderNamePath(shaders_dir_path);
 
     // Init command.
     command_ = new Command();
@@ -67,6 +66,7 @@ public:
       delete command_;
       command_ = nullptr;
     }
+    device_.destroy();
     return 0;
   }
 
@@ -75,8 +75,8 @@ public:
           const void *push_params, 
           const int push_params_size) {
 
-    // Get op from the map of factory first.
-    // If it is not exist, then create one by factory.
+    // Get op from the map of factory.
+    // If it doesn't exist, then use factory to create one.
     op_ = op_factory_->GetOpByName(op_name);
 
     op_->Run(command_, buffer_memorys, push_params, push_params_size);

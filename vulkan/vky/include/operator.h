@@ -62,6 +62,7 @@ public:
     const vk::ShaderModule shader) {
 
     // TODO: Merge this step to factory.
+    //       use OpFactory to control OpHub.
     op_params_ = (NormalOpParams *)OpHub::GetInstance().GetOpParamsByName("saxpy");
 
     pipe_ = new Pipeline();
@@ -90,7 +91,9 @@ public:
 
     pipe_->UpdateDescriptorSet(buffer_memorys);
 
-    GetGroupCount(buffer_memorys[0]->width_, buffer_memorys[0]->height_, buffer_memorys[0]->channels_);
+    int index = op_params_->group_depends_id_;
+    GetGroupCount(buffer_memorys[index]->width_, buffer_memorys[index]->height_, buffer_memorys[index]->channels_);
+
     command->Submit(pipe_, group_count_xyz_, push_params, push_params_size);
     return 0;
   }
@@ -100,7 +103,8 @@ private:
   NormalOpParams *op_params_;
 }; // class NormalOp
 
-class HybridOp:Operator {
+// TODO
+class HybridOp :public Operator {
 private:
   std::vector<Pipeline *> pipes_;
   std::vector<NormalOpParams *> op_params_;

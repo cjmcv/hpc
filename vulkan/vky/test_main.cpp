@@ -38,8 +38,6 @@ int TestExecutor() {
   vky::VkyData vdata_x(allocator, width*height, x);
   vky::VkyData vdata_y(allocator, width*height, y);
 
-  clock_t time = clock();
-
   std::vector<vky::BufferMemory *> buffer_mems;
   buffer_mems.push_back(vdata_y.get_device_data());
   buffer_mems.push_back(vdata_x.get_device_data());
@@ -49,10 +47,13 @@ int TestExecutor() {
   params.height = height;
   params.a = a;
 
-  for (int i = 0; i < 10; i++) {
+  // Warm up.
+  executor->Run("saxpy", buffer_mems, &params, sizeof(params)); 
+  
+  clock_t time = clock();
+  for (int i = 0; i < 2; i++) {
     executor->Run("saxpy", buffer_mems, &params, sizeof(params));
   }
-
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
 
   float *vdata_cpu = vdata_y.get_host_data();
