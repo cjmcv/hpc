@@ -63,6 +63,7 @@ public:
     std::cout << "Registered: ";
     while (iter != op_name_params_.end()) {
       std::cout << iter->first << ", ";
+      iter++;
     }
     std::cout << std::endl;
   }

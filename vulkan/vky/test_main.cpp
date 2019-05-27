@@ -35,12 +35,12 @@ int TestExecutor() {
   executor->Initialize(selected_device_info, shaders_dir_path);
 
   vky::Allocator *allocator = executor->allocator();
-  vky::VkyData vdata_x(allocator, width*height, x);
-  vky::VkyData vdata_y(allocator, width*height, y);
+  vky::VkyData *vdata_x = new vky::VkyData(allocator, width*height, x);
+  vky::VkyData *vdata_y = new vky::VkyData(allocator, width*height, y);
 
   std::vector<vky::BufferMemory *> buffer_mems;
-  buffer_mems.push_back(vdata_y.get_device_data());
-  buffer_mems.push_back(vdata_x.get_device_data());
+  buffer_mems.push_back(vdata_y->get_device_data());
+  buffer_mems.push_back(vdata_x->get_device_data());
 
   PushParams params;
   params.width = width;
@@ -56,21 +56,24 @@ int TestExecutor() {
   }
   printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
 
-  float *vdata_cpu = vdata_y.get_host_data();
+  float *vdata_cpu = vdata_y->get_host_data();
 
   for (int i = 0; i < width * height; i++) {
     std::cout << vdata_cpu[i] << ", ";
   }
 
-  // TODO: UnInitialize.
-
+  // Release.
   delete[]x;
   delete[]y;
 
-  // TODO: Check Release. 
-  //       The reason may be related to the life cycle of vky::Allocator2.
-  //delete devm;
-  //delete executor;
+  delete vdata_x;
+  delete vdata_y;
+
+  executor->UnInitialize();
+  delete executor;
+
+  devm->UnInitialize();
+  delete devm;
 
   return 0;
 }
@@ -95,10 +98,10 @@ void TestVkyData() {
   executor->Initialize(selected_device_info, shaders_dir_path);
 
   vky::Allocator *allocator = executor->allocator();
-  vky::VkyData vdata(allocator, len, x);
+  vky::VkyData *vdata = new vky::VkyData(allocator, len, x);
 
-  float *vdata_host = vdata.host_data();
-  vky::BufferMemory *data_device = vdata.get_device_data();
+  float *vdata_host = vdata->host_data();
+  vky::BufferMemory *data_device = vdata->get_device_data();
 
   memset(vdata_host, 0, sizeof(float) * len);
   for (int i = 0; i < len; i++) {
@@ -106,10 +109,20 @@ void TestVkyData() {
   }
   std::cout << std::endl << "cleaned." << std::endl;
 
-  vdata_host = vdata.get_host_data();
+  vdata_host = vdata->get_host_data();
   for (int i = 0; i < len; i++) {
     std::cout << vdata_host[i] << ", ";
   }
+
+  // Release
+  delete[]x;
+  delete vdata;
+
+  executor->UnInitialize();
+  delete executor;
+
+  devm->UnInitialize();
+  delete devm;
 }
 
 int main(int argc, char* argv[]) {

@@ -55,15 +55,13 @@ protected:
 
 class NormalOp :public Operator {
 public:
-  // TODO: Move this params to factory initialization.
   int Initialize(const vk::Device device, 
     const uint32_t *max_workgroup_size,
     const uint32_t max_workgroup_invocations,
+    const NormalOpParams *op_params,
     const vk::ShaderModule shader) {
 
-    // TODO: Merge this step to factory.
-    //       use OpFactory to control OpHub.
-    op_params_ = (NormalOpParams *)OpHub::GetInstance().GetOpParamsByName("saxpy");
+    op_params_ = op_params;
 
     pipe_ = new Pipeline();
     uint32_t buffer_count = op_params_->buffer_count_;
@@ -100,7 +98,7 @@ public:
 
 private:
   Pipeline *pipe_;
-  NormalOpParams *op_params_;
+  const NormalOpParams *op_params_;
 }; // class NormalOp
 
 // TODO

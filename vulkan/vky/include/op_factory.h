@@ -17,9 +17,6 @@
 
 namespace vky { 
 
-#define GET_OP_PARAM_CLASS(type, param)                                    \
-    std::shared_ptr< vky::Operator >(new vky::##type##Op(param));
-
 class OpFactory {
 public:
   OpFactory(const vk::Device device,
@@ -35,12 +32,14 @@ public:
     std::map<std::string, vk::ShaderModule>::iterator iter_shader = shaders_name_obj_.begin();
     while (iter_shader != shaders_name_obj_.end()) {
       device_.destroyShaderModule(iter_shader->second);
+      iter_shader++;
     }
 
     std::map<std::string, vky::Operator *>::iterator iter_op = ops_list_.begin();
     while (iter_op != ops_list_.end()) {
       iter_op->second->UnInitialize();
       delete iter_op->second;
+      iter_op++;
     }
   };
 
@@ -53,7 +52,7 @@ public:
     NormalOpParams *op_params = (NormalOpParams *)OpHub::GetInstance().GetOpParamsByName(name);
     NormalOp *op = new NormalOp();
     std::string shader_file_path = shaders_dir_ + op_params->shader_file_;
-    op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, shader(name, op_params->shader_file_));
+    op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, op_params, shader(name, op_params->shader_file_));
 
     ops_list_[name] = op;
 

@@ -24,7 +24,8 @@ int Pipeline::Initialize(const vk::Device device,
   return 0;
 }
 void Pipeline::UnInitialize() {
-  FreeDescriptorSet();
+  // TODO: Recheck.
+  //FreeDescriptorSet();
   DestroyDescriptorPool();
 
   DestroyPipeline();

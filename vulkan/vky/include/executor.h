@@ -13,12 +13,9 @@
 #include "allocator.h"
 #include "command.h"
 #include "pipeline.h"
-//#include "operator.h"
 #include "op_factory.h"
 
 namespace vky {
-
-inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
 
 // TODO: Handle exeception.
 // TODO: Release resource.
@@ -66,7 +63,8 @@ public:
       delete command_;
       command_ = nullptr;
     }
-    device_.destroy();
+    // TODO: recheck
+    //device_.destroy();
     return 0;
   }
 
