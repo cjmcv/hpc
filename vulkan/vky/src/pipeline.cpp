@@ -139,7 +139,6 @@ int Pipeline::CreatePipeline(const vk::ShaderModule shader, const uint32_t *loca
       { 1, 1 * sizeof(uint32_t), sizeof(uint32_t) },
       { 2, 2 * sizeof(uint32_t), sizeof(uint32_t) } }
   };
-  // TODO: Replace it by SetOptimalLocalSizeXYZ.
   auto spec_values = std::array<uint32_t, 3>{local_size[0], local_size[1], local_size[2]};
   auto spec_info = vk::SpecializationInfo(spec_entries.size(), spec_entries.data(),
     spec_values.size() * sizeof(int), spec_values.data());   // TODO: Change sizeof(int) to a manual type?

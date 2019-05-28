@@ -18,8 +18,6 @@
 namespace vky {
 
 // TODO: Handle exeception.
-// TODO: Release resource.
-// TODO: Specify a transfer pipeline for buffer copy.
 
 class Executor {
 

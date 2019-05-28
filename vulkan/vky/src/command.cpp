@@ -27,7 +27,6 @@ void Command::UnInitialize() {
   device_.destroyFence(fence_);
   device_.freeCommandBuffers(cmd_pool_, 1, &cmd_buffer_);
   device_.destroyCommandPool(cmd_pool_);
-  // TODO more?
 }
 
 void Command::Begin(CommandType type) {

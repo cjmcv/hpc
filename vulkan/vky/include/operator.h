@@ -25,7 +25,8 @@ public:
   virtual int Initialize(const vk::Device device,
                          const uint32_t *max_workgroup_size,
                          const uint32_t max_workgroup_invocations,
-                         const vk::ShaderModule shader) {
+                         const std::vector<NormalOpParams *> &op_params,
+                         const std::vector<vk::ShaderModule> &shader) {
     return -1;
   }
   virtual void UnInitialize() { return; }
@@ -58,10 +59,10 @@ public:
   int Initialize(const vk::Device device, 
     const uint32_t *max_workgroup_size,
     const uint32_t max_workgroup_invocations,
-    const NormalOpParams *op_params,
-    const vk::ShaderModule shader) {
+    const std::vector<NormalOpParams *> &op_params,
+    const std::vector<vk::ShaderModule> &shader) {
 
-    op_params_ = op_params;
+    op_params_ = op_params[0]; // Only one for NormalOp.
 
     pipe_ = new Pipeline();
     uint32_t buffer_count = op_params_->buffer_count_;
@@ -71,7 +72,7 @@ public:
                            op_params_->local_width_, 
                            op_params_->local_height_, 
                            op_params_->local_channels_);
-    pipe_->Initialize(device, shader, buffer_count, push_constant_count, local_size_xyz_);
+    pipe_->Initialize(device, shader[0], buffer_count, push_constant_count, local_size_xyz_);
 
     return 0;
   }
@@ -101,11 +102,18 @@ private:
   const NormalOpParams *op_params_;
 }; // class NormalOp
 
-// TODO
+// TODO: A combination of multiple operators.
 class HybridOp :public Operator {
 private:
-  std::vector<Pipeline *> pipes_;
-  std::vector<NormalOpParams *> op_params_;
+  int Initialize(const vk::Device device,
+    const uint32_t *max_workgroup_size,
+    const uint32_t max_workgroup_invocations,
+    const std::vector<NormalOpParams *> &op_params,
+    const std::vector<vk::ShaderModule> &shader) {
+
+  }
+
+  std::vector<NormalOp *> ops_;
   int num_params_;
 }; // class NormalOp
 

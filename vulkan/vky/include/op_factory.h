@@ -2,7 +2,7 @@
 // > Copyright (c) 2017 by Contributors. 
 // > https://github.com/cjmcv
 // > brief  A factory for operators.
-//          allows users to create an operator only by string.
+//          allows users to create an operator using only string.
 ////////////////////////////////////////////////////////////////
 
 #ifndef VKY_OP_FACTORY_H_
@@ -49,10 +49,17 @@ public:
     if (it != ops_list_.end())
       return it->second;
 
+    // TODO: Create for HybridOp.
     NormalOpParams *op_params = (NormalOpParams *)OpHub::GetInstance().GetOpParamsByName(name);
+    std::vector<NormalOpParams *> op_params_vec;
+    op_params_vec.push_back(op_params);
+
+    std::vector<vk::ShaderModule> shader_vec;
+    shader_vec.push_back(shader(name, op_params->shader_file_));
+
     NormalOp *op = new NormalOp();
     std::string shader_file_path = shaders_dir_ + op_params->shader_file_;
-    op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, op_params, shader(name, op_params->shader_file_));
+    op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, op_params_vec, shader_vec);
 
     ops_list_[name] = op;
 
