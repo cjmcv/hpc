@@ -49,21 +49,30 @@ public:
     if (it != ops_list_.end())
       return it->second;
 
-    // TODO: Create for HybridOp.
-    NormalOpParams *op_params = (NormalOpParams *)OpHub::GetInstance().GetOpParamsByName(name);
-    std::vector<NormalOpParams *> op_params_vec;
-    op_params_vec.push_back(op_params);
+    OpParams *op_params = (OpParams *)OpHub::GetInstance().GetOpParamsByName(name);
 
-    std::vector<vk::ShaderModule> shader_vec;
-    shader_vec.push_back(shader(name, op_params->shader_file_));
+    if (op_params->sub_op_count_ == 1) {
+      NormalOp *op = new NormalOp();
+      op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, 
+        (NormalOpParams *)op_params, shader(name, ((NormalOpParams *)op_params)->shader_file_));
 
-    NormalOp *op = new NormalOp();
-    std::string shader_file_path = shaders_dir_ + op_params->shader_file_;
-    op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, op_params_vec, shader_vec);
+      ops_list_[name] = op; 
+      return op;
+    }
+    else {
+      std::vector<vk::ShaderModule> shader_vec;
+      for (int i = 0; i < op_params->sub_op_count_; i++) {
+        shader_vec.push_back(shader(((HybridOpParams *)op_params)->op_params_[i]->name_, 
+          ((HybridOpParams *)op_params)->op_params_[i]->shader_file_));
+      }
+      
+      HybridOp *op = new HybridOp();
+      op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, ((HybridOpParams *)op_params)->op_params_, shader_vec);
 
-    ops_list_[name] = op;
+      ops_list_[name] = op;
+      return op;
+    }
 
-    return op;
   }
 
 private:

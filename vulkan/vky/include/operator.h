@@ -22,13 +22,6 @@ namespace vky {
 //                                -> COp2... 2.Can be designed externally.
 class Operator {
 public:
-  virtual int Initialize(const vk::Device device,
-                         const uint32_t *max_workgroup_size,
-                         const uint32_t max_workgroup_invocations,
-                         const std::vector<NormalOpParams *> &op_params,
-                         const std::vector<vk::ShaderModule> &shader) {
-    return -1;
-  }
   virtual void UnInitialize() { return; }
   virtual int Run(Command *command,
                   const std::vector<vky::BufferMemory *> &buffer_memorys,
@@ -59,10 +52,10 @@ public:
   int Initialize(const vk::Device device, 
     const uint32_t *max_workgroup_size,
     const uint32_t max_workgroup_invocations,
-    const std::vector<NormalOpParams *> &op_params,
-    const std::vector<vk::ShaderModule> &shader) {
+    const NormalOpParams *op_params,
+    const vk::ShaderModule shader) {
 
-    op_params_ = op_params[0]; // Only one for NormalOp.
+    op_params_ = op_params; // Only one for NormalOp.
 
     pipe_ = new Pipeline();
     uint32_t buffer_count = op_params_->buffer_count_;
@@ -72,7 +65,7 @@ public:
                            op_params_->local_width_, 
                            op_params_->local_height_, 
                            op_params_->local_channels_);
-    pipe_->Initialize(device, shader[0], buffer_count, push_constant_count, local_size_xyz_);
+    pipe_->Initialize(device, shader, buffer_count, push_constant_count, local_size_xyz_);
 
     return 0;
   }
@@ -104,17 +97,39 @@ private:
 
 // TODO: A combination of multiple operators.
 class HybridOp :public Operator {
-private:
+public:
   int Initialize(const vk::Device device,
     const uint32_t *max_workgroup_size,
     const uint32_t max_workgroup_invocations,
     const std::vector<NormalOpParams *> &op_params,
     const std::vector<vk::ShaderModule> &shader) {
+    
+    num_sub_ops_ = op_params.size();
+    for (int i = 0; i < num_sub_ops_; i++) {
+      ops_.push_back(new NormalOp());
+      ops_[i]->Initialize(device, max_workgroup_size, max_workgroup_invocations, op_params[i], shader[i]);
+    }
+    return 0;
+  }
+  void UnInitialize() {
+    for (int i = 0; i < num_sub_ops_; i++) {
+      ops_[i]->UnInitialize();
+    }
+  }
 
+  int Run(Command *command,
+    const std::vector<vky::BufferMemory *> &buffer_memorys,
+    const void *push_params,
+    const int push_params_size) {
+
+    //for (int i = 0; i < num_sub_ops_; i++) {
+    //  ops_[i]->Run(command, buffer_memorys, push_params, push_params_size);
+    //}
+    return 0;
   }
 
   std::vector<NormalOp *> ops_;
-  int num_params_;
+  int num_sub_ops_;
 }; // class NormalOp
 
 } // namespace vky

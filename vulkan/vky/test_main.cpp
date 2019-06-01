@@ -5,10 +5,14 @@
 
 // TODO: Remove it.
 // C++ mirror of the shader push constants interface
-struct PushParams {
+struct PushParamsSaxpy {
   uint32_t width;  //< frame width
   uint32_t height; //< frame height
   float a;         //< saxpy (\$ y = y + ax \$) scaling factor
+};
+struct PushParamsAdd {
+  uint32_t width;  //< frame width
+  uint32_t height; //< frame height
 };
 
 int TestExecutor() {
@@ -42,19 +46,37 @@ int TestExecutor() {
   buffer_mems.push_back(vdata_y->get_device_data());
   buffer_mems.push_back(vdata_x->get_device_data());
 
-  PushParams params;
-  params.width = width;
-  params.height = height;
-  params.a = a;
+  // Saxpy;
+  //{
+  //  PushParamsSaxpy params;
+  //  params.width = width;
+  //  params.height = height;
+  //  params.a = a;
 
-  // Warm up.
-  executor->Run("saxpy", buffer_mems, &params, sizeof(params)); 
-  
-  clock_t time = clock();
-  for (int i = 0; i < 2; i++) {
-    executor->Run("saxpy", buffer_mems, &params, sizeof(params));
+  //  // Warm up.
+  //  executor->Run("saxpy", buffer_mems, &params, sizeof(params)); 
+  //
+  //  clock_t time = clock();
+  //  for (int i = 0; i < 2; i++) {
+  //    executor->Run("saxpy", buffer_mems, &params, sizeof(params));
+  //  }
+  //  printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
+  //}
+  // Add.
+  {
+    PushParamsAdd params;
+    params.width = width;
+    params.height = height;
+
+    // Warm up.
+    executor->Run("add", buffer_mems, &params, sizeof(params));
+
+    //clock_t time = clock();
+    //for (int i = 0; i < 2; i++) {
+    //  executor->Run("add", buffer_mems, &params, sizeof(params));
+    //}
+    //printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
   }
-  printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
 
   float *vdata_cpu = vdata_y->get_host_data();
 
