@@ -2,8 +2,8 @@
 * \brief Utility functions.
 */
 
-#ifndef CUX_UTIL_HPP_
-#define CUX_UTIL_HPP_
+#ifndef CUX_EXECUTOR_HPP_
+#define CUX_EXECUTOR_HPP_
 
 #include <iostream>
 #include <cuda_runtime.h>
@@ -56,4 +56,4 @@ struct GpuTimer {
   cudaEvent_t stop_;
 };
 } // cux.
-#endif //CUX_UTIL_HPP_
+#endif //CUX_EXECUTOR_HPP_
