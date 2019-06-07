@@ -1,30 +1,6 @@
 #include "operator/dot_product.h"
-
+#include "executor.h"
 // 
-int InitEnvironment(const int dev_id) {
-  CUDA_CHECK(cudaSetDevice(dev_id));
-  cudaDeviceProp device_prop;
-  CUDA_CHECK(cudaGetDeviceProperties(&device_prop, dev_id));
-  if (device_prop.computeMode == cudaComputeModeProhibited) {
-    fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
-    return 1;
-  }
-  fprintf(stderr, "GPU Device %d: \"%s\" with compute capability %d.%d with %d multi-processors.\n\n",
-    dev_id, device_prop.name, device_prop.major, device_prop.minor, device_prop.multiProcessorCount);
-
-  return 0;
-}
-
-void CleanUpEnvironment() {
-  // Reset the device and exit
-  // cudaDeviceReset causes the driver to clean up all state. While
-  // not mandatory in normal operation, it is good practice.  It is also
-  // needed to ensure correct operation when the application is being
-  // profiled. Calling cudaDeviceReset causes all profile data to be
-  // flushed before the application exits
-  CUDA_CHECK(cudaDeviceReset());
-}
-
 template <typename T>
 void PrintArray(std::string str, T *h_in, int num_items) {
   std::cout << str.c_str();
@@ -43,7 +19,9 @@ void GenArray(const int len, float *arr) {
 }
 
 int main() {
-  int ret = InitEnvironment(0);
+  cux::Executor *executor = new cux::Executor();
+
+  int ret = executor->InitEnvironment(0);
   if (ret != 0) {
     printf("Failed to initialize the environment for cuda.");
     return -1;
@@ -95,7 +73,9 @@ int main() {
   cudaFree(d_vector_a);
   cudaFree(d_vector_b);
   cudaFree(d_result);
-  CleanUpEnvironment();
+  executor->CleanUpEnvironment();
+
+  delete executor;
 
   system("pause");
   return 0;
