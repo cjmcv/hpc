@@ -10,7 +10,6 @@ void PrintArray(std::string str, T *h_in, int num_items) {
   std::cout << std::endl;
 }
 
-
 // Initialize the input data.
 void GenArray(const int len, float *arr) {
   for (int i = 0; i < len; i++) {
@@ -45,13 +44,10 @@ int main() {
   // CPU
   time_t t = clock();
   float h_result = 0;
-  for (int i = 0; i < loops; i++)
-    h_result = cux::VectorDotProductCPU(h_vector_a, h_vector_b, data_len);
-  printf("\nIn cpu version 1, msec_total = %lld, h_result = %f\n", clock() - t, h_result);
+  executor->Run(cux::RunMode::OnHost, h_vector_a, h_vector_b, data_len, h_result);
 
   // GPU
   // Allocate memory in host. 
-  float msec_total;
   float *d_vector_a = NULL, *d_vector_b = NULL;
   float *d_result = NULL;
   CUDA_CHECK(cudaMalloc((void **)&d_vector_a, data_mem_size));
@@ -62,10 +58,10 @@ int main() {
   CUDA_CHECK(cudaMemcpy(d_vector_a, h_vector_a, data_mem_size, cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(d_vector_b, h_vector_b, data_mem_size, cudaMemcpyHostToDevice));
 
-  msec_total = cux::VectorDotProductCUDA(loops, d_vector_a, d_vector_b, data_len, *d_result);
+  executor->Run(cux::RunMode::OnDevice, d_vector_a, d_vector_b, data_len, *d_result);
   
   CUDA_CHECK(cudaMemcpy(&h_result, d_result, sizeof(float), cudaMemcpyDeviceToHost));
-  printf("\nIn gpu version 1, msec_total = %f, h_result = %f\n", msec_total, h_result);
+  //printf("\nIn gpu version 1, h_result = %f\n", h_result);
 
   free(h_vector_a);
   free(h_vector_b);

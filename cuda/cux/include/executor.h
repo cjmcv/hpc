@@ -11,7 +11,12 @@ namespace cux {
 
 class Executor {
 public:
-  Executor(){}
+  Executor() {
+    op_ = new VectorDotProduct();
+  }
+  ~Executor() {
+    delete op_;
+  }
 
   int InitEnvironment(const int dev_id) {
     CUDA_CHECK(cudaSetDevice(dev_id));
@@ -37,6 +42,19 @@ public:
     CUDA_CHECK(cudaDeviceReset());
   }
 
+  void Run(const RunMode mode, const float *vec_a, const float *vec_b, const int len, float &result) {
+    if (mode == RunMode::OnHost) {
+      op_->RunOnHost(vec_a, vec_b, len, result);
+      op_->PrintCpuRunTime();
+    }
+    else {
+      op_->RunOnDevice(vec_a, vec_b, len, result);
+      op_->PrintGpuRunTime();
+    }
+  }
+
+private:
+  VectorDotProduct *op_;
 };
 
 

@@ -31,8 +31,8 @@ public:
     mem_head_ = tind::eUninitialized;
   }
   
-  inline std::vector<int> &get_size() { return size_; };
-  inline std::vector<int> &get_shape() { return shape_; };
+  inline std::vector<int> &get_size() { return size_; }
+  inline std::vector<int> &get_shape() { return shape_; }
 
 private:
   Dtype *cpu_data_;

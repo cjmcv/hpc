@@ -1,17 +1,7 @@
 #include "operator/dot_product.h"
 
 namespace cux {
-
-// CPU version: 965ms
-// Normal version in cpu as a reference
-float VectorDotProductCPU(const float *vec_a, const float *vec_b, const int len) {
-  float h_result = 0;
-  for (int i = 0; i<len; i++) {
-    h_result += vec_a[i] * vec_b[i];
-  }
-  return h_result;
-}
-
+  
 // CUDA kernel v1 : 283ms
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
@@ -27,16 +17,16 @@ __global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b,
 
     int count = BLOCK_SIZE / 2;
     while (count >= 1) {
-      if(threadIdx.x < count) {
+      if (threadIdx.x < count) {
         smem[threadIdx.x] += smem[count + threadIdx.x];
       }
       // Synchronize the threads within the block,
       // then go to next round together.
       __syncthreads();
-      count /= 2; 
+      count /= 2;
     }
-    
-    if(threadIdx.x == 0)
+
+    if (threadIdx.x == 0)
       atomicAdd(&res, smem[0]);
   }
 }
@@ -104,9 +94,31 @@ __global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b,
   }
 }
 
-float VectorDotProductCUDA(const int loops, const float *vec_a, const float *vec_b, const int len, float &result) {
+void VectorDotProductHost(const float *vec_a, const float *vec_b, const int len, float &res) {
+  res = 0;
+  for (int i = 0; i < len; i++) {
+    res += vec_a[i] * vec_b[i];
+  }
+}
+////////////////////////////////////////////////
+// CPU version: 965ms
+// Normal version in cpu as a reference
+void VectorDotProduct::RunOnHost(const float *vec_a, const float *vec_b, const int len, float &result) {
+  CpuTimer cpu_timer;
+
+  cpu_timer.Start();
+  for (int i = 0; i < loops_; i++) {
+    result = 0;
+    VectorDotProductHost(vec_a, vec_b, len, result);
+  }
+  cpu_timer.Stop();
+
+  cpu_time_record_ = cpu_timer.MilliSeconds();
+}
+
+void VectorDotProduct::RunOnDevice(const float *vec_a, const float *vec_b, const int len, float &result) {
   // Time recorder.
-  cux::GpuTimer gpu_timer;
+  GpuTimer gpu_timer;
 
   const int threads_per_block = 1024; // data_len % threads_per_block == 0
   const int blocks_per_grid = (len + threads_per_block - 1) / threads_per_block;
@@ -114,17 +126,17 @@ float VectorDotProductCUDA(const int loops, const float *vec_a, const float *vec
   // Warm up.
   VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
     (vec_a, vec_b, len, result);
-  
+
   gpu_timer.Start();
 
-  for (int i = 0; i < loops; i++) {
+  for (int i = 0; i < loops_; i++) {
     cudaMemset(&result, 0, sizeof(float));
     VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
       (vec_a, vec_b, len, result);
   }
 
   gpu_timer.Stop();
-
-  return gpu_timer.ElapsedMillis();
+  gpu_time_record_ = gpu_timer.MilliSeconds();
 }
+
 }
