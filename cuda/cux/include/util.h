@@ -20,9 +20,12 @@ enum RunMode {
   OnDevice
 };
 
+// TODO: CPU端异常处理/告警机制
 ////////////////
 // Macro.
 ////////////////
+
+// Check for cuda error messages.
 #define CUDA_CHECK(condition) \
   do { \
     cudaError_t error = condition; \
@@ -77,10 +80,10 @@ public:
   // Returns the elapsed time in milliseconds.
   inline float MilliSeconds() { return NanoSeconds() / 1000000.f; }
 
-  //brief Returns the elapsed time in microseconds.
+  // Returns the elapsed time in microseconds.
   inline float MicroSeconds() { return NanoSeconds() / 1000.f; }
 
-  //Returns the elapsed time in seconds.
+  // Returns the elapsed time in seconds.
   inline float Seconds() { return NanoSeconds() / 1000000000.f; }
 
 protected:
@@ -88,6 +91,13 @@ protected:
   std::chrono::time_point<clock> stop_time_;
 };
 
-// TODO: Benchmark. Check IO / kernel...
+// TODO: 1. 性能测试模块，含IO和kernel等
+//       2. 信息打印 / 日志输出模块.
+//       3. 内存池 / 显存池（低优先级）
+//
+// TODO: 1. Prefetcher, 预取器，预取数据到GPU，隐藏IO延时
+//       2. BlockingQueue, 堵塞缓冲队列，用于服务预取器Prefetcher，缓存预取的数据
+//       3. InnerThread, 内部线程，为堵塞队列替换数据，共同服务于预取器Prefetcher
+//       
 } // cux.
 #endif //CUX_UTIL_HPP_

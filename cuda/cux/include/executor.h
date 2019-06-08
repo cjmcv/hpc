@@ -54,6 +54,9 @@ public:
   }
 
 private:
+  // TODO: 1. 将VectorDotProduct改成Operator，可手动切换具体的Operator.
+  //       2. 添加OpFactory，用于注册和生产Op.
+  //       3. GPU信息查询.
   VectorDotProduct *op_;
 };
 

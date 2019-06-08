@@ -9,6 +9,8 @@
 
 namespace cux {
 
+// TODO: 1. 用到Executor和Op上，作为数据操作的基本单元
+//       2. 支持数据跨设备推送，cpu与gpu数据互通
 template <typename Dtype>
 class CuxData {
   enum MemHead {

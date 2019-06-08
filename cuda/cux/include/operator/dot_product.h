@@ -10,10 +10,6 @@
 
 namespace cux {
 
-// TODO: 1. Encapsulated into a class.
-//       2. Called by Executor.
-//       3. Has the same input parameters.
-//       4. Kernel can be manually switched.
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct() {}

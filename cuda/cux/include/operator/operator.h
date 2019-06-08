@@ -9,6 +9,7 @@
 
 namespace cux {
 
+// TODO: 1¡¢LayoutÍÆ¼ö
 class Operator {
 public:
   Operator(): loops_(1) {}
