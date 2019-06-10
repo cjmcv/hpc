@@ -28,13 +28,48 @@ public:
     shape_.push_back(height);
     shape_.push_back(width);
 
+    num_element_ = num * channels * height * width;
+
     cpu_data_ = nullptr;
     gpu_data_ = nullptr;
     mem_head_ = tind::eUninitialized;
   }
-  
+
+  ~CuxData() {
+    if (cpu_data_ != nullptr) {
+      delete[]cpu_data_;
+      cpu_data_ = nullptr;
+    }
+    if (gpu_data_ != nullptr) {
+      cudaFree(gpu_data_);
+      gpu_data_ = nullptr;
+    }
+  }
+
   inline std::vector<int> &get_size() { return size_; }
   inline std::vector<int> &get_shape() { return shape_; }
+
+  inline Dtype* cpu_data() { return cpu_data_; }
+  inline Dtype* gpu_data() { return gpu_data_; }
+
+  Dtype* get_cpu_data() {
+    if (mem_head_ == tind::eUninitialized) {
+      cpu_data_ = new Dtype[num_element_];
+      mem_head_ = tind::eHeadAtCPU;
+
+      return cpu_data_;
+    }
+    else if (mem_head_ == tind::eHeadAtCPU) {
+      return cpu_data_;
+    }
+    else if (mem_head_ == tind::eHeadAtGPU) {
+
+    }
+  }
+
+  Dtype* get_gpu_data() {
+  
+  }
 
 private:
   Dtype *cpu_data_;
@@ -44,6 +79,7 @@ private:
   int mem_head_;
   // eNum, eChannels, eHeight, eWidth
   std::vector<int> shape_;
+  int num_element_;
 };
 
 } // cux.

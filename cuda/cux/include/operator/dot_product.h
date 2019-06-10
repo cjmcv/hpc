@@ -10,6 +10,7 @@
 
 namespace cux {
 
+// TODO: Use CuxData.
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct() {}
