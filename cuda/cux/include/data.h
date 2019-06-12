@@ -13,11 +13,12 @@ namespace cux {
 //       2. 支持数据跨设备推送，cpu与gpu数据互通
 template <typename Dtype>
 class CuxData {
+public:
   enum MemHead {
-    eUninitialized,
-    eHeadAtCPU, 
-    eHeadAtGPU, 
-    eSynced 
+    UNINITIALIZED,
+    HEAD_AT_HOST, 
+    HEAD_AT_DEVICE, 
+    SYNCED 
   };
 
 public:
@@ -32,7 +33,7 @@ public:
 
     cpu_data_ = nullptr;
     gpu_data_ = nullptr;
-    mem_head_ = tind::eUninitialized;
+    mem_head_ = tind::UNINITIALIZED;
   }
 
   ~CuxData() {
@@ -52,23 +53,29 @@ public:
   inline Dtype* cpu_data() { return cpu_data_; }
   inline Dtype* gpu_data() { return gpu_data_; }
 
-  Dtype* get_cpu_data() {
-    if (mem_head_ == tind::eUninitialized) {
+  Dtype* GetCpuData() {
+    if (mem_head_ == tind::UNINITIALIZED) {
       cpu_data_ = new Dtype[num_element_];
-      mem_head_ = tind::eHeadAtCPU;
-
-      return cpu_data_;
+      mem_head_ = tind::HEAD_AT_HOST;
     }
-    else if (mem_head_ == tind::eHeadAtCPU) {
-      return cpu_data_;
+    else if (mem_head_ == tind::HEAD_AT_DEVICE) {
+      CUDA_CHECK(cudaMemcpy(cpu_data_, gpu_data_, num_element_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
+      mem_head_ = tind::HEAD_AT_HOST;
     }
-    else if (mem_head_ == tind::eHeadAtGPU) {
-
-    }
+    return cpu_data_;
   }
 
-  Dtype* get_gpu_data() {
-  
+  Dtype* GetGpuData() {
+    if (mem_head_ == tind::UNINITIALIZED) {
+      cpu_data_ = new Dtype[num_element_];
+      CUDA_CHECK(cudaMalloc(&gpu_data_, num_element_ * sizeof(Dtype)));
+      mem_head_ = tind::HEAD_AT_DEVICE;
+    }
+    else if (mem_head_ == tind::HEAD_AT_HOST) {
+      CUDA_CHECK(cudaMemcpy(gpu_data_, cpu_data_, num_element_ * sizeof(Dtype), cudaMemcpyHostToDevice));
+      mem_head_ = tind::HEAD_AT_DEVICE;
+    }
+    return gpu_data_;
   }
 
 private:
