@@ -5,7 +5,9 @@
 #ifndef CUX_OPERATOR_HPP_
 #define CUX_OPERATOR_HPP_
 
+#include <vector>
 #include "util.h"
+#include "data.h"
 
 namespace cux {
 
@@ -19,7 +21,10 @@ public:
   }
   void PrintGpuRunTime() {
     std::cout << gpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
-  }
+  }  
+  
+  virtual void Help() {};
+  virtual void PrintResult() {};
 
 public:
   GpuTimer gpu_timer_;

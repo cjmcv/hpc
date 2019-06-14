@@ -74,7 +74,7 @@ public:
   inline void Start() { start_time_ = clock::now(); }
   inline void Stop() { stop_time_ = clock::now(); }
   inline float NanoSeconds() {
-    return std::chrono::duration_cast<ns>(stop_time_ - start_time_).count();
+    return (float)std::chrono::duration_cast<ns>(stop_time_ - start_time_).count();
   }
 
   // Returns the elapsed time in milliseconds.

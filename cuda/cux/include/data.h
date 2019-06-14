@@ -30,10 +30,11 @@ public:
     shape_.push_back(width);
 
     num_element_ = num * channels * height * width;
+    size_ = num_element_ * sizeof(Dtype);
 
     cpu_data_ = nullptr;
     gpu_data_ = nullptr;
-    mem_head_ = tind::UNINITIALIZED;
+    mem_head_ = MemHead::UNINITIALIZED;
   }
 
   ~CuxData() {
@@ -47,34 +48,46 @@ public:
     }
   }
 
-  inline std::vector<int> &get_size() { return size_; }
-  inline std::vector<int> &get_shape() { return shape_; }
+  inline std::vector<int> &shape() { return shape_; }
+  inline int num_element() { return num_element_; }
+  inline int size() { return size_; }
 
   inline Dtype* cpu_data() { return cpu_data_; }
   inline Dtype* gpu_data() { return gpu_data_; }
 
-  Dtype* GetCpuData() {
-    if (mem_head_ == tind::UNINITIALIZED) {
+  Dtype* SetCpuData(Dtype *data) {
+    if (mem_head_ == MemHead::UNINITIALIZED) {
       cpu_data_ = new Dtype[num_element_];
-      mem_head_ = tind::HEAD_AT_HOST;
+      mem_head_ = MemHead::HEAD_AT_HOST;
     }
-    else if (mem_head_ == tind::HEAD_AT_DEVICE) {
-      CUDA_CHECK(cudaMemcpy(cpu_data_, gpu_data_, num_element_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
-      mem_head_ = tind::HEAD_AT_HOST;
+    memcpy(cpu_data_, data, size());
+  }
+
+  Dtype* GetCpuData() {
+    if (mem_head_ == MemHead::UNINITIALIZED) {
+      cpu_data_ = new Dtype[num_element_];   
     }
+    else if (mem_head_ == MemHead::HEAD_AT_DEVICE) {
+      if (cpu_data_ == nullptr) {
+        cpu_data_ = new Dtype[num_element_];
+      }
+      CUDA_CHECK(cudaMemcpy(cpu_data_, gpu_data_, size(), cudaMemcpyDeviceToHost));
+    }
+    mem_head_ = MemHead::HEAD_AT_HOST;
     return cpu_data_;
   }
 
   Dtype* GetGpuData() {
-    if (mem_head_ == tind::UNINITIALIZED) {
-      cpu_data_ = new Dtype[num_element_];
-      CUDA_CHECK(cudaMalloc(&gpu_data_, num_element_ * sizeof(Dtype)));
-      mem_head_ = tind::HEAD_AT_DEVICE;
+    if (mem_head_ == MemHead::UNINITIALIZED) {
+      CUDA_CHECK(cudaMalloc(&gpu_data_, size()));
     }
-    else if (mem_head_ == tind::HEAD_AT_HOST) {
-      CUDA_CHECK(cudaMemcpy(gpu_data_, cpu_data_, num_element_ * sizeof(Dtype), cudaMemcpyHostToDevice));
-      mem_head_ = tind::HEAD_AT_DEVICE;
+    else if (mem_head_ == MemHead::HEAD_AT_HOST) {
+      if (gpu_data_ == nullptr) {
+        CUDA_CHECK(cudaMalloc(&gpu_data_, size()));
+      }
+      CUDA_CHECK(cudaMemcpy(gpu_data_, cpu_data_, size(), cudaMemcpyHostToDevice));
     }
+    mem_head_ = MemHead::HEAD_AT_DEVICE;
     return gpu_data_;
   }
 
@@ -87,6 +100,7 @@ private:
   // eNum, eChannels, eHeight, eWidth
   std::vector<int> shape_;
   int num_element_;
+  int size_;
 };
 
 } // cux.

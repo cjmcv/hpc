@@ -42,17 +42,24 @@ public:
     CUDA_CHECK(cudaDeviceReset());
   }
 
-  void Run(const RunMode mode, const float *vec_a, const float *vec_b, const int len, float &result) {
-    if (mode == RunMode::OnHost) {
-      op_->RunOnHost(vec_a, vec_b, len, result);
-      op_->PrintCpuRunTime();
-    }
-    else {
-      op_->RunOnDevice(vec_a, vec_b, len, result);
-      op_->PrintGpuRunTime();
-    }
+  int SetOpIoParams(const std::vector< CuxData<float>* > &input, 
+                    const std::vector< CuxData<float>* > &output, 
+                    const void *params) {
+    return op_->SetIoParams(input, output, params);
   }
 
+  void Run(const RunMode mode) {
+    if (mode == RunMode::OnHost) {
+      op_->RunOnHost();
+      op_->PrintCpuRunTime();
+      op_->PrintResult();
+    }
+    else {
+      op_->RunOnDevice();
+      op_->PrintGpuRunTime();
+      op_->PrintResult();
+    }
+  }
 private:
   // TODO: 1. 将VectorDotProduct改成Operator，可手动切换具体的Operator.
   //       2. 添加OpFactory，用于注册和生产Op.

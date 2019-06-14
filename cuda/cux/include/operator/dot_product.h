@@ -10,13 +10,25 @@
 
 namespace cux {
 
-// TODO: Use CuxData.
+// TODO: 1. Use CuxData - Finish.
+//       2. Use template.
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct() {}
 
-  void RunOnHost(const float *vec_a, const float *vec_b, const int len, float &result);
-  void RunOnDevice(const float *d_vec_a, const float *d_vec_b, const int len, float &d_result);
+  int SetIoParams(const std::vector< CuxData<float>* > &input,
+                  const std::vector< CuxData<float>* > &output,
+                  const void *params);
+  void RunOnHost();
+  void RunOnDevice();
+
+  void Help();
+  void PrintResult();
+
+private:
+  CuxData<float> *in_a_;
+  CuxData<float> *in_b_;
+  CuxData<float> *out_;
 };
 } // cux.
 
