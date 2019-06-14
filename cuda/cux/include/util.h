@@ -16,8 +16,8 @@ namespace cux {
 // Enumeration.
 ////////////////
 enum RunMode {
-  OnHost,
-  OnDevice
+  ON_HOST,
+  ON_DEVICE
 };
 
 // TODO: CPU端异常处理/告警机制

@@ -47,9 +47,12 @@ public:
                     const void *params) {
     return op_->SetIoParams(input, output, params);
   }
+  void SetDebugParams(const int loop) {
+    op_->SetLoops(10);
+  }
 
   void Run(const RunMode mode) {
-    if (mode == RunMode::OnHost) {
+    if (mode == RunMode::ON_HOST) {
       op_->RunOnHost();
       op_->PrintCpuRunTime();
       op_->PrintResult();

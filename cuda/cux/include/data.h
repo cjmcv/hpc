@@ -9,16 +9,15 @@
 
 namespace cux {
 
-// TODO: 1. 用到Executor和Op上，作为数据操作的基本单元
-//       2. 支持数据跨设备推送，cpu与gpu数据互通
+// TODO: 1. 用到Executor和Op上，作为数据操作的基本单元 - Finish
+//       2. 支持数据跨设备推送，cpu与gpu数据互通 - Finish
 template <typename Dtype>
 class CuxData {
 public:
-  enum MemHead {
+  enum MemoryHead {
     UNINITIALIZED,
     HEAD_AT_HOST, 
-    HEAD_AT_DEVICE, 
-    SYNCED 
+    HEAD_AT_DEVICE
   };
 
 public:
@@ -34,7 +33,7 @@ public:
 
     cpu_data_ = nullptr;
     gpu_data_ = nullptr;
-    mem_head_ = MemHead::UNINITIALIZED;
+    mem_head_ = MemoryHead::UNINITIALIZED;
   }
 
   ~CuxData() {
@@ -56,38 +55,38 @@ public:
   inline Dtype* gpu_data() { return gpu_data_; }
 
   Dtype* SetCpuData(Dtype *data) {
-    if (mem_head_ == MemHead::UNINITIALIZED) {
+    if (mem_head_ == MemoryHead::UNINITIALIZED) {
       cpu_data_ = new Dtype[num_element_];
-      mem_head_ = MemHead::HEAD_AT_HOST;
+      mem_head_ = MemoryHead::HEAD_AT_HOST;
     }
     memcpy(cpu_data_, data, size());
   }
 
   Dtype* GetCpuData() {
-    if (mem_head_ == MemHead::UNINITIALIZED) {
+    if (mem_head_ == MemoryHead::UNINITIALIZED) {
       cpu_data_ = new Dtype[num_element_];   
     }
-    else if (mem_head_ == MemHead::HEAD_AT_DEVICE) {
+    else if (mem_head_ == MemoryHead::HEAD_AT_DEVICE) {
       if (cpu_data_ == nullptr) {
         cpu_data_ = new Dtype[num_element_];
       }
       CUDA_CHECK(cudaMemcpy(cpu_data_, gpu_data_, size(), cudaMemcpyDeviceToHost));
     }
-    mem_head_ = MemHead::HEAD_AT_HOST;
+    mem_head_ = MemoryHead::HEAD_AT_HOST;
     return cpu_data_;
   }
 
   Dtype* GetGpuData() {
-    if (mem_head_ == MemHead::UNINITIALIZED) {
+    if (mem_head_ == MemoryHead::UNINITIALIZED) {
       CUDA_CHECK(cudaMalloc(&gpu_data_, size()));
     }
-    else if (mem_head_ == MemHead::HEAD_AT_HOST) {
+    else if (mem_head_ == MemoryHead::HEAD_AT_HOST) {
       if (gpu_data_ == nullptr) {
         CUDA_CHECK(cudaMalloc(&gpu_data_, size()));
       }
       CUDA_CHECK(cudaMemcpy(gpu_data_, cpu_data_, size(), cudaMemcpyHostToDevice));
     }
-    mem_head_ = MemHead::HEAD_AT_DEVICE;
+    mem_head_ = MemoryHead::HEAD_AT_DEVICE;
     return gpu_data_;
   }
 

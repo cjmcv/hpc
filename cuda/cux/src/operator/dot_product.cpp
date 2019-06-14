@@ -11,14 +11,17 @@ void VectorDotProductHost(const float *vec_a, const float *vec_b, const int len,
   }
 }
 
-void VectorDotProduct::Help() {
-  printf("Function: Vector Dot Product. sum += a[i] * b[i]\n");
-  printf("input: [Two] CuxData with one vector each. \n");
-  printf("output: [One] CuxData with one element. \n");
-  printf("params: [None]. \n");
+void VectorDotProduct::Help() const {
+  printf("\n**************************************************\n");
+  printf("* Name: Vector Dot Product.\n");
+  printf("* Function: sum += a[i] * b[i]\n");
+  printf("* Inputs:  [Two] CuxData with one vector each. \n");
+  printf("* Outputs: [One] CuxData with one element. \n");
+  printf("* Params:  [None]. \n");
+  printf("**************************************************\n");
 }
 
-void VectorDotProduct::PrintResult() {
+void VectorDotProduct::PrintResult() const {
   printf("result: %f.\n", *out_->GetCpuData());
 }
 
@@ -27,7 +30,8 @@ int VectorDotProduct::SetIoParams(const std::vector< CuxData<float>* > &input,
                                   const void *params) {
   // Check.
   if (input.size() != 2 || output.size() != 1) {
-    printf("The dimensions of the input parameters do not match.\n");
+    printf("Error: The dimensions of the input parameters do not match.\n");
+    Help();
     // TODO: Error code.
     return -1;
   }

@@ -16,15 +16,21 @@ class Operator {
 public:
   Operator(): loops_(1) {}
   void SetLoops(int loop) { loops_ = loop; }
-  void PrintCpuRunTime() {
+  void PrintCpuRunTime() const {
     std::cout << cpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
   }
-  void PrintGpuRunTime() {
+  void PrintGpuRunTime() const {
     std::cout << gpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
   }  
   
-  virtual void Help() {};
-  virtual void PrintResult() {};
+  virtual void Help() const {};
+  virtual void PrintResult() const {};
+
+  virtual int SetIoParams(const std::vector< CuxData<float>* > &input,
+                          const std::vector< CuxData<float>* > &output,
+                          const void *params) { return -1; };
+  virtual void RunOnHost() {};
+  virtual void RunOnDevice() {};
 
 public:
   GpuTimer gpu_timer_;
