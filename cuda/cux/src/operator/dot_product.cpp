@@ -12,7 +12,7 @@ void VectorDotProductHost(const float *vec_a, const float *vec_b, const int len,
 }
 
 void VectorDotProduct::Help() const {
-  printf("\n**************************************************\n");
+  printf("\n***************** Op Helper ********************\n");
   printf("* Name: Vector Dot Product.\n");
   printf("* Function: sum += a[i] * b[i]\n");
   printf("* Inputs:  [Two] CuxData with one vector each. \n");

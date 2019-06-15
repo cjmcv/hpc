@@ -11,7 +11,7 @@
 namespace cux {
 
 // TODO: 1. Use CuxData - Finish.
-//       2. 使用模板控制数据类型，可能需要针对每一种类型重写hernel.
+//       2. 使用模板控制数据类型，可能需要针对每一种类型重写kernel.
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct() {}

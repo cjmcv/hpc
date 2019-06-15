@@ -11,15 +11,16 @@
 
 namespace cux {
 
-// TODO: 1、Layout推荐
+// TODO: 1. Layout推荐
+//       2. Kernel手动选择/自动遍历所有kernel?
 class Operator {
 public:
   Operator(): loops_(1) {}
-  void SetLoops(int loop) { loops_ = loop; }
-  void PrintCpuRunTime() const {
+  inline void SetLoops(int loop) { loops_ = loop; }
+  inline void PrintCpuRunTime() const {
     std::cout << cpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
   }
-  void PrintGpuRunTime() const {
+  inline void PrintGpuRunTime() const {
     std::cout << gpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
   }  
   

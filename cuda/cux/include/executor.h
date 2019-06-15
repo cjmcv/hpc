@@ -18,17 +18,36 @@ public:
     delete op_;
   }
 
-  int InitEnvironment(const int dev_id) {
+  int InitEnvironment(const int dev_id, const bool is_show_info = true) {
     CUDA_CHECK(cudaSetDevice(dev_id));
     cudaDeviceProp device_prop;
     CUDA_CHECK(cudaGetDeviceProperties(&device_prop, dev_id));
     if (device_prop.computeMode == cudaComputeModeProhibited) {
-      fprintf(stderr, "Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
+      printf("Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
       return 1;
     }
-    fprintf(stderr, "GPU Device %d: \"%s\" with compute capability %d.%d with %d multi-processors.\n\n",
-      dev_id, device_prop.name, device_prop.major, device_prop.minor, device_prop.multiProcessorCount);
-
+    if (is_show_info) {
+      printf("********************** GPU Information ************************\n");
+      printf("*\n");
+      printf("* GPU Device %d: \"%s\". \n", dev_id, device_prop.name);
+      printf("* [device] Compute capability: %d.%d. \n", device_prop.major, device_prop.minor);
+      printf("* [device] Multi-processors count: %d. \n", device_prop.multiProcessorCount);
+      printf("* [device] Global memory available on device in bytes: %zd. \n", device_prop.totalGlobalMem);
+      printf("* [device] Constant memory available on device in bytes: %zd. \n", device_prop.totalConstMem); 
+      printf("*\n");
+      printf("* [grid] Maximum size of each dimension of a grid: (%d, %d, %d). \n",
+        device_prop.maxGridSize[0], device_prop.maxGridSize[1], device_prop.maxGridSize[2]);
+      printf("*\n");
+      printf("* [block] Shared memory available per block in bytes: %zd. \n", device_prop.sharedMemPerBlock);
+      printf("* [block] 32-bit registers available per block: %d. \n", device_prop.regsPerBlock);
+      printf("* [block] Maximum number of threads per block: %d. \n", device_prop.maxThreadsPerBlock);
+      printf("* [block] Maximum size of each dimension of a block: (%d, %d, %d). \n", 
+        device_prop.maxThreadsDim[0], device_prop.maxThreadsDim[1], device_prop.maxThreadsDim[2]);
+      printf("*\n");
+      printf("* [thread] Warp size in threads: %d. \n", device_prop.warpSize);
+      printf("*\n");
+      printf("***************************************************************\n");
+    }
     return 0;
   }
 
@@ -66,7 +85,7 @@ public:
 private:
   // TODO: 1. 将VectorDotProduct改成Operator，可手动切换具体的Operator.
   //       2. 添加OpFactory，用于注册和生产Op.
-  //       3. GPU信息查询.
+  //       3. GPU信息查询. - Finish.
   VectorDotProduct *op_;
 };
 
