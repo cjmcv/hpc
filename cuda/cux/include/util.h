@@ -36,6 +36,12 @@ enum RunMode {
     } \
   } while(0);
 
+// Log
+#define CUXLOG_ERR(format, ...) fprintf(stderr,"[ERROR]: "##format"\n", ##__VA_ARGS__);
+#define CUXLOG_WARN(format, ...) fprintf(stdout,"[WARN]: "##format"\n", ##__VA_ARGS__);
+#define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
+#define CUXLOG_COUT(format, ...) fprintf(stdout,">"##format"\n", ##__VA_ARGS__);
+
 ////////////////
 // Class.
 ////////////////
@@ -92,7 +98,7 @@ protected:
 };
 
 // TODO: 1. 性能测试模块，含IO和kernel等
-//       2. 信息打印 / 日志输出模块.
+//       2. 信息打印 / 日志输出模块. - Finish - TODO: 升级
 //       3. 内存池 / 显存池（低优先级）
 //
 // TODO: 1. Prefetcher, 预取器，预取数据到GPU，隐藏IO延时

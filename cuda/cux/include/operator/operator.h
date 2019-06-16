@@ -18,10 +18,10 @@ public:
   Operator(): loops_(1) {}
   inline void SetLoops(int loop) { loops_ = loop; }
   inline void PrintCpuRunTime() const {
-    std::cout << cpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
+    CUXLOG_COUT("CPU: %f ms for %d loops.", cpu_time_record_, loops_);
   }
   inline void PrintGpuRunTime() const {
-    std::cout << gpu_time_record_ << " ms for " << loops_ << " loops." << std::endl;
+    CUXLOG_COUT("GPU: %f ms for %d loops.", gpu_time_record_, loops_);
   }  
   
   virtual void Help() const {};

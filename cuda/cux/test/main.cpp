@@ -23,7 +23,7 @@ int main() {
 
   int ret = executor->InitEnvironment(0);
   if (ret != 0) {
-    printf("Failed to initialize the environment for cuda.");
+    CUXLOG_ERR("Failed to initialize the environment for cuda.");
     return -1;
   }
 

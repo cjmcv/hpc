@@ -19,39 +19,42 @@ public:
   }
 
   int InitEnvironment(const int dev_id, const bool is_show_info = true) {
+    CUXLOG_INFO("Initialize CUDA Ennviroment.");
+
     CUDA_CHECK(cudaSetDevice(dev_id));
     cudaDeviceProp device_prop;
     CUDA_CHECK(cudaGetDeviceProperties(&device_prop, dev_id));
     if (device_prop.computeMode == cudaComputeModeProhibited) {
-      printf("Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
+      CUXLOG_ERR("Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().");
       return 1;
     }
     if (is_show_info) {
-      printf("********************** GPU Information ************************\n");
-      printf("*\n");
-      printf("* GPU Device %d: \"%s\". \n", dev_id, device_prop.name);
-      printf("* [device] Compute capability: %d.%d. \n", device_prop.major, device_prop.minor);
-      printf("* [device] Multi-processors count: %d. \n", device_prop.multiProcessorCount);
-      printf("* [device] Global memory available on device in bytes: %zd. \n", device_prop.totalGlobalMem);
-      printf("* [device] Constant memory available on device in bytes: %zd. \n", device_prop.totalConstMem); 
-      printf("*\n");
-      printf("* [grid] Maximum size of each dimension of a grid: (%d, %d, %d). \n",
+      CUXLOG_COUT("********************** GPU Information ************************");
+      CUXLOG_COUT("*");
+      CUXLOG_COUT("* GPU Device %d: \"%s\". ", dev_id, device_prop.name);
+      CUXLOG_COUT("* (device) Compute capability: %d.%d. ", device_prop.major, device_prop.minor);
+      CUXLOG_COUT("* (device) Multi-processors count: %d. ", device_prop.multiProcessorCount);
+      CUXLOG_COUT("* (device) Global memory available on device in bytes: %zd. ", device_prop.totalGlobalMem);
+      CUXLOG_COUT("* (device) Constant memory available on device in bytes: %zd. ", device_prop.totalConstMem);
+      CUXLOG_COUT("*");
+      CUXLOG_COUT("* (grid) Maximum size of each dimension of a grid: (%d, %d, %d). ",
         device_prop.maxGridSize[0], device_prop.maxGridSize[1], device_prop.maxGridSize[2]);
-      printf("*\n");
-      printf("* [block] Shared memory available per block in bytes: %zd. \n", device_prop.sharedMemPerBlock);
-      printf("* [block] 32-bit registers available per block: %d. \n", device_prop.regsPerBlock);
-      printf("* [block] Maximum number of threads per block: %d. \n", device_prop.maxThreadsPerBlock);
-      printf("* [block] Maximum size of each dimension of a block: (%d, %d, %d). \n", 
+      CUXLOG_COUT("*");
+      CUXLOG_COUT("* (block) Shared memory available per block in bytes: %zd. ", device_prop.sharedMemPerBlock);
+      CUXLOG_COUT("* (block) 32-bit registers available per block: %d. ", device_prop.regsPerBlock);
+      CUXLOG_COUT("* (block) Maximum number of threads per block: %d. ", device_prop.maxThreadsPerBlock);
+      CUXLOG_COUT("* (block) Maximum size of each dimension of a block: (%d, %d, %d). ",
         device_prop.maxThreadsDim[0], device_prop.maxThreadsDim[1], device_prop.maxThreadsDim[2]);
-      printf("*\n");
-      printf("* [thread] Warp size in threads: %d. \n", device_prop.warpSize);
-      printf("*\n");
-      printf("***************************************************************\n");
+      CUXLOG_COUT("*");
+      CUXLOG_COUT("* (thread) Warp size in threads: %d. ", device_prop.warpSize);
+      CUXLOG_COUT("*");
+      CUXLOG_COUT("***************************************************************");
     }
     return 0;
   }
 
   void CleanUpEnvironment() {
+    CUXLOG_INFO("Cleanup CUDA Ennviroment.");
     // Reset the device and exit
     // cudaDeviceReset causes the driver to clean up all state. While
     // not mandatory in normal operation, it is good practice.  It is also
