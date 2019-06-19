@@ -2,20 +2,21 @@
 
 namespace cux {
   
-// CUDA kernel v1 : 283ms
+// CUDA kernel v0 : 283ms
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
-template <int BLOCK_SIZE>
-__global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b, const int len, float &res) {
+//template <int BLOCK_SIZE>
+__global__ void VectorDotProductKernelv0(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len;
     i += blockDim.x * gridDim.x) {
-    __shared__ float smem[BLOCK_SIZE];
+    //__shared__ float smem[BLOCK_SIZE];
+    extern __shared__ int smem[]; // Dynamic allocation.
     smem[threadIdx.x] = vec_a[i] * vec_b[i];
     __syncthreads();
 
-    int count = BLOCK_SIZE / 2;
+    int count = blockDim.x / 2;
     while (count >= 1) {
       if (threadIdx.x < count) {
         smem[threadIdx.x] += smem[count + threadIdx.x];
@@ -31,19 +32,19 @@ __global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b,
   }
 }
 
-// CUDA kernel v2 : 201ms
+// CUDA kernel v1 : 201ms
 // Compute two blocks' data to the shared memory of one block.
-template <int BLOCK_SIZE>
-__global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
     i += blockDim.x * gridDim.x) {
-    __shared__ float smem[BLOCK_SIZE];
+    //__shared__ float smem[BLOCK_SIZE];
+    extern __shared__ int smem[]; // Dynamic allocation.
     smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];  // Mainly in here.
     __syncthreads();
 
-    int count = BLOCK_SIZE >> 1;
+    int count = blockDim.x >> 1;
     while (count >= 1) {
       if (threadIdx.x < count) {
         smem[threadIdx.x] += smem[count + threadIdx.x];
@@ -59,20 +60,19 @@ __global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b,
   }
 }
 
-// CUDA kernel v3 : 179ms
+// CUDA kernel v2 : 179ms
 // Condition: The block size should be bigger than 32
 // Unroll the last warp
-template <int BLOCK_SIZE>
-__global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
     i += blockDim.x * gridDim.x) {
-    __shared__ float smem[BLOCK_SIZE];
+    extern __shared__ int smem[]; // Dynamic allocation.
     smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];
     __syncthreads();
 
-    for (int count = BLOCK_SIZE >> 1; count > 32; count >>= 1) {
+    for (int count = blockDim.x >> 1; count > 32; count >>= 1) {
       if (threadIdx.x < count) {
         smem[threadIdx.x] += smem[count + threadIdx.x];
       }
@@ -94,37 +94,71 @@ __global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b,
   }
 }
 
+void VectorDotProductKernel(const int kernel_id, const int blocks_per_grid, const int threads_per_block, 
+                            const float *vec_a, const float *vec_b, const int len, float &res) {
+  int shared_memory_size = threads_per_block * sizeof(float);
+  switch (kernel_id) {
+  case 0:
+    VectorDotProductKernelv0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
+      (vec_a, vec_b, len, res);
+    break;
+  case 1:
+    VectorDotProductKernelv1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
+      (vec_a, vec_b, len, res);
+    break;
+  case 2:
+    VectorDotProductKernelv2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
+      (vec_a, vec_b, len, res);
+    break;
+  default:
+    CUXLOG_ERR("");
+  }
+}
+
 //////////////////
 // cuda version.
 void VectorDotProduct::RunOnDevice() {
   // Time recorder.
   GpuTimer gpu_timer;
 
-  // Warp.
+  // Input.
+  gpu_timer.Start();
   const float *vec_a = in_a_->GetGpuData();
   const float *vec_b = in_b_->GetGpuData();
   const int len = in_a_->num_element();
   float *result = out_->GetGpuData();
+  gpu_timer.Stop();
+  gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
   // Layout.
   const int threads_per_block = 1024; // data_len % threads_per_block == 0
   const int blocks_per_grid = (len + threads_per_block - 1) / threads_per_block;
 
   // Warm up.
-  VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
-    (vec_a, vec_b, len, *result);
-
   gpu_timer.Start();
+  VectorDotProductKernel(0, blocks_per_grid, threads_per_block, 
+    vec_a, vec_b, len, *result);
+  gpu_timer.Stop();
+  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
 
   // Run.
-  for (int i = 0; i < loops_; i++) {
-    cudaMemset(result, 0, sizeof(float));
-    VectorDotProductKernelv3<threads_per_block> << <blocks_per_grid, threads_per_block >> >
-      (vec_a, vec_b, len, *result);
+  gpu_time_kernel_record_.clear();
+  for (int ki = 0; ki < 3; ki++) {
+    gpu_timer.Start();
+    for (int i = 0; i < loops_; i++) {
+      cudaMemset(result, 0, sizeof(float));
+      VectorDotProductKernel(ki, blocks_per_grid, threads_per_block,
+        vec_a, vec_b, len, *result);
+    }
+    gpu_timer.Stop();
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
   }
 
+  // Output.
+  gpu_timer.Start();
+  CUXLOG_COUT("result: %f.", *out_->GetCpuData());
   gpu_timer.Stop();
-  gpu_time_record_ = gpu_timer.MilliSeconds();
+  gpu_time_out_record_ = gpu_timer.MilliSeconds();
 }
 
 }

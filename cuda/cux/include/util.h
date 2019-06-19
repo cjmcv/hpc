@@ -40,7 +40,7 @@ enum RunMode {
 #define CUXLOG_ERR(format, ...) fprintf(stderr,"[ERROR]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_WARN(format, ...) fprintf(stdout,"[WARN]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
-#define CUXLOG_COUT(format, ...) fprintf(stdout,">"##format"\n", ##__VA_ARGS__);
+#define CUXLOG_COUT(format, ...) fprintf(stdout,"> "##format"\n", ##__VA_ARGS__);
 
 ////////////////
 // Class.

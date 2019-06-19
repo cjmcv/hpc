@@ -17,7 +17,6 @@ public:
   VectorDotProduct() {}
 
   void Help() const;
-  void PrintResult() const; 
 
   int SetIoParams(const std::vector< CuxData<float>* > &input,
                   const std::vector< CuxData<float>* > &output,

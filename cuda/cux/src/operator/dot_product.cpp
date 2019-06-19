@@ -21,10 +21,6 @@ void VectorDotProduct::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-void VectorDotProduct::PrintResult() const {
-  CUXLOG_COUT("result: %f.", *out_->GetCpuData());
-}
-
 int VectorDotProduct::SetIoParams(const std::vector< CuxData<float>* > &input,
                                   const std::vector< CuxData<float>* > &output,
                                   const void *params) {
@@ -54,17 +50,17 @@ void VectorDotProduct::RunOnHost() {
   const float *vec_b = in_b_->GetCpuData();
   const int len = in_a_->num_element();
   float *result = out_->GetCpuData();
-
-  cpu_timer.Start();
-
+  
   // Run.
+  cpu_timer.Start();
   for (int i = 0; i < loops_; i++) {
     *result = 0;
     VectorDotProductHost(vec_a, vec_b, len, *result);
   }
-
   cpu_timer.Stop();
-  cpu_time_record_ = cpu_timer.MilliSeconds();
+  cpu_time_record_ = cpu_timer.MilliSeconds() / loops_;
+
+  CUXLOG_COUT("result: %f.", *out_->GetCpuData());
 }
 
 }
