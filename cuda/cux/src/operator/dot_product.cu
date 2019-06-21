@@ -111,7 +111,7 @@ void VectorDotProductKernel(const int kernel_id, const int blocks_per_grid, cons
       (vec_a, vec_b, len, res);
     break;
   default:
-    CUXLOG_ERR("");
+    CUXLOG_ERR("Kernel id not found.");
   }
 }
 

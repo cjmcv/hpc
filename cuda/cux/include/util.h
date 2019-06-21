@@ -97,7 +97,7 @@ protected:
   std::chrono::time_point<clock> stop_time_;
 };
 
-// TODO: 1. 性能测试模块，含IO和kernel等
+// TODO: 1. 性能测试模块，含IO和kernel等 - Finish
 //       2. 信息打印 / 日志输出模块. - Finish - TODO: 升级
 //       3. 内存池 / 显存池（低优先级）
 //

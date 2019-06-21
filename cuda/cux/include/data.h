@@ -9,8 +9,6 @@
 
 namespace cux {
 
-// TODO: 1. 用到Executor和Op上，作为数据操作的基本单元 - Finish
-//       2. 支持数据跨设备推送，cpu与gpu数据互通 - Finish
 template <typename Dtype>
 class CuxData {
 public:
@@ -19,7 +17,12 @@ public:
     HEAD_AT_HOST, 
     HEAD_AT_DEVICE
   };
-
+  enum CuxShape {
+    NUMBER,
+    CHANNELS,
+    HEIGHT,
+    WIDTH
+  };
 public:
   explicit CuxData(const int num, const int channels, const int height, const int width) {
     shape_.clear();
@@ -47,14 +50,14 @@ public:
     }
   }
 
-  inline std::vector<int> &shape() { return shape_; }
+  inline const std::vector<int> &shape() { return shape_; }
   inline int num_element() { return num_element_; }
   inline int size() { return size_; }
 
   inline Dtype* cpu_data() { return cpu_data_; }
   inline Dtype* gpu_data() { return gpu_data_; }
 
-  Dtype* SetCpuData(Dtype *data) {
+  void SetCpuData(Dtype *data) {
     if (mem_head_ == MemoryHead::UNINITIALIZED) {
       cpu_data_ = new Dtype[num_element_];
       mem_head_ = MemoryHead::HEAD_AT_HOST;

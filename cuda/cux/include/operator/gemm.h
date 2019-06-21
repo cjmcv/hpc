@@ -1,19 +1,18 @@
 /*!
-* \brief Dot Product.
+* \brief gemm.
 */
 
-#ifndef CUX_DOT_PRODUCT_HPP_
-#define CUX_DOT_PRODUCT_HPP_
+#ifndef CUX_GEMM_HPP_
+#define CUX_GEMM_HPP_
 
 #include "util.h"
 #include "operator.h"
 
 namespace cux {
 
-// TODO: 1. 使用模板控制数据类型，可能需要针对每一种类型重写kernel.
-class VectorDotProduct : public Operator {
+class GEMM : public Operator {
 public:
-  VectorDotProduct() {}
+  GEMM() {}
 
   void Help() const;
 
@@ -24,10 +23,10 @@ public:
   void RunOnDevice();
 
 private:
-  CuxData<float> *in_a_;
-  CuxData<float> *in_b_;
-  CuxData<float> *out_;
+  CuxData<float> *A_;
+  CuxData<float> *B_;
+  CuxData<float> *C_;
 };
 } // cux.
 
-#endif //CUX_DOT_PRODUCT_HPP_
+#endif //CUX_GEMM_HPP_
