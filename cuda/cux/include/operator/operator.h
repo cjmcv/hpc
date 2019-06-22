@@ -13,6 +13,8 @@ namespace cux {
 
 // TODO: 1. Layout推荐
 //       2. Kernel手动选择/自动遍历所有kernel? - Finish.
+struct OpParam {};
+
 class Operator {
 public:
   Operator(): loops_(1) {}

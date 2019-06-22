@@ -10,6 +10,12 @@
 
 namespace cux {
 
+struct GEMMOpParam : public OpParam {
+  float alpha_ = 1.0;
+  // TODO: Use beta in kernels.
+  float beta_ = 0.0;
+};
+
 class GEMM : public Operator {
 public:
   GEMM() {}
@@ -18,7 +24,7 @@ public:
 
   int SetIoParams(const std::vector< CuxData<float>* > &input,
                   const std::vector< CuxData<float>* > &output,
-                  const void *params);
+                  const OpParam *params);
   void RunOnHost();
   void RunOnDevice();
 
@@ -26,6 +32,8 @@ private:
   CuxData<float> *A_;
   CuxData<float> *B_;
   CuxData<float> *C_;
+
+  GEMMOpParam params_;
 };
 } // cux.
 

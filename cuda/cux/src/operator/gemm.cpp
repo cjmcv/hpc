@@ -4,7 +4,7 @@
 #include "operator/gemm.h"
 
 namespace cux {
-
+  
 // CPU version 1: 1583 ms
 // Normal version in cpu as a reference
 void GemmlCPUv1(const int M, const int N, const int K, const float ALPHA,
@@ -52,6 +52,69 @@ void GemmlCPUv2(const int M, const int N, const int K, const float ALPHA,
       }
     }
   }
+}
+
+//////////
+void GEMM::Help() const {
+  CUXLOG_COUT("***************** Op Helper ********************");
+  CUXLOG_COUT("* Name: Vector Dot Product.");
+  CUXLOG_COUT("* Function: sum += a[i] * b[i]");
+  CUXLOG_COUT("* Inputs:  [Two] CuxData with one vector each. ");
+  CUXLOG_COUT("* Outputs: [One] CuxData with one element.");
+  CUXLOG_COUT("* Params:  [None].");
+  CUXLOG_COUT("**************************************************");
+}
+
+int GEMM::SetIoParams(const std::vector< CuxData<float>* > &input,
+                      const std::vector< CuxData<float>* > &output,
+                      const OpParam *params) {
+  // Check.
+  if (input.size() != 2 || output.size() != 1) {
+    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
+    Help();
+    // TODO: Error code.
+    return -1;
+  }
+
+  A_ = input[0];
+  B_ = input[1];
+  C_ = output[0];
+
+  params_.alpha_ = ((GEMMOpParam *)params)->alpha_;
+  return 0;
+}
+
+
+////////////////////////////////////////////////
+// cpp version
+// Normal version in cpu as a reference
+void GEMM::RunOnHost() {
+  CpuTimer cpu_timer;
+
+  // Warp.
+  const float *A = A_->GetCpuData();
+  const float *B = B_->GetCpuData();
+  float *C = C_->GetCpuData();
+
+  const float ALPHA = params_.alpha_;
+  const int M = A_->shape()[CuxShape::HEIGHT];
+  const int N = A_->shape()[CuxShape::WIDTH];
+  const int K = B_->shape()[CuxShape::WIDTH];
+  const int lda = N;
+  const int ldb = K;
+  const int ldc = K;
+
+  // Run.
+  loops_ = 1;
+  cpu_timer.Start();
+  for (int i = 0; i < loops_; i++) {
+    memset(C, 0, sizeof(float) * M * N);
+    GemmlCPUv1(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+  }
+  cpu_timer.Stop();
+  cpu_time_record_ = cpu_timer.MilliSeconds() / loops_;
+
+  CUXLOG_COUT("result: %f.", *C_->GetCpuData());
 }
 
 }

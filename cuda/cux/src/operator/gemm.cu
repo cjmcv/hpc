@@ -14,21 +14,23 @@ namespace cux {
 // for bk -> bk_num_per_grid
 //     for k -> k_num_per_block
 //         C[bi*bs + ty, bj*bs + tx] = A[bi*bs + ty, bk*bs + k] * B[k*bs + k, bj*bs + tx]
-template <int BLOCK_SIZE>
 __global__ void GemmKernelv1(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
 
+  const int block_size = blockDim.x; // The Block is square.
+  const int block_num_K = K / block_size;
+
   float c_sub_acc = 0;
-  for (int bk = 0; bk < K / BLOCK_SIZE; bk++) {
-    for (int k = 0;k < BLOCK_SIZE; k++) {
-      c_sub_acc += A[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * lda + (bk * BLOCK_SIZE + k)] *
-        B[(bk * BLOCK_SIZE + k) * ldb + (blockIdx.x * BLOCK_SIZE + threadIdx.x)];
+  for (int bk = 0; bk < K / block_size; bk++) {
+    for (int k = 0;k < block_size; k++) {
+      c_sub_acc += A[(blockIdx.y * block_size + threadIdx.y) * lda + (bk * block_size + k)] *
+        B[(bk * block_size + k) * ldb + (blockIdx.x * block_size + threadIdx.x)];
     }
   }
 
-  C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
+  C[(blockIdx.y * block_size + threadIdx.y) * ldc + (blockIdx.x * block_size + threadIdx.x)] += c_sub_acc;
 }
 
 // CUDA version 2.
@@ -88,15 +90,13 @@ void GEMM::RunOnDevice() {
   const float *A = A_->GetGpuData();
   const float *B = B_->GetGpuData();
   float *C = C_->GetGpuData();
-  const std::vector<int> shape = A_->shape();
-  const int M = shape[CuxData<float>::CuxShape::HEIGHT];
-  const int N = A_->shape()[CuxData<float>::CuxShape::WIDTH];
-  const int K = B_->shape()[CuxData<float>::CuxShape::WIDTH];
   gpu_timer.Stop();
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
-  const float ALPHA = 1.0;
-
+  const float ALPHA = params_.alpha_;
+  const int M = A_->shape()[CuxShape::HEIGHT];
+  const int N = A_->shape()[CuxShape::WIDTH];
+  const int K = B_->shape()[CuxShape::WIDTH];
   const int lda = N;
   const int ldb = K;
   const int ldc = K;
@@ -108,23 +108,24 @@ void GEMM::RunOnDevice() {
 
   // Warm up.
   gpu_timer.Start();
-  GemmKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
+  GemmKernelv1<< <blocks_per_grid, threads_per_block >> >
     (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
 
   // Run.
+  loops_ = 1;
+  cudaMemset(C, 0, sizeof(float) * M * N);
+
   gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < 2; ki++) {
-    gpu_timer.Start();
-    for (int i = 0; i < loops_; i++) {
-      cudaMemset(C, 0, sizeof(float) * M * N);
-      GemmKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
-        (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
-    }
-    gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
-  }
+  gpu_timer.Start();
+
+  GemmKernelv1 << <blocks_per_grid, threads_per_block >> >
+    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
+
+  gpu_timer.Stop();
+  gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
+
 
   // Output.
   gpu_timer.Start();
@@ -132,37 +133,4 @@ void GEMM::RunOnDevice() {
   gpu_timer.Stop();
   gpu_time_out_record_ = gpu_timer.MilliSeconds();
 }
-
-//
-////#define TEST_CUDA_V1
-//float GemmCUDA(const int M, const int N, const int K, const float ALPHA,
-//  const float *A, const int lda,
-//  const float *B, const int ldb,
-//  float *C, const int ldc) {
-//  cjmcv_cuda_util::GpuTimer gpu_timer;
-//
-//  const int block_size = 32;
-//  dim3 threads_per_block(block_size, block_size);
-//  dim3 blocks_per_grid(N / threads_per_block.x, M / threads_per_block.y);
-//  
-//  // Warm up.
-//  GemmKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
-//    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
-//  cudaMemset(C, 0, sizeof(float) * M * N);
-//
-//  // Record the start event
-//  gpu_timer.Start();
-//#ifdef TEST_CUDA_V1
-//  GemmKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
-//    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
-//#else
-//  GemmKernelv2<block_size> << <blocks_per_grid, threads_per_block >> >
-//    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
-//#endif
-//
-//  // Record the stop event
-//  gpu_timer.Stop();
-//
-//  return gpu_timer.ElapsedMillis();
-//}
 }

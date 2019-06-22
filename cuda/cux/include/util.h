@@ -20,6 +20,13 @@ enum RunMode {
   ON_DEVICE
 };
 
+enum CuxShape {
+  NUMBER,
+  CHANNELS,
+  HEIGHT,
+  WIDTH
+};
+
 // TODO: CPU端异常处理/告警机制
 ////////////////
 // Macro.

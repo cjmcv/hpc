@@ -17,12 +17,6 @@ public:
     HEAD_AT_HOST, 
     HEAD_AT_DEVICE
   };
-  enum CuxShape {
-    NUMBER,
-    CHANNELS,
-    HEIGHT,
-    WIDTH
-  };
 public:
   explicit CuxData(const int num, const int channels, const int height, const int width) {
     shape_.clear();

@@ -19,7 +19,7 @@ public:
 
   int SetIoParams(const std::vector< CuxData<float>* > &input,
                   const std::vector< CuxData<float>* > &output,
-                  const void *params);
+                  const OpParam *params);
   void RunOnHost();
   void RunOnDevice();
 

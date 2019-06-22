@@ -23,7 +23,7 @@ void VectorDotProduct::Help() const {
 
 int VectorDotProduct::SetIoParams(const std::vector< CuxData<float>* > &input,
                                   const std::vector< CuxData<float>* > &output,
-                                  const void *params) {
+                                  const OpParam *params) {
   // Check.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
