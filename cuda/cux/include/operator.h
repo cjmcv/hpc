@@ -6,7 +6,7 @@
 #define CUX_OPERATOR_HPP_
 
 #include <vector>
-#include "util.h"
+#include "util/util.h"
 #include "data.h"
 
 namespace cux {

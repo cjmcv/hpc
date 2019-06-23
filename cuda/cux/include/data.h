@@ -5,7 +5,7 @@
 #ifndef CUX_CUXDATA_HPP_
 #define CUX_CUXDATA_HPP_
 
-#include "util.h"
+#include "util/util.h"
 
 namespace cux {
 

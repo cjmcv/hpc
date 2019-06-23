@@ -5,7 +5,7 @@
 #ifndef CUX_DOT_PRODUCT_HPP_
 #define CUX_DOT_PRODUCT_HPP_
 
-#include "util.h"
+#include "util/util.h"
 #include "operator.h"
 
 namespace cux {

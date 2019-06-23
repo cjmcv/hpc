@@ -1,4 +1,4 @@
-#include "operator/operator.h"
+#include "operator.h"
 #include "executor.h"
 // 
 template <typename T>
@@ -57,6 +57,8 @@ void DotProductTest() {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
     return ;
   }
+
+  executor->SelectOp("dot_product");
 
   const int loops = 100;
   executor->SetDebugParams(loops);

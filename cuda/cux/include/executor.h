@@ -5,7 +5,7 @@
 #ifndef CUX_EXECUTOR_HPP_
 #define CUX_EXECUTOR_HPP_
 
-#include "util.h"
+#include "util/util.h"
 // TODO: Hide it.
 #include "operator/dot_product.h"
 
@@ -14,10 +14,13 @@ namespace cux {
 class Executor {
 public:
   Executor() {
-    op_ = new VectorDotProduct();
+    op_ = nullptr;
   }
   ~Executor() {
-    delete op_;
+    if (op_ != nullptr) {
+      delete op_;
+      op_ = nullptr;
+    }
   }
 
   int InitEnvironment(const int dev_id, const bool is_show_info = true) {
@@ -65,6 +68,9 @@ public:
     // flushed before the application exits
     CUDA_CHECK(cudaDeviceReset());
   }
+  void SelectOp(std::string op_name) {
+    op_ = new VectorDotProduct();
+  }
 
   int SetOpIoParams(const std::vector< CuxData<float>* > &input, 
                     const std::vector< CuxData<float>* > &output, 
@@ -88,7 +94,7 @@ private:
   // TODO: 1. 将VectorDotProduct改成Operator，可手动切换具体的Operator.
   //       2. 添加OpFactory，用于注册和生产Op.
   //       3. GPU信息查询. - Finish.
-  VectorDotProduct *op_;
+  Operator *op_;
 };
 
 

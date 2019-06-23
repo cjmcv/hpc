@@ -5,7 +5,7 @@
 #ifndef CUX_GEMM_HPP_
 #define CUX_GEMM_HPP_
 
-#include "util.h"
+#include "util/util.h"
 #include "operator.h"
 
 namespace cux {
