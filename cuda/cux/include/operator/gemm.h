@@ -1,5 +1,5 @@
 /*!
-* \brief gemm.
+* \brief gemm: C(M, N) = A(M, K) * B(K, N). -> (height, width)
 */
 
 #ifndef CUX_GEMM_HPP_

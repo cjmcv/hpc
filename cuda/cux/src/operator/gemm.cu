@@ -23,7 +23,7 @@ __global__ void GemmKernelv1(const int M, const int N, const int K, const float 
   const int block_num_K = K / block_size;
 
   float c_sub_acc = 0;
-  for (int bk = 0; bk < K / block_size; bk++) {
+  for (int bk = 0; bk < block_num_K; bk++) {
     for (int k = 0;k < block_size; k++) {
       c_sub_acc += A[(blockIdx.y * block_size + threadIdx.y) * lda + (bk * block_size + k)] *
         B[(bk * block_size + k) * ldb + (blockIdx.x * block_size + threadIdx.x)];
@@ -95,11 +95,11 @@ void GEMM::RunOnDevice() {
 
   const float ALPHA = params_.alpha_;
   const int M = A_->shape()[CuxShape::HEIGHT];
-  const int N = A_->shape()[CuxShape::WIDTH];
-  const int K = B_->shape()[CuxShape::WIDTH];
-  const int lda = N;
-  const int ldb = K;
-  const int ldc = K;
+  const int N = B_->shape()[CuxShape::WIDTH];
+  const int K = B_->shape()[CuxShape::HEIGHT]; // A_->shape()[CuxShape::WIDTH];
+  const int lda = K;
+  const int ldb = N;
+  const int ldc = N;
 
   // Layout.
   const int block_size = 32;
@@ -109,7 +109,7 @@ void GEMM::RunOnDevice() {
   // Warm up.
   gpu_timer.Start();
   GemmKernelv1<< <blocks_per_grid, threads_per_block >> >
-    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
+    (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
 
@@ -121,7 +121,7 @@ void GEMM::RunOnDevice() {
   gpu_timer.Start();
 
   GemmKernelv1 << <blocks_per_grid, threads_per_block >> >
-    (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
+    (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
 
   gpu_timer.Stop();
   gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);

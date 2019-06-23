@@ -6,6 +6,8 @@
 #define CUX_EXECUTOR_HPP_
 
 #include "util.h"
+// TODO: Hide it.
+#include "operator/dot_product.h"
 
 namespace cux {
 
@@ -66,7 +68,7 @@ public:
 
   int SetOpIoParams(const std::vector< CuxData<float>* > &input, 
                     const std::vector< CuxData<float>* > &output, 
-                    const void *params) {
+                    const OpParam *params = nullptr) {
     return op_->SetIoParams(input, output, params);
   }
   void SetDebugParams(const int loop) {

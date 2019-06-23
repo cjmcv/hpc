@@ -12,7 +12,7 @@
 namespace cux {
 
 // TODO: 1. Layout推荐
-//       2. Kernel手动选择/自动遍历所有kernel? - Finish.
+
 struct OpParam {};
 
 class Operator {
@@ -37,7 +37,7 @@ public:
 
   virtual int SetIoParams(const std::vector< CuxData<float>* > &input,
                           const std::vector< CuxData<float>* > &output,
-                          const void *params) { return -1; };
+                          const OpParam *params) { return -1; };
   virtual void RunOnHost() {};
   virtual void RunOnDevice() {};
 

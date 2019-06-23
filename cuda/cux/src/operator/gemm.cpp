@@ -57,18 +57,18 @@ void GemmlCPUv2(const int M, const int N, const int K, const float ALPHA,
 //////////
 void GEMM::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
-  CUXLOG_COUT("* Name: Vector Dot Product.");
-  CUXLOG_COUT("* Function: sum += a[i] * b[i]");
-  CUXLOG_COUT("* Inputs:  [Two] CuxData with one vector each. ");
-  CUXLOG_COUT("* Outputs: [One] CuxData with one element.");
-  CUXLOG_COUT("* Params:  [None].");
+  CUXLOG_COUT("* Name: GEMM.");
+  CUXLOG_COUT("* Function: C(M, N) = A(M, K) * B(K, N) -> (height, width)");
+  CUXLOG_COUT("* Inputs:  [Two] CuxData with one matrix each. ");
+  CUXLOG_COUT("* Outputs: [One] CuxData with one matrix.");
+  CUXLOG_COUT("* Params:  [Two] alpha and beta.");
   CUXLOG_COUT("**************************************************");
 }
 
 int GEMM::SetIoParams(const std::vector< CuxData<float>* > &input,
                       const std::vector< CuxData<float>* > &output,
                       const OpParam *params) {
-  // Check.
+  // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
     Help();
@@ -80,7 +80,11 @@ int GEMM::SetIoParams(const std::vector< CuxData<float>* > &input,
   B_ = input[1];
   C_ = output[0];
 
-  params_.alpha_ = ((GEMMOpParam *)params)->alpha_;
+  if (params != nullptr) {
+    params_.alpha_ = ((GEMMOpParam *)params)->alpha_;
+    params_.beta_ = ((GEMMOpParam *)params)->beta_;
+  }
+
   return 0;
 }
 
@@ -98,11 +102,11 @@ void GEMM::RunOnHost() {
 
   const float ALPHA = params_.alpha_;
   const int M = A_->shape()[CuxShape::HEIGHT];
-  const int N = A_->shape()[CuxShape::WIDTH];
-  const int K = B_->shape()[CuxShape::WIDTH];
-  const int lda = N;
-  const int ldb = K;
-  const int ldc = K;
+  const int N = B_->shape()[CuxShape::WIDTH];
+  const int K = B_->shape()[CuxShape::HEIGHT]; // A_->shape()[CuxShape::WIDTH];
+  const int lda = K;
+  const int ldb = N;
+  const int ldc = N;
 
   // Run.
   loops_ = 1;

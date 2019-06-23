@@ -1,4 +1,4 @@
-#include "operator/dot_product.h"
+#include "operator/operator.h"
 #include "executor.h"
 // 
 template <typename T>
@@ -76,7 +76,11 @@ void DotProductTest() {
   inputs.push_back(in_b);
   std::vector<cux::CuxData<float> *> outputs;
   outputs.push_back(out);
-  executor->SetOpIoParams(inputs, outputs, nullptr);
+
+  // TODO: Op selection.
+  // TODO: Use a factory to manage params?
+  cux::OpParam *params = nullptr;
+  executor->SetOpIoParams(inputs, outputs, params);
 
   // Run.
   executor->Run(cux::RunMode::ON_HOST);
