@@ -45,7 +45,7 @@ void GemmlCPUv2(const int M, const int N, const int K, const float ALPHA,
         for (i = bi*block_size; i < (bi + 1)*block_size; ++i) {
           for (k = bk*block_size; k < (bk + 1)*block_size; ++k) {
             for (j = bj*block_size; j < (bj + 1)*block_size; ++j) { 
-              C[i*ldc + j] += A[i*lda + k] * B[k*ldb + j];
+              C[i*ldc + j] += ALPHA * A[i*lda + k] * B[k*ldb + j];
             }
           }
         }
@@ -65,9 +65,15 @@ void GEMM::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-int GEMM::SetIoParams(const std::vector< CuxData<float>* > &input,
-                      const std::vector< CuxData<float>* > &output,
-                      const OpParam *params) {
+Operator *GEMM::Creator(std::string &params_str) {
+  GEMMOpParam params;
+  params.alpha_ = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
+  params.beta_ = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
+  return new GEMM(params);
+}
+
+int GEMM::SetIoData(const std::vector< CuxData<float>* > &input,
+                    const std::vector< CuxData<float>* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
@@ -79,15 +85,8 @@ int GEMM::SetIoParams(const std::vector< CuxData<float>* > &input,
   A_ = input[0];
   B_ = input[1];
   C_ = output[0];
-
-  if (params != nullptr) {
-    params_.alpha_ = ((GEMMOpParam *)params)->alpha_;
-    params_.beta_ = ((GEMMOpParam *)params)->beta_;
-  }
-
   return 0;
 }
-
 
 ////////////////////////////////////////////////
 // cpp version
@@ -113,7 +112,7 @@ void GEMM::RunOnHost() {
   cpu_timer.Start();
   for (int i = 0; i < loops_; i++) {
     memset(C, 0, sizeof(float) * M * N);
-    GemmlCPUv1(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    GemmlCPUv2(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
   }
   cpu_timer.Stop();
   cpu_time_record_ = cpu_timer.MilliSeconds() / loops_;

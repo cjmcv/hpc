@@ -21,9 +21,12 @@ void VectorDotProduct::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-int VectorDotProduct::SetIoParams(const std::vector< CuxData<float>* > &input,
-                                  const std::vector< CuxData<float>* > &output,
-                                  const OpParam *params) {
+Operator *VectorDotProduct::Creator(std::string &params_str) {
+  return new VectorDotProduct();
+}
+
+int VectorDotProduct::SetIoData(const std::vector< CuxData<float>* > &input,
+                                const std::vector< CuxData<float>* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
@@ -38,7 +41,6 @@ int VectorDotProduct::SetIoParams(const std::vector< CuxData<float>* > &input,
 
   return 0;
 }
-
 ////////////////////////////////////////////////
 // cpp version: 965ms
 // Normal version in cpu as a reference

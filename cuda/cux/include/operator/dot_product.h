@@ -14,12 +14,11 @@ namespace cux {
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct() {}
-
+  static Operator *VectorDotProduct::Creator(std::string &params_str);
+  
   void Help() const;
-
-  int SetIoParams(const std::vector< CuxData<float>* > &input,
-                  const std::vector< CuxData<float>* > &output,
-                  const OpParam *params);
+  int SetIoData(const std::vector< CuxData<float>* > &input,
+                const std::vector< CuxData<float>* > &output);
   void RunOnHost();
   void RunOnDevice();
 

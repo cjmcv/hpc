@@ -35,9 +35,8 @@ public:
   
   virtual void Help() const {};
 
-  virtual int SetIoParams(const std::vector< CuxData<float>* > &input,
-                          const std::vector< CuxData<float>* > &output,
-                          const OpParam *params) { return -1; };
+  virtual int SetIoData(const std::vector< CuxData<float>* > &input,
+                        const std::vector< CuxData<float>* > &output) { return -1; };
   virtual void RunOnHost() {};
   virtual void RunOnDevice() {};
 

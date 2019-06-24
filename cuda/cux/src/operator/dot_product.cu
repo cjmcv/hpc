@@ -12,7 +12,7 @@ __global__ void VectorDotProductKernelv0(const float *vec_a, const float *vec_b,
     i < len;
     i += blockDim.x * gridDim.x) {
     //__shared__ float smem[BLOCK_SIZE];
-    extern __shared__ int smem[]; // Dynamic allocation.
+    extern __shared__ float smem[]; // Dynamic allocation.
     smem[threadIdx.x] = vec_a[i] * vec_b[i];
     __syncthreads();
 
@@ -40,7 +40,7 @@ __global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b,
     i < len / 2;
     i += blockDim.x * gridDim.x) {
     //__shared__ float smem[BLOCK_SIZE];
-    extern __shared__ int smem[]; // Dynamic allocation.
+    extern __shared__ float smem[]; // Dynamic allocation.
     smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];  // Mainly in here.
     __syncthreads();
 
@@ -68,7 +68,7 @@ __global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b,
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
     i += blockDim.x * gridDim.x) {
-    extern __shared__ int smem[]; // Dynamic allocation.
+    extern __shared__ float smem[]; // Dynamic allocation.
     smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];
     __syncthreads();
 
@@ -111,7 +111,7 @@ void VectorDotProductKernel(const int kernel_id, const int blocks_per_grid, cons
       (vec_a, vec_b, len, res);
     break;
   default:
-    CUXLOG_ERR("Kernel id not found.");
+    CUXLOG_ERR("Kernel id (%d) not found.", kernel_id);
   }
 }
 

@@ -6,8 +6,11 @@
 #define CUX_EXECUTOR_HPP_
 
 #include "util/util.h"
+#include "util/op_factory.h"
 // TODO: Hide it.
+#include "operator.h"
 #include "operator/dot_product.h"
+#include "operator/gemm.h"
 
 namespace cux {
 
@@ -23,7 +26,7 @@ public:
     }
   }
 
-  int InitEnvironment(const int dev_id, const bool is_show_info = true) {
+  static int InitEnvironment(const int dev_id, const bool is_show_info = true) {
     CUXLOG_INFO("Initialize CUDA Ennviroment.");
 
     CUDA_CHECK(cudaSetDevice(dev_id));
@@ -55,10 +58,12 @@ public:
       CUXLOG_COUT("*");
       CUXLOG_COUT("***************************************************************");
     }
+
+    RegisterOps();
     return 0;
   }
 
-  void CleanUpEnvironment() {
+  static void CleanUpEnvironment() {
     CUXLOG_INFO("Cleanup CUDA Ennviroment.");
     // Reset the device and exit
     // cudaDeviceReset causes the driver to clean up all state. While
@@ -68,15 +73,17 @@ public:
     // flushed before the application exits
     CUDA_CHECK(cudaDeviceReset());
   }
-  void SelectOp(std::string op_name) {
-    op_ = new VectorDotProduct();
+
+  void SelectOp(std::string op_name, std::string params) {
+    // TODO: 使用Operator作为未搜索到的op_name的情况执行，并告警
+    op_ = OpFactory::GetInstance().CreateOpByType(op_name, params);
   }
 
-  int SetOpIoParams(const std::vector< CuxData<float>* > &input, 
-                    const std::vector< CuxData<float>* > &output, 
-                    const OpParam *params = nullptr) {
-    return op_->SetIoParams(input, output, params);
+  int SetOpIoData(const std::vector< CuxData<float>* > &input, 
+                  const std::vector< CuxData<float>* > &output) {
+    return op_->SetIoData(input, output);
   }
+
   void SetDebugParams(const int loop) {
     op_->SetLoops(10);
   }
@@ -90,10 +97,14 @@ public:
     }  
     op_->PrintElapsedTime(mode);
   }
+
 private:
-  // TODO: 1. 将VectorDotProduct改成Operator，可手动切换具体的Operator.
-  //       2. 添加OpFactory，用于注册和生产Op.
-  //       3. GPU信息查询. - Finish.
+  static void RegisterOps() {
+    OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
+    OpFactory::GetInstance().RegisterOpClass("gemm", GEMM::Creator);
+  }
+
+private:
   Operator *op_;
 };
 

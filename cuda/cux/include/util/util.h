@@ -104,6 +104,16 @@ protected:
   std::chrono::time_point<clock> stop_time_;
 };
 
+// 
+class StrProcessor {
+public:
+  static std::string FetchSubStr(std::string &src_str, std::string start_str, std::string end_str) {
+    int start_idx = src_str.find(start_str) + start_str.length();
+    int end_idx = src_str.find(end_str, start_idx);
+    return src_str.substr(start_idx, end_idx - start_idx);
+  }
+};
+
 // TODO: 1. 性能测试模块，含IO和kernel等 - Finish
 //       2. 信息打印 / 日志输出模块. - Finish - TODO: 升级
 //       3. 内存池 / 显存池（低优先级）
@@ -111,6 +121,13 @@ protected:
 // TODO: 1. Prefetcher, 预取器，预取数据到GPU，隐藏IO延时
 //       2. BlockingQueue, 堵塞缓冲队列，用于服务预取器Prefetcher，缓存预取的数据
 //       3. InnerThread, 内部线程，为堵塞队列替换数据，共同服务于预取器Prefetcher
+//
+// TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
+//                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断
+//                 2.使用cublas，添加到Op中作为分时基准.
+//                 3.使用cub，封装显存管理模块.
+//                 4.使用数据库，做参数查询，性能数据备份.
+//                 5.python接口封装?
 //       
 } // cux.
 #endif //CUX_UTIL_HPP_
