@@ -4,7 +4,7 @@ namespace cux {
 
 ////////////////
 // CPU Kernel.
-void VectorDotProductHost(const float *vec_a, const float *vec_b, const int len, float &res) {
+void VectorDotProductHostV0(const float *vec_a, const float *vec_b, const int len, float &res) {
   res = 0;
   for (int i = 0; i < len; i++) {
     res += vec_a[i] * vec_b[i];
@@ -54,13 +54,14 @@ void VectorDotProduct::RunOnHost() {
   float *result = out_->GetCpuData();
   
   // Run.
+  cpu_time_kernel_record_.clear();
   cpu_timer.Start();
   for (int i = 0; i < loops_; i++) {
     *result = 0;
-    VectorDotProductHost(vec_a, vec_b, len, *result);
+    VectorDotProductHostV0(vec_a, vec_b, len, *result);
   }
   cpu_timer.Stop();
-  cpu_time_record_ = cpu_timer.MilliSeconds() / loops_;
+  cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
 
   CUXLOG_COUT("result: %f.", *out_->GetCpuData());
 }

@@ -5,7 +5,7 @@
 
 namespace cux {
 // CUDA version 1: 72 ms
-// It is rewrited from GemmCPUv2. 
+// It is rewrited from GEMMHostV2. 
 // bi,bj can be replaced by blockIdx.x,blockIdx.y
 // i,j can be replaced by threadIdx.x,threadIdx.y
 // so just bk and k left. Grid and block is related to the dst matrix.
@@ -14,7 +14,7 @@ namespace cux {
 // for bk -> bk_num_per_grid
 //     for k -> k_num_per_block
 //         C[bi*bs + ty, bj*bs + tx] = A[bi*bs + ty, bk*bs + k] * B[k*bs + k, bj*bs + tx]
-__global__ void GemmKernelv0(const int M, const int N, const int K, const float ALPHA,
+__global__ void GEMMDeviceV0(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -35,7 +35,7 @@ __global__ void GemmKernelv0(const int M, const int N, const int K, const float 
 
 // CUDA version 1.
 // Use shared memory.
-__global__ void GemmKernelv1(const int M, const int N, const int K, const float ALPHA,
+__global__ void GEMMDeviceV1(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
@@ -70,7 +70,7 @@ __global__ void GemmKernelv1(const int M, const int N, const int K, const float 
 }
 
 
-void GemmKernel(const int kernel_id, const dim3 &blocks_per_grid, const dim3 &threads_per_block,
+void GEMMDevice(const int kernel_id, const dim3 &blocks_per_grid, const dim3 &threads_per_block,
                 const int M, const int N, const int K, const float ALPHA,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -78,18 +78,18 @@ void GemmKernel(const int kernel_id, const dim3 &blocks_per_grid, const dim3 &th
   int shared_memory_size = 0;
   switch (kernel_id) {
   case 0:
-    GemmKernelv0 << <blocks_per_grid, threads_per_block >> >
+    GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
       (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
     break;
   case 1:
     // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
     //       __shared__ float b_shared[threads_per_block.y][threads_per_block.x];
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
-    GemmKernelv1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
+    GEMMDeviceV1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
     break;
   default:
-    CUXLOG_ERR("Kernel id (%d) not found.", kernel_id);
+    CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
   }
 }
 
@@ -108,7 +108,6 @@ void GEMM::RunOnDevice() {
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
   const float ALPHA = params_.alpha_;
-  std::cout << "alpha: " << ALPHA << std::endl;
   const int M = A_->shape()[CuxShape::HEIGHT];
   const int N = B_->shape()[CuxShape::WIDTH];
   const int K = B_->shape()[CuxShape::HEIGHT]; // A_->shape()[CuxShape::WIDTH];
@@ -123,7 +122,7 @@ void GEMM::RunOnDevice() {
 
   // Warm up.
   gpu_timer.Start();
-  GemmKernel(0, blocks_per_grid, threads_per_block,
+  GEMMDevice(0, blocks_per_grid, threads_per_block,
     M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
@@ -134,16 +133,17 @@ void GEMM::RunOnDevice() {
     gpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
       cudaMemset(C, 0, sizeof(float) * M * N);
-      GemmKernel(ki, blocks_per_grid, threads_per_block,
+      GEMMDevice(ki, blocks_per_grid, threads_per_block,
         M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
     }
     gpu_timer.Stop();
     gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
+
+    checker_.CheckArray(C_->GetCpuData(), C_->num_element(), ki);
   }
 
   // Output.
   gpu_timer.Start();
-  CUXLOG_COUT("result: %f.", *C_->GetCpuData());
   gpu_timer.Stop();
   gpu_time_out_record_ = gpu_timer.MilliSeconds();
 }

@@ -20,7 +20,7 @@ public:
   ~OpFactory() {};
 
   Operator *CreateOpByType(std::string type, std::string param_str) {
-    typename std::map<std::string, OpCreator>::iterator it = op_creator_map_.find(type);
+    std::map<std::string, OpCreator>::iterator it = op_creator_map_.find(type);
     if (it == op_creator_map_.end())
       return nullptr;
 
@@ -34,11 +34,22 @@ public:
   // Registerer, set the mapping relation between operator's class name and it's specific pointer function.
   int RegisterOpClass(std::string type, OpCreator creator) {
     if (op_creator_map_.count(type) != 0) {
-      std::cout << "Op type :" << type << " already registered.";
+      CUXLOG_WARN("Op type: %s already registered.", type.c_str());
       return -1;
     }
     op_creator_map_[type] = creator;
     return 0;
+  }
+
+  std::string PrintList() {
+    std::string out = "";
+    std::map<std::string, OpCreator>::iterator it = op_creator_map_.begin();
+    while (it != op_creator_map_.end()) {
+      out += it->first;
+      out += "  ";
+      it++;
+    }
+    return out;
   }
 
   // Singleton mode. Only one OpFactory exist.
@@ -49,7 +60,7 @@ public:
 
 private:
   OpFactory() {};
-  typename std::map<std::string, OpCreator> op_creator_map_;
+  std::map<std::string, OpCreator> op_creator_map_;
 };
 
 }	//namespace cux

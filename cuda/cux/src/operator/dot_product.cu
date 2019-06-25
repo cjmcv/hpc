@@ -2,11 +2,11 @@
 
 namespace cux {
   
-// CUDA kernel v0 : 283ms
+// CUDA kernel V0 : 283ms
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
 //template <int BLOCK_SIZE>
-__global__ void VectorDotProductKernelv0(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV0(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len;
@@ -32,9 +32,9 @@ __global__ void VectorDotProductKernelv0(const float *vec_a, const float *vec_b,
   }
 }
 
-// CUDA kernel v1 : 201ms
+// CUDA kernel V1 : 201ms
 // Compute two blocks' data to the shared memory of one block.
-__global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV1(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
@@ -60,10 +60,10 @@ __global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b,
   }
 }
 
-// CUDA kernel v2 : 179ms
+// CUDA kernel V2 : 179ms
 // Condition: The block size should be bigger than 32
 // Unroll the last warp
-__global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV2(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
@@ -94,24 +94,24 @@ __global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b,
   }
 }
 
-void VectorDotProductKernel(const int kernel_id, const int blocks_per_grid, const int threads_per_block, 
+void VectorDotProductDevice(const int kernel_id, const int blocks_per_grid, const int threads_per_block, 
                             const float *vec_a, const float *vec_b, const int len, float &res) {
   int shared_memory_size = threads_per_block * sizeof(float);
   switch (kernel_id) {
   case 0:
-    VectorDotProductKernelv0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
     break;
   case 1:
-    VectorDotProductKernelv1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
     break;
   case 2:
-    VectorDotProductKernelv2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
     break;
   default:
-    CUXLOG_ERR("Kernel id (%d) not found.", kernel_id);
+    CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
   }
 }
 
@@ -136,7 +136,7 @@ void VectorDotProduct::RunOnDevice() {
 
   // Warm up.
   gpu_timer.Start();
-  VectorDotProductKernel(0, blocks_per_grid, threads_per_block, 
+  VectorDotProductDevice(0, blocks_per_grid, threads_per_block, 
     vec_a, vec_b, len, *result);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
@@ -147,7 +147,7 @@ void VectorDotProduct::RunOnDevice() {
     gpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
       cudaMemset(result, 0, sizeof(float));
-      VectorDotProductKernel(ki, blocks_per_grid, threads_per_block,
+      VectorDotProductDevice(ki, blocks_per_grid, threads_per_block,
         vec_a, vec_b, len, *result);
     }
     gpu_timer.Stop();

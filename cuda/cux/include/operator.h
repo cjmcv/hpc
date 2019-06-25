@@ -11,8 +11,6 @@
 
 namespace cux {
 
-// TODO: 1. LayoutÍÆ¼ö
-
 struct OpParam {};
 
 class Operator {
@@ -21,14 +19,16 @@ public:
   inline void SetLoops(const int loop) { loops_ = loop; }
   inline void PrintElapsedTime(const RunMode mode) const {
     if (mode == RunMode::ON_HOST) {
-      CUXLOG_COUT("CPU: %f ms.", cpu_time_record_);
+      for (int ki = 0; ki < cpu_time_kernel_record_.size(); ki++) {
+        CUXLOG_COUT("CPU: %f ms for kernel V%d.", cpu_time_kernel_record_[ki], ki);
+      }
     }
     else if (mode == RunMode::ON_DEVICE) { 
       CUXLOG_COUT("GPU: %f ms for input.", gpu_time_in_record_);
-      CUXLOG_COUT("     %f ms for output.", gpu_time_out_record_);
-      CUXLOG_COUT("     %f ms for warnup v0.", gpu_time_warnup_record_);
+      CUXLOG_COUT("GPU: %f ms for output.", gpu_time_out_record_);
+      CUXLOG_COUT("GPU: %f ms for warnup V0.", gpu_time_warnup_record_);
       for (int ki = 0; ki < gpu_time_kernel_record_.size(); ki++) {
-        CUXLOG_COUT("     %f ms for kernel v%d.", gpu_time_kernel_record_[ki], ki);
+        CUXLOG_COUT("GPU: %f ms for kernel V%d.", gpu_time_kernel_record_[ki], ki);
       }
     }
   }
@@ -40,7 +40,9 @@ public:
   virtual void RunOnHost() {};
   virtual void RunOnDevice() {};
 
-public:
+public: 
+  int loops_;
+  
   GpuTimer gpu_timer_;
   std::vector<float> gpu_time_kernel_record_;
   float gpu_time_in_record_;
@@ -48,9 +50,9 @@ public:
   float gpu_time_warnup_record_;
 
   CpuTimer cpu_timer_;
-  float cpu_time_record_;
+  std::vector<float> cpu_time_kernel_record_;
   
-  int loops_;
+  ResultChecker<float> checker_;
 };
 } // cux.
 

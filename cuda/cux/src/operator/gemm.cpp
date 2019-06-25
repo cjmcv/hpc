@@ -7,10 +7,11 @@ namespace cux {
   
 // CPU version 1: 1583 ms
 // Normal version in cpu as a reference
-void GemmlCPUv1(const int M, const int N, const int K, const float ALPHA,
-  const float *A, const int lda,
-  const float *B, const int ldb,
-  float *C, const int ldc) {
+void GEMMHostV0(const int M, const int N, 
+                const int K, const float ALPHA,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                float *C, const int ldc) {
   int i, j, k;
   memset(C, 0, sizeof(float) * ldc * M);
   for (i = 0; i < M; ++i) {
@@ -25,10 +26,11 @@ void GemmlCPUv1(const int M, const int N, const int K, const float ALPHA,
 
 // CPU version 2: 3389 ms
 // Block based matrix multiplication in cpu.
-void GemmlCPUv2(const int M, const int N, const int K, const float ALPHA,
-  const float *A, const int lda,
-  const float *B, const int ldb,
-  float *C, const int ldc) {
+void GEMMHostV1(const int M, const int N, 
+                const int K, const float ALPHA,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                float *C, const int ldc) {
   int bi, bj, bk;
   int i, j, k;
   const int block_size = 32;
@@ -54,6 +56,24 @@ void GemmlCPUv2(const int M, const int N, const int K, const float ALPHA,
   }
 }
 
+void GEMMHost(const int kernel_id, const int M, const int N,
+              const int K, const float ALPHA,
+              const float *A, const int lda,
+              const float *B, const int ldb,
+              float *C, const int ldc) {
+  int shared_memory_size = 0;
+  switch (kernel_id) {
+  case 0:
+    GEMMHostV0(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    break;
+  case 1:
+    GEMMHostV1(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    break;
+  default:
+    CUXLOG_ERR("Host Kernel id (%d) not found.", kernel_id);
+  }
+}
+
 //////////
 void GEMM::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
@@ -61,7 +81,7 @@ void GEMM::Help() const {
   CUXLOG_COUT("* Function: C(M, N) = A(M, K) * B(K, N) -> (height, width)");
   CUXLOG_COUT("* Inputs:  [Two] CuxData with one matrix each. ");
   CUXLOG_COUT("* Outputs: [One] CuxData with one matrix.");
-  CUXLOG_COUT("* Params:  [Two] alpha and beta.");
+  CUXLOG_COUT("* Params:  [Two] alpha / beta -> alpha: 1.0, beta: 0.0");
   CUXLOG_COUT("**************************************************");
 }
 
@@ -108,14 +128,18 @@ void GEMM::RunOnHost() {
   const int ldc = N;
 
   // Run.
-  loops_ = 1;
-  cpu_timer.Start();
-  for (int i = 0; i < loops_; i++) {
-    memset(C, 0, sizeof(float) * M * N);
-    GemmlCPUv2(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+  cpu_time_kernel_record_.clear();
+  for (int ki = 0; ki < 2; ki++) {
+    cpu_timer.Start();
+    for (int i = 0; i < loops_; i++) {
+      memset(C, 0, sizeof(float) * M * N);
+      GEMMHost(ki, M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    }
+    cpu_timer.Stop();
+    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
+
+    checker_.CheckArray(C_->GetCpuData(), C_->num_element(), ki);
   }
-  cpu_timer.Stop();
-  cpu_time_record_ = cpu_timer.MilliSeconds() / loops_;
 
   CUXLOG_COUT("result: %f.", *C_->GetCpuData());
 }

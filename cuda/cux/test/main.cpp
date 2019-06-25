@@ -87,7 +87,7 @@ void DotProductTest() {
 
 void GEMMTest() {
   cux::Executor *executor = new cux::Executor();
-  executor->SelectOp("gemm", "alpha: 3.0, beta: 0.0");
+  executor->SelectOp("gemm", "alpha: 1.0, beta: 0.0");
 
   const int loops = 100;
   executor->SetDebugParams(loops);

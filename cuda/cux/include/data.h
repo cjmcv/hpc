@@ -93,7 +93,7 @@ private:
 
   // Take a tag to tell where the current memory has been saved (CPU or GPU).
   int mem_head_;
-  // eNum, eChannels, eHeight, eWidth
+  // num, channels, height, width
   std::vector<int> shape_;
   int num_element_;
   int size_;

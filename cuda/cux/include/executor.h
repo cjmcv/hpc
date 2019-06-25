@@ -27,6 +27,8 @@ public:
   }
 
   static int InitEnvironment(const int dev_id, const bool is_show_info = true) {
+    RegisterOps();
+
     CUXLOG_INFO("Initialize CUDA Ennviroment.");
 
     CUDA_CHECK(cudaSetDevice(dev_id));
@@ -37,7 +39,7 @@ public:
       return 1;
     }
     if (is_show_info) {
-      CUXLOG_COUT("********************** GPU Information ************************");
+      CUXLOG_COUT("********************** Information ************************");
       CUXLOG_COUT("*");
       CUXLOG_COUT("* GPU Device %d: \"%s\". ", dev_id, device_prop.name);
       CUXLOG_COUT("* (device) Compute capability: %d.%d. ", device_prop.major, device_prop.minor);
@@ -56,10 +58,11 @@ public:
       CUXLOG_COUT("*");
       CUXLOG_COUT("* (thread) Warp size in threads: %d. ", device_prop.warpSize);
       CUXLOG_COUT("*");
-      CUXLOG_COUT("***************************************************************");
+      CUXLOG_COUT("* Registered Op: < %s>", OpFactory::GetInstance().PrintList().c_str());
+      CUXLOG_COUT("*");
+      CUXLOG_COUT("***********************************************************");
     }
 
-    RegisterOps();
     return 0;
   }
 
@@ -97,7 +100,6 @@ public:
     }  
     op_->PrintElapsedTime(mode);
   }
-
 private:
   static void RegisterOps() {
     OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
