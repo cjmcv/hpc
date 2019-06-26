@@ -11,30 +11,39 @@
 
 namespace cux {
 
-struct OpParam {};
+template <typename Dtype>
+class ResultChecker {
+public:
+  ResultChecker() :prev_data_(nullptr), len_(0) {}
+  ~ResultChecker() {
+    if (prev_data_ != nullptr) {
+      delete[]prev_data_;
+      len_ = 0;
+    }
+  }
+  bool CheckArray(const Dtype *in, const int len, const int id);
+
+private:
+  void SetBenchmarkData(const Dtype *in, const int len);
+private:
+  Dtype *prev_data_;
+  int len_;
+};
+
+class PerformanceEvaluator {
+public:
+  static double GetPotentialOccupancy(
+    const int kernel_id, const void *kernel,
+    const int block_size, const size_t dynamic_shared_mem);
+};
 
 class Operator {
 public:
   Operator(): loops_(1) {}
   inline void SetLoops(const int loop) { loops_ = loop; }
-  inline void PrintElapsedTime(const RunMode mode) const {
-    if (mode == RunMode::ON_HOST) {
-      for (int ki = 0; ki < cpu_time_kernel_record_.size(); ki++) {
-        CUXLOG_COUT("CPU: %f ms for kernel V%d.", cpu_time_kernel_record_[ki], ki);
-      }
-    }
-    else if (mode == RunMode::ON_DEVICE) { 
-      CUXLOG_COUT("GPU: %f ms for input.", gpu_time_in_record_);
-      CUXLOG_COUT("GPU: %f ms for output.", gpu_time_out_record_);
-      CUXLOG_COUT("GPU: %f ms for warnup V0.", gpu_time_warnup_record_);
-      for (int ki = 0; ki < gpu_time_kernel_record_.size(); ki++) {
-        CUXLOG_COUT("GPU: %f ms for kernel V%d.", gpu_time_kernel_record_[ki], ki);
-      }
-    }
-  }
+  void PrintElapsedTime(const RunMode mode) const;
   
   virtual void Help() const {};
-
   virtual int SetIoData(const std::vector< CuxData<float>* > &input,
                         const std::vector< CuxData<float>* > &output) { return -1; };
   virtual void RunOnHost() {};
@@ -53,6 +62,7 @@ public:
   std::vector<float> cpu_time_kernel_record_;
   
   ResultChecker<float> checker_;
+  PerformanceEvaluator evaluator_;
 };
 } // cux.
 

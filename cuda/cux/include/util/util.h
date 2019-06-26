@@ -48,6 +48,11 @@ enum CuxShape {
 #define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_COUT(format, ...) fprintf(stdout,"> "##format"\n", ##__VA_ARGS__);
 
+#define INSTANTIATE_CLASS(classname) \
+  char gInstantiationGuard##classname; \
+  template class classname<float>; \
+  template class classname<double>
+
 ////////////////
 // Class.
 ////////////////
@@ -56,19 +61,19 @@ enum CuxShape {
 class GpuTimer {
 public:
   GpuTimer() {
-    cudaEventCreate(&start_);
-    cudaEventCreate(&stop_);
+    CUDA_CHECK(cudaEventCreate(&start_));
+    CUDA_CHECK(cudaEventCreate(&stop_));
   }
   ~GpuTimer() {
-    cudaEventDestroy(start_);
-    cudaEventDestroy(stop_);
+    CUDA_CHECK(cudaEventDestroy(start_));
+    CUDA_CHECK(cudaEventDestroy(stop_));
   }
-  inline void Start() { cudaEventRecord(start_, NULL); }
-  inline void Stop() { cudaEventRecord(stop_, NULL); }
+  inline void Start() { CUDA_CHECK(cudaEventRecord(start_, NULL)); }
+  inline void Stop() { CUDA_CHECK(cudaEventRecord(stop_, NULL)); }
   inline float MilliSeconds() {
     float elapsed;
-    cudaEventSynchronize(stop_);
-    cudaEventElapsedTime(&elapsed, start_, stop_);
+    CUDA_CHECK(cudaEventSynchronize(stop_));
+    CUDA_CHECK(cudaEventElapsedTime(&elapsed, start_, stop_));
     return elapsed;
   }
 
@@ -113,63 +118,13 @@ public:
   }
 };
 
-template <typename Dtype>
-class ResultChecker {
-public:
-  ResultChecker() :prev_data_(nullptr), len_() {}
-  ~ResultChecker() {
-    if (prev_data_ != nullptr) {
-      delete[]prev_data_;
-      len_ = 0;
-    }
-  }
-
-  bool CheckArray(const Dtype *in, const int len, const int id) {
-    if (id == 0) {
-      SetBenchmarkData(in, len);
-      return true;
-    }
-    float diff = 0.0;
-    for (int i = 0; i < len; i++) {
-      Dtype t = prev_data_[i] - in[i];
-      diff += (t >= 0 ? t : -t);
-    }
-    if (diff < DBL_MIN) {
-      CUXLOG_INFO("Pass: V0 vs V%d -> (diff: %f, first number: %f, %f)", 
-        id, diff, (float)prev_data_[0], (float)in[0]);
-      return true;
-    }
-    else {
-      CUXLOG_WARN("Fail: V0 vs V%d -> (diff: %f, first number: %f, %f)",
-        id, diff, (float)prev_data_[0], (float)in[0]);
-      return false;
-    }
-  }
-
-private:
-  void SetBenchmarkData(const Dtype *in, const int len) {
-    if (prev_data_ == nullptr) {
-      prev_data_ = new Dtype[len];
-      len_ = len;
-    }
-    else if (len_ != len) {
-      delete[]prev_data_;
-      prev_data_ = new Dtype[len];
-      len_ = len;
-    }
-    memcpy(prev_data_, in, sizeof(Dtype) * len);
-  }
-
-private:
-  Dtype *prev_data_;
-  int len_;
-};
-// TODO: 1. 结果检查，单独写一个函数将所有核函数运行一遍，结果一致则输出pass。
+// TODO: 1. 结果检查，单独写一个函数将所有核函数运行一遍，结果一致则输出pass。- Finish
 //       2. 升级CuxData：静态动态内存、异步拷贝、对齐. 添加标记位，避免重复拷贝。
 //       3. 性能测试：添加占用率数据。
 //       4. 内存池 / 显存池（低优先级）？
 //       5. CPU端异常处理/告警机制/错误码
 //       6. Layout推荐
+//       7. Layout渐变的效率分析
 ////
 // TODO: 1. 算法与cublas对应；命名统一、功能统一
 //       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。

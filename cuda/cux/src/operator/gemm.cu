@@ -80,6 +80,7 @@ void GEMMDevice(const int kernel_id, const dim3 &blocks_per_grid, const dim3 &th
   case 0:
     GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
       (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    PerformanceEvaluator::GetPotentialOccupancy(0, GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0);
     break;
   case 1:
     // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
@@ -87,6 +88,7 @@ void GEMMDevice(const int kernel_id, const dim3 &blocks_per_grid, const dim3 &th
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
     GEMMDeviceV1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    PerformanceEvaluator::GetPotentialOccupancy(1, GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
@@ -139,12 +141,16 @@ void GEMM::RunOnDevice() {
     gpu_timer.Stop();
     gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
 
+
+    // Output, Only record the first time.
+    if (ki == 0) {
+      gpu_timer.Start();
+      C_->GetCpuData();
+      gpu_timer.Stop();
+      gpu_time_out_record_ = gpu_timer.MilliSeconds();
+    }
     checker_.CheckArray(C_->GetCpuData(), C_->num_element(), ki);
   }
+}
 
-  // Output.
-  gpu_timer.Start();
-  gpu_timer.Stop();
-  gpu_time_out_record_ = gpu_timer.MilliSeconds();
-}
-}
+} // namespace cux

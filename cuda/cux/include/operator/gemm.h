@@ -10,7 +10,7 @@
 
 namespace cux {
 
-struct GEMMOpParam : public OpParam {
+struct GEMMOpParam {
   float alpha_ = 1.0;
   // TODO: Use beta in kernels.
   float beta_ = 0.0;
