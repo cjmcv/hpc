@@ -24,7 +24,9 @@ struct GEMMOpParam {
 
 class GEMM : public Operator {
 public:
-  GEMM(GEMMOpParam &params) :params_(params) {}
+  GEMM(GEMMOpParam &params) :params_(params), 
+    cpu_kernel_cnt_(2), 
+    gpu_kernel_cnt_(2) {}
   static Operator *GEMM::Creator(std::string &params_str);
 
   void Help() const;
@@ -33,12 +35,35 @@ public:
   void RunOnHost();
   void RunOnDevice();
 
+  void GEMMHost(const int kernel_id, 
+                const int M, const int N,
+                const int K, const float ALPHA,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                const float beta,
+                float *C, const int ldc);
+
+  void GEMMDevice(const int kernel_id, 
+                  const dim3 &blocks_per_grid, 
+                  const dim3 &threads_per_block,
+                  const int M, const int N, 
+                  const int K, const float ALPHA,
+                  const float *A, const int lda,
+                  const float *B, const int ldb,
+                  const float beta,
+                  float *C, const int ldc);
+
 private:
   CuxData<float> *A_;
   CuxData<float> *B_;
   CuxData<float> *C_;
 
+  CuxData<float> *org_C_;
+
   GEMMOpParam params_;
+
+  int cpu_kernel_cnt_;
+  int gpu_kernel_cnt_;
 };
 } // cux.
 

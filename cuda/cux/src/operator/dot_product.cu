@@ -94,21 +94,29 @@ __global__ void VectorDotProductDeviceV2(const float *vec_a, const float *vec_b,
   }
 }
 
-void VectorDotProductDevice(const int kernel_id, const int blocks_per_grid, const int threads_per_block, 
-                            const float *vec_a, const float *vec_b, const int len, float &res) {
+void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const int blocks_per_grid,
+                                              const int threads_per_block, const float *vec_a, 
+                                              const float *vec_b, const int len, float &res) {
   int shared_memory_size = threads_per_block * sizeof(float);
+  gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
   switch (kernel_id) {
   case 0:
     VectorDotProductDeviceV0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
+    gpu_kernel_occupancys_[kernel_id] = PerformanceEvaluator::GetPotentialOccupancy(
+      VectorDotProductDeviceV0, threads_per_block, shared_memory_size);
     break;
   case 1:
     VectorDotProductDeviceV1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
+    gpu_kernel_occupancys_[kernel_id] = PerformanceEvaluator::GetPotentialOccupancy(
+      VectorDotProductDeviceV1, threads_per_block, shared_memory_size);
     break;
   case 2:
     VectorDotProductDeviceV2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
+    gpu_kernel_occupancys_[kernel_id] = PerformanceEvaluator::GetPotentialOccupancy(
+      VectorDotProductDeviceV2, threads_per_block, shared_memory_size);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
@@ -143,7 +151,7 @@ void VectorDotProduct::RunOnDevice() {
 
   // Run.
   gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < 3; ki++) {
+  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
     gpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
       cudaMemset(result, 0, sizeof(float));
@@ -152,13 +160,16 @@ void VectorDotProduct::RunOnDevice() {
     }
     gpu_timer.Stop();
     gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
-  }
 
-  // Output.
-  gpu_timer.Start();
-  CUXLOG_COUT("result: %f.", *out_->GetCpuData());
-  gpu_timer.Stop();
-  gpu_time_out_record_ = gpu_timer.MilliSeconds();
+    // Output, Only record the first time.
+    if (ki == 0) {
+      gpu_timer.Start();
+      out_->GetCpuData();
+      gpu_timer.Stop();
+      gpu_time_out_record_ = gpu_timer.MilliSeconds();
+    }
+    checker_.CheckArray(out_->GetCpuData(), out_->num_element(), ki);
+  }
 }
 
 }

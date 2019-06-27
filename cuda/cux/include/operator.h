@@ -32,8 +32,7 @@ private:
 
 class PerformanceEvaluator {
 public:
-  static double GetPotentialOccupancy(
-    const int kernel_id, const void *kernel,
+  static double GetPotentialOccupancy(const void *kernel,
     const int block_size, const size_t dynamic_shared_mem);
 };
 
@@ -41,7 +40,7 @@ class Operator {
 public:
   Operator(): loops_(1) {}
   inline void SetLoops(const int loop) { loops_ = loop; }
-  void PrintElapsedTime(const RunMode mode) const;
+  void PrintElapsedTime(const OpRunMode mode) const;
   
   virtual void Help() const {};
   virtual int SetIoData(const std::vector< CuxData<float>* > &input,
@@ -62,7 +61,8 @@ public:
   std::vector<float> cpu_time_kernel_record_;
   
   ResultChecker<float> checker_;
-  PerformanceEvaluator evaluator_;
+  //PerformanceEvaluator evaluator_;
+  std::vector<float> gpu_kernel_occupancys_;
 };
 } // cux.
 

@@ -49,17 +49,18 @@ void MatrixPrint(const float* mat, const int height, const int width) {
   }
 }
 
-void DotProductTest() {
+void DotProductTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
+  executor->SetDevice(0, is_show_info);
   executor->SelectOp("dot_product", "");
 
   const int loops = 100;
   executor->SetDebugParams(loops);
 
   const int data_len = 10240000; // data_len % threads_per_block == 0.
-  cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 1, data_len);
-  cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, 1, data_len);
-  cux::CuxData<float> *out = new cux::CuxData<float>(1, 1, 1, 1);
+  cux::CuxData<float> *in_a = new cux::CuxData<float>(cux::DataMode::INPUT, 1, 1, 1, data_len);
+  cux::CuxData<float> *in_b = new cux::CuxData<float>(cux::DataMode::INPUT, 1, 1, 1, data_len);
+  cux::CuxData<float> *out = new cux::CuxData<float>(cux::DataMode::OUTPUT, 1, 1, 1, 1);
 
   // Initialize 
   srand(0);
@@ -75,8 +76,8 @@ void DotProductTest() {
   executor->SetOpIoData(inputs, outputs);
 
   // Run.
-  executor->Run(cux::RunMode::ON_HOST);
-  executor->Run(cux::RunMode::ON_DEVICE);
+  executor->Run(cux::OpRunMode::ON_HOST);
+  executor->Run(cux::OpRunMode::ON_DEVICE);
 
   delete in_a;
   delete in_b;
@@ -85,24 +86,26 @@ void DotProductTest() {
   delete executor;
 }
 
-void GEMMTest() {
+void GEMMTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
-  executor->SelectOp("gemm", "alpha: 1.0, beta: 0.0");
+  executor->SetDevice(0, is_show_info);
+  executor->SelectOp("gemm", "alpha: 1.0, beta: 2.0");
 
   const int loops = 100;
   executor->SetDebugParams(loops);
 
-  cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 256, 800);
-  cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, 800, 320);
+  cux::CuxData<float> *in_a = new cux::CuxData<float>(cux::DataMode::INPUT, 1, 1, 256, 800);
+  cux::CuxData<float> *in_b = new cux::CuxData<float>(cux::DataMode::INPUT, 1, 1, 800, 320);
   std::vector<int> shape_a = in_a->shape();
   std::vector<int> shape_b = in_b->shape();
-  cux::CuxData<float> *out_c = new cux::CuxData<float>(1, 1, 
+  cux::CuxData<float> *out_c = new cux::CuxData<float>(cux::DataMode::OUTPUT, 1, 1,
     shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
 
   // Initialize 
   srand(0);
   GenMatrix(shape_a[cux::HEIGHT], shape_a[cux::WIDTH], in_a->GetCpuData());
   GenMatrix(shape_b[cux::HEIGHT], shape_b[cux::WIDTH], in_b->GetCpuData());
+  //GenMatrix(shape_a[cux::HEIGHT], shape_b[cux::WIDTH], out_c->GetCpuData());
 
   std::vector<cux::CuxData<float> *> inputs;
   inputs.push_back(in_a);
@@ -113,8 +116,8 @@ void GEMMTest() {
   executor->SetOpIoData(inputs, outputs);
 
   // Run.
-  executor->Run(cux::RunMode::ON_HOST);
-  executor->Run(cux::RunMode::ON_DEVICE);
+  executor->Run(cux::OpRunMode::ON_HOST);
+  executor->Run(cux::OpRunMode::ON_DEVICE);
 
   delete in_a;
   delete in_b;
@@ -123,17 +126,19 @@ void GEMMTest() {
   delete executor;
 }
 
-// TODO: µ¥Ôª²âÊÔ.
 int main() {
-  int ret = cux::Executor::InitEnvironment(0);
+  int ret = cux::Executor::InitEnvironment();
   if (ret != 0) {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
     return -1;
   }
 
   //////////
-  //DotProductTest();
-  GEMMTest();
+  printf("DotProductTest.\n");
+  DotProductTest(true);
+
+  printf("\n\nGEMMTest.\n");
+  GEMMTest(false);
   //////////
   
   cux::Executor::CleanUpEnvironment();

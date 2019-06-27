@@ -48,8 +48,7 @@ INSTANTIATE_CLASS(ResultChecker);
 
 //////////////////////////
 // PerformanceEvaluator
-double PerformanceEvaluator::GetPotentialOccupancy(
-  const int kernel_id, const void *kernel, 
+double PerformanceEvaluator::GetPotentialOccupancy(const void *kernel, 
   const int block_size, const size_t dynamic_shared_mem) {
   int device;
   cudaDeviceProp prop;
@@ -64,24 +63,28 @@ double PerformanceEvaluator::GetPotentialOccupancy(
   int max_warps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
 
   double occupancy = (double)active_warps / max_warps;
-  CUXLOG_INFO("V%d occupancy: %f", kernel_id, occupancy);
   return occupancy;
 }
 
 ///////////////
 // Operator
-void Operator::PrintElapsedTime(const RunMode mode) const {
-  if (mode == RunMode::ON_HOST) {
+void Operator::PrintElapsedTime(const OpRunMode mode) const {
+  if (mode == OpRunMode::ON_HOST) {
     for (int ki = 0; ki < cpu_time_kernel_record_.size(); ki++) {
       CUXLOG_COUT("CPU: %f ms for kernel V%d.", cpu_time_kernel_record_[ki], ki);
     }
   }
-  else if (mode == RunMode::ON_DEVICE) {
+  else if (mode == OpRunMode::ON_DEVICE) {
     CUXLOG_COUT("GPU: %f ms for input.", gpu_time_in_record_);
     CUXLOG_COUT("GPU: %f ms for output.", gpu_time_out_record_);
     CUXLOG_COUT("GPU: %f ms for warnup V0.", gpu_time_warnup_record_);
+    if (gpu_time_kernel_record_.size() != gpu_kernel_occupancys_.size()) {
+      CUXLOG_ERR("GPU: gpu_time_kernel_record_.size() != gpu_kernel_occupancys_.size()");
+      return;
+    }
     for (int ki = 0; ki < gpu_time_kernel_record_.size(); ki++) {
-      CUXLOG_COUT("GPU: %f ms for kernel V%d.", gpu_time_kernel_record_[ki], ki);
+      CUXLOG_COUT("GPU: %f ms for kernel V%d (Occuancys :%f).", 
+        gpu_time_kernel_record_[ki], ki, gpu_kernel_occupancys_[ki]);
     }
   }
 }

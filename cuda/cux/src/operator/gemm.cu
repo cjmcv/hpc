@@ -14,9 +14,10 @@ namespace cux {
 // for bk -> bk_num_per_grid
 //     for k -> k_num_per_block
 //         C[bi*bs + ty, bj*bs + tx] = A[bi*bs + ty, bk*bs + k] * B[k*bs + k, bj*bs + tx]
-__global__ void GEMMDeviceV0(const int M, const int N, const int K, const float ALPHA,
+__global__ void GEMMDeviceV0(const int M, const int N, const int K, const float alpha,
   const float *A, const int lda,
   const float *B, const int ldb,
+  const float beta,
   float *C, const int ldc) {
 
   const int block_size = blockDim.x; // The Block is square.
@@ -25,7 +26,7 @@ __global__ void GEMMDeviceV0(const int M, const int N, const int K, const float 
   float c_sub_acc = 0;
   for (int bk = 0; bk < block_num_K; bk++) {
     for (int k = 0;k < block_size; k++) {
-      c_sub_acc += ALPHA * A[(blockIdx.y * block_size + threadIdx.y) * lda + (bk * block_size + k)] *
+      c_sub_acc += alpha * A[(blockIdx.y * block_size + threadIdx.y) * lda + (bk * block_size + k)] *
         B[(bk * block_size + k) * ldb + (blockIdx.x * block_size + threadIdx.x)];
     }
   }
@@ -35,9 +36,10 @@ __global__ void GEMMDeviceV0(const int M, const int N, const int K, const float 
 
 // CUDA version 1.
 // Use shared memory.
-__global__ void GEMMDeviceV1(const int M, const int N, const int K, const float ALPHA,
+__global__ void GEMMDeviceV1(const int M, const int N, const int K, const float alpha,
   const float *A, const int lda,
   const float *B, const int ldb,
+  const float beta,
   float *C, const int ldc) {
 
   const int block_size = blockDim.x;  // Side length.
@@ -59,7 +61,7 @@ __global__ void GEMMDeviceV1(const int M, const int N, const int K, const float 
 
     // For elements in a block.
     for (int k = 0; k < block_size; k++) {
-      c_sub_acc += ALPHA * a_shared[threadIdx.y * block_size + k] * b_shared[k * block_size + threadIdx.x];
+      c_sub_acc += alpha * a_shared[threadIdx.y * block_size + k] * b_shared[k * block_size + threadIdx.x];
     }
     // To prevent the case from happening:
     // The next round of data is loaded when the data in share memory is not used up.
@@ -70,25 +72,32 @@ __global__ void GEMMDeviceV1(const int M, const int N, const int K, const float 
 }
 
 
-void GEMMDevice(const int kernel_id, const dim3 &blocks_per_grid, const dim3 &threads_per_block,
-                const int M, const int N, const int K, const float ALPHA,
-                const float *A, const int lda,
-                const float *B, const int ldb,
-                float *C, const int ldc) {
+void GEMM::GEMMDevice(const int kernel_id, 
+                      const dim3 &blocks_per_grid, 
+                      const dim3 &threads_per_block,
+                      const int M, const int N, 
+                      const int K, const float alpha,
+                      const float *A, const int lda,
+                      const float *B, const int ldb,
+                      const float beta,
+                      float *C, const int ldc) {
   int shared_memory_size = 0;
+  gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
   switch (kernel_id) {
   case 0:
     GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
-      (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
-    PerformanceEvaluator::GetPotentialOccupancy(0, GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0);
+      (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+    gpu_kernel_occupancys_[kernel_id] = PerformanceEvaluator::GetPotentialOccupancy(
+      GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0);
     break;
   case 1:
     // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
     //       __shared__ float b_shared[threads_per_block.y][threads_per_block.x];
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
     GEMMDeviceV1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
-      (M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
-    PerformanceEvaluator::GetPotentialOccupancy(1, GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size);
+      (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+    gpu_kernel_occupancys_[kernel_id] = PerformanceEvaluator::GetPotentialOccupancy(
+      GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
@@ -109,10 +118,11 @@ void GEMM::RunOnDevice() {
   gpu_timer.Stop();
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
-  const float ALPHA = params_.alpha_;
-  const int M = A_->shape()[CuxShape::HEIGHT];
-  const int N = B_->shape()[CuxShape::WIDTH];
-  const int K = B_->shape()[CuxShape::HEIGHT]; // A_->shape()[CuxShape::WIDTH];
+  const float alpha = params_.alpha_;
+  const float beta = params_.beta_;
+  const int M = A_->shape()[Shape::HEIGHT];
+  const int N = B_->shape()[Shape::WIDTH];
+  const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
   const int lda = K;
   const int ldb = N;
   const int ldc = N;
@@ -125,22 +135,21 @@ void GEMM::RunOnDevice() {
   // Warm up.
   gpu_timer.Start();
   GEMMDevice(0, blocks_per_grid, threads_per_block,
-    M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
 
   // Run.
   gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < 2; ki++) {
+  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
     gpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
       cudaMemset(C, 0, sizeof(float) * M * N);
       GEMMDevice(ki, blocks_per_grid, threads_per_block,
-        M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+        M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     gpu_timer.Stop();
     gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
-
 
     // Output, Only record the first time.
     if (ki == 0) {

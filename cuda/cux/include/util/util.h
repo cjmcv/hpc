@@ -15,16 +15,22 @@ namespace cux {
 ////////////////
 // Enumeration.
 ////////////////
-enum RunMode {
+enum OpRunMode {
   ON_HOST,
   ON_DEVICE
 };
 
-enum CuxShape {
+enum Shape {
   NUMBER,
   CHANNELS,
   HEIGHT,
   WIDTH
+};
+
+enum DataMode {
+  INPUT,
+  OUTPUT,
+  IO
 };
 
 ////////////////
@@ -120,8 +126,8 @@ public:
 
 // TODO: 1. 结果检查，单独写一个函数将所有核函数运行一遍，结果一致则输出pass。- Finish
 //       2. 升级CuxData：静态动态内存、异步拷贝、对齐. 添加标记位，避免重复拷贝。
-//       3. 性能测试：添加占用率数据。
-//       4. 内存池 / 显存池（低优先级）？
+//       3. 性能测试：添加占用率数据。- Finish
+//       4. 内存池（低优先级）
 //       5. CPU端异常处理/告警机制/错误码
 //       6. Layout推荐
 //       7. Layout渐变的效率分析
@@ -139,6 +145,8 @@ public:
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
 //                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断
 //                 2.使用cublas，添加到Op中作为测试基准.
+//                 https://nvlabs.github.io/cub/structcub_1_1_caching_device_allocator.html
+//                 https://github.com/mratsim/Arraymancer/issues/112
 //                 3.使用cub，封装显存管理模块.
 //                 4.使用数据库，做参数查询，性能数据备份.
 //                 5.python接口封装?

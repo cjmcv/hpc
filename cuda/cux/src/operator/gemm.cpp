@@ -8,15 +8,20 @@ namespace cux {
 // CPU version 1: 1583 ms
 // Normal version in cpu as a reference
 void GEMMHostV0(const int M, const int N, 
-                const int K, const float ALPHA,
+                const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
-                float *C, const int ldc) {
+                const float beta,
+                float *C, const int ldc) {  
   int i, j, k;
-  memset(C, 0, sizeof(float) * ldc * M);
+  for (i = 0; i < M; ++i) {
+    for (j = 0; j < N; ++j) {
+      C[i*ldc + j] *= beta;
+    }
+  }
   for (i = 0; i < M; ++i) {
     for (k = 0; k < K; ++k) {
-      register float A_PART = ALPHA*A[i*lda + k];
+      register float A_PART = alpha*A[i*lda + k];
       for (j = 0; j < N; ++j) {
         C[i*ldc + j] += A_PART*B[k*ldb + j];
       }
@@ -27,9 +32,10 @@ void GEMMHostV0(const int M, const int N,
 // CPU version 2: 3389 ms
 // Block based matrix multiplication in cpu.
 void GEMMHostV1(const int M, const int N, 
-                const int K, const float ALPHA,
+                const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
+                const float beta,
                 float *C, const int ldc) {
   int bi, bj, bk;
   int i, j, k;
@@ -37,7 +43,12 @@ void GEMMHostV1(const int M, const int N,
   int block_num_M = M / block_size;
   int block_num_N = N / block_size;
   int block_num_K = K / block_size;
-  memset(C, 0, sizeof(float) * ldc * M);
+
+  for (i = 0; i < M; ++i) {
+    for (j = 0; j < N; ++j) {
+      C[i*ldc + j] *= beta;
+    }
+  }
 
   // Loop over all of the blocks.
   for (bi = 0; bi < block_num_M; ++bi) {
@@ -47,7 +58,7 @@ void GEMMHostV1(const int M, const int N,
         for (i = bi*block_size; i < (bi + 1)*block_size; ++i) {
           for (k = bk*block_size; k < (bk + 1)*block_size; ++k) {
             for (j = bj*block_size; j < (bj + 1)*block_size; ++j) { 
-              C[i*ldc + j] += ALPHA * A[i*lda + k] * B[k*ldb + j];
+              C[i*ldc + j] += alpha * A[i*lda + k] * B[k*ldb + j];
             }
           }
         }
@@ -56,25 +67,27 @@ void GEMMHostV1(const int M, const int N,
   }
 }
 
-void GEMMHost(const int kernel_id, const int M, const int N,
-              const int K, const float ALPHA,
-              const float *A, const int lda,
-              const float *B, const int ldb,
-              float *C, const int ldc) {
+//////////
+void GEMM::GEMMHost(const int kernel_id, 
+                    const int M, const int N,
+                    const int K, const float alpha,
+                    const float *A, const int lda,
+                    const float *B, const int ldb,
+                    const float beta,
+                    float *C, const int ldc) {
   int shared_memory_size = 0;
   switch (kernel_id) {
   case 0:
-    GEMMHostV0(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    GEMMHostV0(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     break;
   case 1:
-    GEMMHostV1(M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+    GEMMHostV1(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     break;
   default:
     CUXLOG_ERR("Host Kernel id (%d) not found.", kernel_id);
   }
 }
 
-//////////
 void GEMM::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: GEMM.");
@@ -119,21 +132,22 @@ void GEMM::RunOnHost() {
   const float *B = B_->GetCpuData();
   float *C = C_->GetCpuData();
 
-  const float ALPHA = params_.alpha_;
-  const int M = A_->shape()[CuxShape::HEIGHT];
-  const int N = B_->shape()[CuxShape::WIDTH];
-  const int K = B_->shape()[CuxShape::HEIGHT]; // A_->shape()[CuxShape::WIDTH];
+  const float alpha = params_.alpha_;
+  const float beta = params_.beta_;
+  const int M = A_->shape()[Shape::HEIGHT];
+  const int N = B_->shape()[Shape::WIDTH];
+  const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
   const int lda = K;
   const int ldb = N;
   const int ldc = N;
 
   // Run.
   cpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < 2; ki++) {
+  for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
     cpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
       memset(C, 0, sizeof(float) * M * N);
-      GEMMHost(ki, M, N, K, ALPHA, A, lda, B, ldb, C, ldc);
+      GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     cpu_timer.Stop();
     cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
