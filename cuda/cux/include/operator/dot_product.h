@@ -13,7 +13,7 @@ namespace cux {
 // TODO: 1. 使用模板控制数据类型，可能需要针对每一种类型重写kernel.
 class VectorDotProduct : public Operator {
 public:
-  VectorDotProduct() :cpu_kernel_cnt_(1), gpu_kernel_cnt_(3) {}
+  VectorDotProduct() :Operator(1, 3) {}
   static Operator *VectorDotProduct::Creator(std::string &params_str);
   
   void Help() const;
@@ -30,9 +30,6 @@ private:
   CuxData<float> *in_a_;
   CuxData<float> *in_b_;
   CuxData<float> *out_;
-
-  int cpu_kernel_cnt_;
-  int gpu_kernel_cnt_;
 };
 } // cux.
 

@@ -48,10 +48,10 @@ void VectorDotProduct::RunOnHost() {
   CpuTimer cpu_timer;
 
   // Warp.
-  const float *vec_a = in_a_->GetCpuData();
-  const float *vec_b = in_b_->GetCpuData();
+  const float *vec_a = in_a_->GetCpuData(PUSH_IF_EMPTY);
+  const float *vec_b = in_b_->GetCpuData(PUSH_IF_EMPTY);
   const int len = in_a_->num_element();
-  float *result = out_->GetCpuData();
+  float *result = out_->GetCpuData(NO_PUSH);
   
   // Run.
   cpu_time_kernel_record_.clear();
@@ -63,7 +63,7 @@ void VectorDotProduct::RunOnHost() {
   cpu_timer.Stop();
   cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
 
-  CUXLOG_COUT("result: %f.", *out_->GetCpuData());
+  CUXLOG_COUT("result: %f.", *out_->GetCpuData(NO_PUSH));
 }
 
 }

@@ -25,6 +25,7 @@ public:
 
 private:
   void SetBenchmarkData(const Dtype *in, const int len);
+
 private:
   Dtype *prev_data_;
   int len_;
@@ -32,13 +33,17 @@ private:
 
 class PerformanceEvaluator {
 public:
-  static double GetPotentialOccupancy(const void *kernel,
-    const int block_size, const size_t dynamic_shared_mem);
+  static void GetPotentialOccupancy(const void *kernel, const int block_size,
+                                    const size_t dynamic_shared_mem, 
+                                    int &active_block, double &occupancy);
 };
 
 class Operator {
 public:
-  Operator(): loops_(1) {}
+  Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
+    : loops_(1), 
+    cpu_kernel_cnt_(cpu_kernel_cnt),
+    gpu_kernel_cnt_(gpu_kernel_cnt) {}
   inline void SetLoops(const int loop) { loops_ = loop; }
   void PrintElapsedTime(const OpRunMode mode) const;
   
@@ -61,8 +66,12 @@ public:
   std::vector<float> cpu_time_kernel_record_;
   
   ResultChecker<float> checker_;
-  //PerformanceEvaluator evaluator_;
-  std::vector<float> gpu_kernel_occupancys_;
+
+  int cpu_kernel_cnt_;
+  int gpu_kernel_cnt_;
+
+  std::vector<double> gpu_kernel_occupancys_;
+  std::vector<int> gpu_kernel_sctive_blocks_;
 };
 } // cux.
 

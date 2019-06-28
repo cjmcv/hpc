@@ -27,10 +27,10 @@ enum Shape {
   WIDTH
 };
 
-enum DataMode {
-  INPUT,
-  OUTPUT,
-  IO
+enum DataFetchMode {
+  NO_PUSH,
+  PUSH,
+  PUSH_IF_EMPTY
 };
 
 ////////////////

@@ -128,9 +128,9 @@ void GEMM::RunOnHost() {
   CpuTimer cpu_timer;
 
   // Warp.
-  const float *A = A_->GetCpuData();
-  const float *B = B_->GetCpuData();
-  float *C = C_->GetCpuData();
+  const float *A = A_->GetCpuData(PUSH_IF_EMPTY);
+  const float *B = B_->GetCpuData(PUSH_IF_EMPTY);
+  float *C = C_->GetCpuData(PUSH_IF_EMPTY);
 
   const float alpha = params_.alpha_;
   const float beta = params_.beta_;
@@ -141,21 +141,25 @@ void GEMM::RunOnHost() {
   const int ldb = N;
   const int ldc = N;
 
+  // Save original data.
+  C_->Save(ON_HOST);
+
   // Run.
   cpu_time_kernel_record_.clear();
   for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
     cpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
-      memset(C, 0, sizeof(float) * M * N);
+      //(C, 0, sizeof(float) * M * N);
+      C_->Restore(ON_HOST);
       GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     cpu_timer.Stop();
     cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
 
-    checker_.CheckArray(C_->GetCpuData(), C_->num_element(), ki);
+    checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
   }
 
-  CUXLOG_COUT("result: %f.", *C_->GetCpuData());
+  CUXLOG_COUT("result: %f.", *C_->GetCpuData(PUSH));
 }
 
 }

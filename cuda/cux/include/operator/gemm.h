@@ -24,9 +24,7 @@ struct GEMMOpParam {
 
 class GEMM : public Operator {
 public:
-  GEMM(GEMMOpParam &params) :params_(params), 
-    cpu_kernel_cnt_(2), 
-    gpu_kernel_cnt_(2) {}
+  GEMM(GEMMOpParam &params) :params_(params), Operator(2, 3) {}
   static Operator *GEMM::Creator(std::string &params_str);
 
   void Help() const;
@@ -61,9 +59,6 @@ private:
   CuxData<float> *org_C_;
 
   GEMMOpParam params_;
-
-  int cpu_kernel_cnt_;
-  int gpu_kernel_cnt_;
 };
 } // cux.
 
