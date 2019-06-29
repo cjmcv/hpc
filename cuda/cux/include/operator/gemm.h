@@ -12,12 +12,11 @@ namespace cux {
 
 struct GEMMOpParam {
   float alpha_ = 1.0;
-  // TODO: Use beta in kernels.
   float beta_ = 0.0;
 
-  GEMMOpParam& operator=(const GEMMOpParam& cls) {
-    alpha_ = cls.alpha_;
-    beta_ = cls.beta_;
+  GEMMOpParam& operator=(const GEMMOpParam& in) {
+    alpha_ = in.alpha_;
+    beta_ = in.beta_;
     return *this;
   }
 };

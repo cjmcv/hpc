@@ -33,9 +33,15 @@ private:
 
 class PerformanceEvaluator {
 public:
+  // occupancy = (double)active_warps / max_warps;
   static void GetPotentialOccupancy(const void *kernel, const int block_size,
                                     const size_t dynamic_shared_mem, 
                                     int &active_block, double &occupancy);
+  // It suggests a block size that achieves the best theoretical occupancy.
+  // But the occupancy can not be translated directly to performance.
+  static void GetSuggestedLayout(const void *kernel, const int count,
+                                 const int dynamic_smem_usage,
+                                 int &grid_size, int &block_size);
 };
 
 class Operator {
@@ -67,11 +73,12 @@ public:
   
   ResultChecker<float> checker_;
 
+  // The total number of Kenrels.
   int cpu_kernel_cnt_;
   int gpu_kernel_cnt_;
 
   std::vector<double> gpu_kernel_occupancys_;
-  std::vector<int> gpu_kernel_sctive_blocks_;
+  std::vector<int> gpu_kernel_active_blocks_;
 };
 } // cux.
 

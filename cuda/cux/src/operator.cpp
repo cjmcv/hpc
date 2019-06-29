@@ -83,7 +83,7 @@ void Operator::PrintElapsedTime(const OpRunMode mode) const {
     }
     for (int ki = 0; ki < gpu_time_kernel_record_.size(); ki++) {
       CUXLOG_COUT("GPU: %f ms for kernel V%d (Occuancys :%f, active_blocks: %d).", 
-        gpu_time_kernel_record_[ki], ki, gpu_kernel_occupancys_[ki], gpu_kernel_sctive_blocks_[ki]);
+        gpu_time_kernel_record_[ki], ki, gpu_kernel_occupancys_[ki], gpu_kernel_active_blocks_[ki]);
     }
   }
 }

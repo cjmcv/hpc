@@ -138,14 +138,14 @@ void GEMM::GEMMDevice(const int kernel_id,
                       float *C, const int ldc) {
   int shared_memory_size = 0;
   gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
-  gpu_kernel_sctive_blocks_.resize(gpu_kernel_cnt_);
+  gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
   switch (kernel_id) {
   case 0:
     GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     PerformanceEvaluator::GetPotentialOccupancy(
       GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0,
-      gpu_kernel_sctive_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 1:
     // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
@@ -155,7 +155,7 @@ void GEMM::GEMMDevice(const int kernel_id,
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     PerformanceEvaluator::GetPotentialOccupancy(
       GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size,
-      gpu_kernel_sctive_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
@@ -163,7 +163,7 @@ void GEMM::GEMMDevice(const int kernel_id,
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     PerformanceEvaluator::GetPotentialOccupancy(
       GEMMDeviceV2, threads_per_block.x * threads_per_block.y, shared_memory_size,
-      gpu_kernel_sctive_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
