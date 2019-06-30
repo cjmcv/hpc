@@ -28,9 +28,9 @@ enum Shape {
 };
 
 enum DataFetchMode {
-  NO_PUSH,
-  PUSH,
-  PUSH_IF_EMPTY
+  NO_PUSH,        // Get current data without pushing data across devices.
+  PUSH,           // If you want to take data from CPU, and there's data in GPU, it pushes data from GPU to CPU.
+  PUSH_IF_EMPTY   // Add push condition: the data to be fetched is empty.
 };
 
 ////////////////

@@ -15,6 +15,7 @@
 namespace cux { 
 
 class OpFactory {
+  // A function pointer.
   typedef Operator *(*OpCreator)(std::string &params_str);
 public:
   ~OpFactory() {};
@@ -41,6 +42,7 @@ public:
     return 0;
   }
 
+  // Show which ops have been registered.
   std::string PrintList() {
     std::string out = "";
     std::map<std::string, OpCreator>::iterator it = op_creator_map_.begin();
@@ -60,6 +62,7 @@ public:
 
 private:
   OpFactory() {};
+  // <name, creater>
   std::map<std::string, OpCreator> op_creator_map_;
 };
 

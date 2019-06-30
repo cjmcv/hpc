@@ -11,6 +11,7 @@
 
 namespace cux {
 
+// Used to check the correctness of the output of those functions.
 template <typename Dtype>
 class ResultChecker {
 public:
@@ -24,6 +25,7 @@ public:
   bool CheckArray(const Dtype *in, const int len, const int id);
 
 private:
+  // Set the benchmark data, which is correct by default.
   void SetBenchmarkData(const Dtype *in, const int len);
 
 private:
@@ -53,13 +55,16 @@ public:
   inline void SetLoops(const int loop) { loops_ = loop; }
   void PrintElapsedTime(const OpRunMode mode) const;
   
+  // Show relevant prompts.
   virtual void Help() const {};
+  // Set the input and output data.
   virtual int SetIoData(const std::vector< CuxData<float>* > &input,
                         const std::vector< CuxData<float>* > &output) { return -1; };
   virtual void RunOnHost() {};
   virtual void RunOnDevice() {};
 
 public: 
+  // How many times the Kernel will be executed.
   int loops_;
   
   GpuTimer gpu_timer_;
@@ -71,12 +76,15 @@ public:
   CpuTimer cpu_timer_;
   std::vector<float> cpu_time_kernel_record_;
   
+  // Verify the correctness of the output.
   ResultChecker<float> checker_;
 
   // The total number of Kenrels.
   int cpu_kernel_cnt_;
   int gpu_kernel_cnt_;
-
+  
+  // occupancys for each kernel.
+  // An element corresponds to a kernel.
   std::vector<double> gpu_kernel_occupancys_;
   std::vector<int> gpu_kernel_active_blocks_;
 };

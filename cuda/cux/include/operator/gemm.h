@@ -55,8 +55,6 @@ private:
   CuxData<float> *B_;
   CuxData<float> *C_;
 
-  CuxData<float> *org_C_;
-
   GEMMOpParam params_;
 };
 } // cux.

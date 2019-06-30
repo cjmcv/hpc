@@ -9,6 +9,7 @@
 
 namespace cux {
 
+// Mainly used for backup and restore of cuxdata.
 template <typename Dtype>
 class CuxDataBack {
 public:
@@ -95,22 +96,24 @@ public:
   inline Dtype* cpu_data() { return cpu_data_; }
   inline Dtype* gpu_data() { return gpu_data_; }
 
+  // Save data to CuxDataBack.
   void Save(OpRunMode mode) {
     if (backup_ == nullptr)
       backup_ = new CuxDataBack<Dtype>();
 
     if (mode == ON_HOST)
       backup_->SaveCpuData(cpu_data_, num_element_);
-    else
+    else // 0N_DEVICE
       backup_->SaveGpuData(gpu_data_, num_element_);
   }
+  // Restore data from CuxDataBack.
   void Restore(OpRunMode mode) {
     if (backup_ == nullptr) {
       return;
     }
     if (mode == ON_HOST)
       backup_->RestoreCpuData(cpu_data_, num_element_);
-    else
+    else // 0N_DEVICE
       backup_->RestoreGpuData(gpu_data_, num_element_);
   }
 
@@ -148,12 +151,13 @@ private:
   Dtype *cpu_data_;
   Dtype *gpu_data_;
 
-  // num, channels, height, width
+  // 4d: num, channels, height, width
   std::vector<int> shape_;
   int num_element_;
   // num_element_ * sizeof(Dtype)
   int size_;
-
+  // For data backup and restore.
+  // Refer to the matrix C in gemm.
   CuxDataBack<Dtype> *backup_;
 };
 
