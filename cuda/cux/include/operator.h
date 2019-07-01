@@ -7,6 +7,7 @@
 
 #include <vector>
 #include "util/util.h"
+#include "util/launch_config.h"
 #include "data.h"
 
 namespace cux {
@@ -33,26 +34,17 @@ private:
   int len_;
 };
 
-class PerformanceEvaluator {
-public:
-  // occupancy = (double)active_warps / max_warps;
-  static void GetPotentialOccupancy(const void *kernel, const int block_size,
-                                    const size_t dynamic_shared_mem, 
-                                    int &active_block, double &occupancy);
-  // It suggests a block size that achieves the best theoretical occupancy.
-  // But the occupancy can not be translated directly to performance.
-  static void GetSuggestedLayout(const void *kernel, const int count,
-                                 const int dynamic_smem_usage,
-                                 int &grid_size, int &block_size);
-};
-
 class Operator {
 public:
   Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
     : loops_(1), 
     cpu_kernel_cnt_(cpu_kernel_cnt),
-    gpu_kernel_cnt_(gpu_kernel_cnt) {}
-  inline void SetLoops(const int loop) { loops_ = loop; }
+    gpu_kernel_cnt_(gpu_kernel_cnt) {
+    config_.Initialize();
+  }
+  inline void SetLoops(const int loop = 1) { 
+    loops_ = loop;
+  }
   void PrintElapsedTime(const OpRunMode mode) const;
   
   // Show relevant prompts.
@@ -66,6 +58,7 @@ public:
 public: 
   // How many times the Kernel will be executed.
   int loops_;
+  LaunchConfig config_;
   
   GpuTimer gpu_timer_;
   std::vector<float> gpu_time_kernel_record_;

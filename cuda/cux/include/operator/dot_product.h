@@ -22,8 +22,7 @@ public:
   void RunOnHost();
   void RunOnDevice();
 
-  void VectorDotProductDevice(const int kernel_id, const int blocks_per_grid,
-                              const int threads_per_block, const float *vec_a,
+  void VectorDotProductDevice(const int kernel_id, const float *vec_a,
                               const float *vec_b, const int len, float &res);
 
 private:

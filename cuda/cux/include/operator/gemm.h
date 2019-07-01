@@ -11,12 +11,12 @@
 namespace cux {
 
 struct GEMMOpParam {
-  float alpha_ = 1.0;
-  float beta_ = 0.0;
+  float alpha = 1.0;
+  float beta = 0.0;
 
   GEMMOpParam& operator=(const GEMMOpParam& in) {
-    alpha_ = in.alpha_;
-    beta_ = in.beta_;
+    alpha = in.alpha;
+    beta = in.beta;
     return *this;
   }
 };
@@ -40,9 +40,7 @@ public:
                 const float beta,
                 float *C, const int ldc);
 
-  void GEMMDevice(const int kernel_id, 
-                  const dim3 &blocks_per_grid, 
-                  const dim3 &threads_per_block,
+  void GEMMDevice(const int kernel_id,
                   const int M, const int N, 
                   const int K, const float ALPHA,
                   const float *A, const int lda,

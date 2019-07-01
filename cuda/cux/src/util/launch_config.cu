@@ -1,14 +1,14 @@
 /*!
-* \brief Operator.
+* \brief LaunchConfig.
 */
 
-#include "operator.h"
+#include "util/launch_config.h"
 
 namespace cux {
 
 //////////////////////////
-// PerformanceEvaluator
-void PerformanceEvaluator::GetSuggestedLayout(
+// LaunchConfig
+void LaunchConfig::GetSuggestedLayout(
   const void *kernel, const int count,
   const int dynamic_smem_usage,
   int &grid_size, int &block_size) {

@@ -15,6 +15,25 @@ namespace cux {
 ////////////////
 // Enumeration.
 ////////////////
+enum Code {
+  OK = 0,
+  CANCELLED = 1,
+  UNKNOWN = 2,
+  INVALID_ARGUMENT = 3,
+  DEADLINE_EXCEEDED = 4,
+  NOT_FOUND = 5,
+  ALREADY_EXISTS = 6,
+  PERMISSION_DENIED = 7,
+  UNAUTHENTICATED = 16,
+  RESOURCE_EXHAUSTED = 8,
+  FAILED_PRECONDITION = 9,
+  ABORTED = 10,
+  OUT_OF_RANGE = 11,
+  UNIMPLEMENTED = 12,
+  INTERNAL = 13,
+  UNAVAILABLE = 14,
+};
+
 enum OpRunMode {
   ON_HOST,
   ON_DEVICE
@@ -124,12 +143,9 @@ public:
   }
 };
 
-// TODO: 1. 结果检查，单独写一个函数将所有核函数运行一遍，结果一致则输出pass。- Finish
-//       2. 升级CuxData：添加标记位，避免重复拷贝 - Finish。静态动态内存、异步拷贝、对齐。。
-//       3. 性能测试：添加占用率数据。- Finish
+// TODO: 2. 升级CuxData：添加标记位，避免重复拷贝 - Finish。静态动态内存、异步拷贝、对齐。。
 //       4. 内存池（低优先级）
 //       5. CPU端异常处理/告警机制/错误码
-//       6. Layout推荐 - Finish
 //       7. Layout渐变的效率分析
 ////
 // TODO: 1. 算法与cublas对应；命名统一、功能统一

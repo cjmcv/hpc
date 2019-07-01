@@ -46,24 +46,6 @@ void ResultChecker<Dtype>::SetBenchmarkData(const Dtype *in, const int len) {
 }
 INSTANTIATE_CLASS(ResultChecker);
 
-//////////////////////////
-// PerformanceEvaluator
-void PerformanceEvaluator::GetPotentialOccupancy(const void *kernel, const int block_size, 
-                                                 const size_t dynamic_shared_mem, 
-                                                 int &active_blocks, double &occupancy) {
-  int device;
-  cudaDeviceProp prop;
-  CUDA_CHECK(cudaGetDevice(&device));
-  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
-
-  CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &active_blocks, kernel, block_size, dynamic_shared_mem));
-
-  int active_warps = active_blocks * block_size / prop.warpSize;
-  int max_warps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
-
-  occupancy = (double)active_warps / max_warps;
-}
 
 ///////////////
 // Operator

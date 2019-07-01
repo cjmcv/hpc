@@ -94,33 +94,33 @@ __global__ void VectorDotProductDeviceV2(const float *vec_a, const float *vec_b,
   }
 }
 
-void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const int blocks_per_grid,
-                                              const int threads_per_block, const float *vec_a, 
+void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const float *vec_a, 
                                               const float *vec_b, const int len, float &res) {
+  // Default Layout.
+  const int threads_per_block = 1024; // data_len % threads_per_block == 0
+  const int blocks_per_grid = (len + threads_per_block - 1) / threads_per_block;
   int shared_memory_size = threads_per_block * sizeof(float);
+
   gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
   gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
   switch (kernel_id) {
   case 0:
     VectorDotProductDeviceV0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    PerformanceEvaluator::GetPotentialOccupancy(
-      VectorDotProductDeviceV0, threads_per_block, shared_memory_size, 
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    config_.GetPotentialOccupancy(VectorDotProductDeviceV0, threads_per_block, shared_memory_size,
+                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 1:
     VectorDotProductDeviceV1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    PerformanceEvaluator::GetPotentialOccupancy(
-      VectorDotProductDeviceV1, threads_per_block, shared_memory_size, 
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    config_.GetPotentialOccupancy(VectorDotProductDeviceV1, threads_per_block, shared_memory_size,
+                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
     VectorDotProductDeviceV2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    PerformanceEvaluator::GetPotentialOccupancy(
-      VectorDotProductDeviceV2, threads_per_block, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    config_.GetPotentialOccupancy(VectorDotProductDeviceV2, threads_per_block, shared_memory_size,
+                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
@@ -142,14 +142,9 @@ void VectorDotProduct::RunOnDevice() {
   gpu_timer.Stop();
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
-  // Layout.
-  const int threads_per_block = 1024; // data_len % threads_per_block == 0
-  const int blocks_per_grid = (len + threads_per_block - 1) / threads_per_block;
-
   // Warm up.
   gpu_timer.Start();
-  VectorDotProductDevice(0, blocks_per_grid, threads_per_block, 
-    vec_a, vec_b, len, *result);
+  VectorDotProductDevice(0, vec_a, vec_b, len, *result);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
 
@@ -159,8 +154,7 @@ void VectorDotProduct::RunOnDevice() {
     gpu_timer.Start();
     for (int i = 0; i < loops_; i++) {
       cudaMemset(result, 0, sizeof(float));
-      VectorDotProductDevice(ki, blocks_per_grid, threads_per_block,
-        vec_a, vec_b, len, *result);
+      VectorDotProductDevice(ki, vec_a, vec_b, len, *result);
     }
     gpu_timer.Stop();
     gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);

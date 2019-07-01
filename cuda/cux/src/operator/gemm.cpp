@@ -100,8 +100,8 @@ void GEMM::Help() const {
 
 Operator *GEMM::Creator(std::string &params_str) {
   GEMMOpParam params;
-  params.alpha_ = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
-  params.beta_ = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
+  params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
+  params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
   return new GEMM(params);
 }
 
@@ -132,8 +132,8 @@ void GEMM::RunOnHost() {
   const float *B = B_->GetCpuData(PUSH_IF_EMPTY);
   float *C = C_->GetCpuData(PUSH_IF_EMPTY);
 
-  const float alpha = params_.alpha_;
-  const float beta = params_.beta_;
+  const float alpha = params_.alpha;
+  const float beta = params_.beta;
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];

@@ -22,8 +22,11 @@ public:
 
   Operator *CreateOpByType(std::string type, std::string param_str) {
     std::map<std::string, OpCreator>::iterator it = op_creator_map_.find(type);
-    if (it == op_creator_map_.end())
+    if (it == op_creator_map_.end()) {
+      CUXLOG_ERR("Can not find Op: %s", type.c_str());
+      CUXLOG_ERR("Registered Op: < %s>", PrintList().c_str());
       return nullptr;
+    }
 
     OpCreator creator = it->second;
     if (!creator)
@@ -35,7 +38,7 @@ public:
   // Registerer, set the mapping relation between operator's class name and it's specific pointer function.
   int RegisterOpClass(std::string type, OpCreator creator) {
     if (op_creator_map_.count(type) != 0) {
-      CUXLOG_WARN("Op type: %s already registered.", type.c_str());
+      CUXLOG_WARN("Op type: %s has already been registered.", type.c_str());
       return -1;
     }
     op_creator_map_[type] = creator;
@@ -48,7 +51,7 @@ public:
     std::map<std::string, OpCreator>::iterator it = op_creator_map_.begin();
     while (it != op_creator_map_.end()) {
       out += it->first;
-      out += "  ";
+      out += " ";
       it++;
     }
     return out;

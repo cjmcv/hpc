@@ -81,7 +81,6 @@ public:
     return 0;
   }
   void SelectOp(std::string op_name, std::string params) {
-    // TODO: 使用Operator作为未搜索到的op_name的情况执行，并告警
     op_ = OpFactory::GetInstance().CreateOpByType(op_name, params);
   }
 
@@ -91,7 +90,7 @@ public:
   }
 
   void SetDebugParams(const int loop) {
-    op_->SetLoops(10);
+    op_->SetLoops(loop);
   }
 
   void Run(const OpRunMode mode) {
