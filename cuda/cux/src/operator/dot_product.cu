@@ -107,20 +107,23 @@ void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const float *
   case 0:
     VectorDotProductDeviceV0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    config_.GetPotentialOccupancy(VectorDotProductDeviceV0, threads_per_block, shared_memory_size,
-                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    op_params_.launch_config->GetPotentialOccupancy(
+      VectorDotProductDeviceV0, threads_per_block, shared_memory_size,
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 1:
     VectorDotProductDeviceV1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    config_.GetPotentialOccupancy(VectorDotProductDeviceV1, threads_per_block, shared_memory_size,
-                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    op_params_.launch_config->GetPotentialOccupancy(
+      VectorDotProductDeviceV1, threads_per_block, shared_memory_size,
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
     VectorDotProductDeviceV2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    config_.GetPotentialOccupancy(VectorDotProductDeviceV2, threads_per_block, shared_memory_size,
-                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    op_params_.launch_config->GetPotentialOccupancy(
+      VectorDotProductDeviceV2, threads_per_block, shared_memory_size,
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
@@ -152,12 +155,12 @@ void VectorDotProduct::RunOnDevice() {
   gpu_time_kernel_record_.clear();
   for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
     gpu_timer.Start();
-    for (int i = 0; i < loops_; i++) {
+    for (int i = 0; i < op_params_.loop_cn; i++) {
       cudaMemset(result, 0, sizeof(float));
       VectorDotProductDevice(ki, vec_a, vec_b, len, *result);
     }
     gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
 
     // Output, Only record the first time.
     if (ki == 0) {

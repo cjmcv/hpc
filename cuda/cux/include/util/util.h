@@ -79,6 +79,14 @@ enum DataFetchMode {
   template class classname<double>
 
 ////////////////
+// Struct.
+////////////////
+struct Device {
+  int id;
+  cudaDeviceProp prop;
+};
+
+////////////////
 // Class.
 ////////////////
 

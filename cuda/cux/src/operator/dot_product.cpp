@@ -56,12 +56,12 @@ void VectorDotProduct::RunOnHost() {
   // Run.
   cpu_time_kernel_record_.clear();
   cpu_timer.Start();
-  for (int i = 0; i < loops_; i++) {
+  for (int i = 0; i < op_params_.loop_cn; i++) {
     *result = 0;
     VectorDotProductHostV0(vec_a, vec_b, len, *result);
   }
   cpu_timer.Stop();
-  cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
+  cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
 
   CUXLOG_COUT("result: %f.", *out_->GetCpuData(NO_PUSH));
 }

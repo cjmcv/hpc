@@ -146,8 +146,9 @@ void GEMM::GEMMDevice(const int kernel_id,
   case 0:
     GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    config_.GetPotentialOccupancy(GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0,
-                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    op_params_.launch_config->GetPotentialOccupancy(
+      GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0,
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 1:
     // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
@@ -155,15 +156,17 @@ void GEMM::GEMMDevice(const int kernel_id,
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
     GEMMDeviceV1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    config_.GetPotentialOccupancy(GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size,
-                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    op_params_.launch_config->GetPotentialOccupancy(
+      GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size,
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
     GEMMDeviceV2 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    config_.GetPotentialOccupancy(GEMMDeviceV2, threads_per_block.x * threads_per_block.y, shared_memory_size,
-                                  gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    op_params_.launch_config->GetPotentialOccupancy(
+      GEMMDeviceV2, threads_per_block.x * threads_per_block.y, shared_memory_size,
+      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
@@ -184,8 +187,8 @@ void GEMM::RunOnDevice() {
   gpu_timer.Stop();
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
-  const float alpha = params_.alpha;
-  const float beta = params_.beta;
+  const float alpha = kernel_params_.alpha;
+  const float beta = kernel_params_.beta;
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
@@ -206,13 +209,13 @@ void GEMM::RunOnDevice() {
   gpu_time_kernel_record_.clear();
   for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
     gpu_timer.Start();
-    for (int i = 0; i < loops_; i++) {
+    for (int i = 0; i < op_params_.loop_cn; i++) {
       //cudaMemset(C, 0, sizeof(float) * M * N);
       C_->Restore(ON_DEVICE);
       GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / loops_);
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
 
     // Output, Only record the first time.
     if (ki == 0) {

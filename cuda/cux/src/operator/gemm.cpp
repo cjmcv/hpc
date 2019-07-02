@@ -99,7 +99,7 @@ void GEMM::Help() const {
 }
 
 Operator *GEMM::Creator(std::string &params_str) {
-  GEMMOpParam params;
+  GEMMKernelParam params;
   params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
   params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
   return new GEMM(params);
@@ -132,8 +132,8 @@ void GEMM::RunOnHost() {
   const float *B = B_->GetCpuData(PUSH_IF_EMPTY);
   float *C = C_->GetCpuData(PUSH_IF_EMPTY);
 
-  const float alpha = params_.alpha;
-  const float beta = params_.beta;
+  const float alpha = kernel_params_.alpha;
+  const float beta = kernel_params_.beta;
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
@@ -148,13 +148,13 @@ void GEMM::RunOnHost() {
   cpu_time_kernel_record_.clear();
   for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
     cpu_timer.Start();
-    for (int i = 0; i < loops_; i++) {
+    for (int i = 0; i < op_params_.loop_cn; i++) {
       //(C, 0, sizeof(float) * M * N);
       C_->Restore(ON_HOST);
       GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     cpu_timer.Stop();
-    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / loops_);
+    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
 
     checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
   }

@@ -34,16 +34,20 @@ private:
   int len_;
 };
 
+struct OpParams {
+  LaunchConfig *launch_config;
+  // How many times the Kernel will be executed.
+  int loop_cn;
+};
+
 class Operator {
 public:
   Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
-    : loops_(1), 
-    cpu_kernel_cnt_(cpu_kernel_cnt),
-    gpu_kernel_cnt_(gpu_kernel_cnt) {
-    config_.Initialize();
-  }
-  inline void SetLoops(const int loop = 1) { 
-    loops_ = loop;
+    : cpu_kernel_cnt_(cpu_kernel_cnt),
+      gpu_kernel_cnt_(gpu_kernel_cnt) {}
+  inline void SetOpParams(const OpParams &params) {
+    op_params_.launch_config = params.launch_config;
+    op_params_.loop_cn = params.loop_cn;
   }
   void PrintElapsedTime(const OpRunMode mode) const;
   
@@ -56,9 +60,7 @@ public:
   virtual void RunOnDevice() {};
 
 public: 
-  // How many times the Kernel will be executed.
-  int loops_;
-  LaunchConfig config_;
+  OpParams op_params_;
   
   GpuTimer gpu_timer_;
   std::vector<float> gpu_time_kernel_record_;

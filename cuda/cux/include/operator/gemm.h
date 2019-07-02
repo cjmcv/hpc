@@ -10,11 +10,11 @@
 
 namespace cux {
 
-struct GEMMOpParam {
+struct GEMMKernelParam {
   float alpha = 1.0;
   float beta = 0.0;
 
-  GEMMOpParam& operator=(const GEMMOpParam& in) {
+  GEMMKernelParam& operator=(const GEMMKernelParam& in) {
     alpha = in.alpha;
     beta = in.beta;
     return *this;
@@ -23,7 +23,7 @@ struct GEMMOpParam {
 
 class GEMM : public Operator {
 public:
-  GEMM(GEMMOpParam &params) :params_(params), Operator(2, 3) {}
+  GEMM(GEMMKernelParam &params) :kernel_params_(params), Operator(2, 3) {}
   static Operator *GEMM::Creator(std::string &params_str);
 
   void Help() const;
@@ -53,7 +53,7 @@ private:
   CuxData<float> *B_;
   CuxData<float> *C_;
 
-  GEMMOpParam params_;
+  GEMMKernelParam kernel_params_;
 };
 } // cux.
 

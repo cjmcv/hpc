@@ -15,12 +15,7 @@ namespace cux {
 
 class LaunchConfig {
 public:
-  // TODO: Delete the Initialize and assign in constructor.
-  void Initialize() {
-    int device;
-    CUDA_CHECK(cudaGetDevice(&device));
-    CUDA_CHECK(cudaGetDeviceProperties(&prop_, device));
-  }
+  LaunchConfig(Device *device) :device_(device) {}
 
   // occupancy = (double)active_warps / max_warps;
   void GetPotentialOccupancy(const void *kernel, const int block_size,
@@ -30,8 +25,8 @@ public:
     CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
       &active_blocks, kernel, block_size, dynamic_shared_mem));
 
-    int active_warps = active_blocks * block_size / prop_.warpSize;
-    int max_warps = prop_.maxThreadsPerMultiProcessor / prop_.warpSize;
+    int active_warps = active_blocks * block_size / device_->prop.warpSize;
+    int max_warps = device_->prop.maxThreadsPerMultiProcessor / device_->prop.warpSize;
 
     occupancy = (double)active_warps / max_warps;
   }
@@ -43,7 +38,7 @@ public:
     int &grid_size, int &block_size);
 
 private:
-  cudaDeviceProp prop_;
+  Device *device_;
 };
 
 }	//namespace cux

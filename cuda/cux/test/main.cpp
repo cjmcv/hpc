@@ -51,11 +51,11 @@ void MatrixPrint(const float* mat, const int height, const int width) {
 
 void DotProductTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
-  executor->SetDevice(0, is_show_info);
+  executor->Initialize(0, is_show_info);
   executor->SelectOp("dot_product", "");
 
-  const int loops = 100;
-  executor->SetDebugParams(loops);
+  const int loop_cn = 10;
+  executor->SetOpParams(loop_cn);
 
   const int data_len = 10240000; // data_len % threads_per_block == 0.
   cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 1, data_len);
@@ -83,16 +83,17 @@ void DotProductTest(const bool is_show_info) {
   delete in_b;
   delete out;
 
+  executor->Clear();
   delete executor;
 }
 
 void GEMMTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
-  executor->SetDevice(0, is_show_info);
+  executor->Initialize(0, is_show_info);
   executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
 
-  const int loops = 10;
-  executor->SetDebugParams(loops);
+  const int loop_cn = 10;
+  executor->SetOpParams(loop_cn);
 
   cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 256, 800);
   cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, 800, 320);
@@ -124,11 +125,12 @@ void GEMMTest(const bool is_show_info) {
   delete in_b;
   delete out_c;
 
+  executor->Clear();
   delete executor;
 }
 
 int main() {
-  int ret = cux::Executor::InitEnvironment();
+  int ret = cux::InitEnvironment();
   if (ret != 0) {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
     return -1;
@@ -142,7 +144,7 @@ int main() {
   GEMMTest(false);
   //////////
   
-  cux::Executor::CleanUpEnvironment();
+  cux::CleanUpEnvironment();
   system("pause");
   return 0;
 }
