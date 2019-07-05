@@ -5,11 +5,11 @@ project(cux)
 set(PROJECT_NAME cux)
 
 # Include
-SET(INCLUDE_LIST 
+SET(INCLUDE_DIR
     ${PROJECT_SOURCE_DIR}/../include
 )
-message(STATUS "include: ${INCLUDE_LIST}")
-include_directories(${INCLUDE_LIST})
+message(STATUS "include: ${INCLUDE_DIR}")
+include_directories(${INCLUDE_DIR})
 
 # Source
 file(GLOB_RECURSE SRC_LIST 
@@ -19,7 +19,10 @@ file(GLOB_RECURSE SRC_LIST
     "${PROJECT_SOURCE_DIR}/operator/*.cu"
     "${PROJECT_SOURCE_DIR}/util/*.cpp"
     "${PROJECT_SOURCE_DIR}/util/*.cu"
+    # Include
+    "${INCLUDE_DIR}/*.h"
 )
+
 message(STATUS "src: ${SRC_LIST}")
 
 cuda_add_library(${PROJECT_NAME} STATIC ${SRC_LIST})  #SHARED
