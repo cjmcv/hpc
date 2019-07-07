@@ -8,7 +8,6 @@
 #include "util/util.h"
 #include "util/op_factory.h"
 #include "util/launch_config.h"
-// TODO: Hide it.
 #include "operator.h"
 #include "operator/dot_product.h"
 #include "operator/gemm.h"
@@ -56,7 +55,8 @@ public:
       CUXLOG_COUT("*");
       CUXLOG_COUT("* GPU Device %d: \"%s\". ", device_.id, device_.prop.name);
       CUXLOG_COUT("* (device) Compute capability: %d.%d. ", device_.prop.major, device_.prop.minor);
-      CUXLOG_COUT("* (device) Multi-processors count: %d. ", device_.prop.multiProcessorCount);
+      CUXLOG_COUT("* (device) Number of multiprocessors on device: %d. ", device_.prop.multiProcessorCount);
+      CUXLOG_COUT("* (device) Maximum resident threads per multiprocessor: %d. ", device_.prop.maxThreadsPerMultiProcessor);
       CUXLOG_COUT("* (device) Global memory available on device in bytes: %zd. ", device_.prop.totalGlobalMem);
       CUXLOG_COUT("* (device) Constant memory available on device in bytes: %zd. ", device_.prop.totalConstMem);
       CUXLOG_COUT("*");

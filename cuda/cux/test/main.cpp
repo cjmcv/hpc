@@ -54,7 +54,7 @@ void DotProductTest(const bool is_show_info) {
   executor->Initialize(0, is_show_info);
   executor->SelectOp("dot_product", "");
 
-  const int loop_cn = 10;
+  const int loop_cn = 3;
   executor->SetOpParams(loop_cn);
 
   const int data_len = 10240000; // data_len % threads_per_block == 0.
@@ -92,11 +92,12 @@ void GEMMTest(const bool is_show_info) {
   executor->Initialize(0, is_show_info);
   executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
 
-  const int loop_cn = 10;
+  const int loop_cn = 2;
   executor->SetOpParams(loop_cn);
 
-  cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 256, 800);
-  cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, 800, 320);
+  int block_size = 32;
+  cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, block_size * 30, block_size * 25);
+  cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, block_size * 25, block_size * 40);
   std::vector<int> shape_a = in_a->shape();
   std::vector<int> shape_b = in_b->shape();
   cux::CuxData<float> *out_c = new cux::CuxData<float>(1, 1,

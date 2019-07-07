@@ -2,7 +2,7 @@
 
 namespace cux {
   
-// CUDA kernel V0 : 283ms
+// CUDA kernel V0
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
 //template <int BLOCK_SIZE>
@@ -32,7 +32,7 @@ __global__ void VectorDotProductDeviceV0(const float *vec_a, const float *vec_b,
   }
 }
 
-// CUDA kernel V1 : 201ms
+// CUDA kernel V1
 // Compute two blocks' data to the shared memory of one block.
 __global__ void VectorDotProductDeviceV1(const float *vec_a, const float *vec_b, const int len, float &res) {
   // Prevents memory access across the border.
@@ -60,7 +60,7 @@ __global__ void VectorDotProductDeviceV1(const float *vec_a, const float *vec_b,
   }
 }
 
-// CUDA kernel V2 : 179ms
+// CUDA kernel V2
 // Condition: The block size should be bigger than 32
 // Unroll the last warp
 __global__ void VectorDotProductDeviceV2(const float *vec_a, const float *vec_b, const int len, float &res) {
@@ -107,21 +107,21 @@ void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const float *
   case 0:
     VectorDotProductDeviceV0<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    op_params_.launch_config->GetPotentialOccupancy(
+    op_params_.launch_config->QueryPotentialOccupancy(
       VectorDotProductDeviceV0, threads_per_block, shared_memory_size,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 1:
     VectorDotProductDeviceV1<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    op_params_.launch_config->GetPotentialOccupancy(
+    op_params_.launch_config->QueryPotentialOccupancy(
       VectorDotProductDeviceV1, threads_per_block, shared_memory_size,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
     VectorDotProductDeviceV2<< <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (vec_a, vec_b, len, res);
-    op_params_.launch_config->GetPotentialOccupancy(
+    op_params_.launch_config->QueryPotentialOccupancy(
       VectorDotProductDeviceV2, threads_per_block, shared_memory_size,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;

@@ -10,7 +10,6 @@
 
 namespace cux {
 
-// TODO: 1. 使用模板控制数据类型，可能需要针对每一种类型重写kernel.
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct() :Operator(1, 3) {}

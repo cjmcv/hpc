@@ -68,7 +68,7 @@ enum DataFetchMode {
   } while(0);
 
 // Log
-#define CUXLOG_ERR(format, ...) fprintf(stderr,"[ERROR]: "##format"\n", ##__VA_ARGS__);
+#define CUXLOG_ERR(format, ...) fprintf(stderr,"[ERROR]: "##format"\n", ##__VA_ARGS__); std::abort();
 #define CUXLOG_WARN(format, ...) fprintf(stdout,"[WARN]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_COUT(format, ...) fprintf(stdout,"> "##format"\n", ##__VA_ARGS__);
@@ -151,10 +151,17 @@ public:
   }
 };
 
-// TODO: 2. 升级CuxData：添加标记位，避免重复拷贝 - Finish。静态动态内存、异步拷贝、对齐。。
+// TODO: 2. 升级CuxData：静态动态内存、异步拷贝、对齐。。
 //       4. 内存池（低优先级）
 //       5. CPU端异常处理/告警机制/错误码
-//       7. Layout渐变的效率分析
+//       7. Layout渐变的效率分析？
+//       https://blog.csdn.net/dcrmg/article/details/54577709
+//       8. 检索查看所有gpu设备。deviceQuery，新增一个类，包含device的查询、分析函数和设备推荐等函数。
+//       9. cmake添加新筛选器？
+//       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
+//       11. LaunchConfig: 分查询和推荐两类函数 - 规范命名。
+//                         布局推荐：一维/二维和三维三种，又分占用率和启发式两类。即共两个选择标志位。
+//                         由Op内部设置标志位获取layout，供所有kernel使用。
 ////
 // TODO: 1. 算法与cublas对应；命名统一、功能统一
 //       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。
@@ -165,6 +172,7 @@ public:
 //       6. InnerThread, 内部线程，为堵塞队列替换数据，共同服务于预取器Prefetcher
 //
 //       7. 在demo中，由用户自定义OP.
+//       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）.
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
 //                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断
@@ -173,7 +181,7 @@ public:
 //                 https://github.com/mratsim/Arraymancer/issues/112
 //                 3.使用cub，封装显存管理模块.
 //                 4.使用数据库，做参数查询，性能数据备份.
-//                 5.python接口封装?
+//                 5.python接口封装，前置任务->生成dll，导出多个必须的接口，才由python对这些接口做封装。
 //
 } // cux.
 #endif //CUX_UTIL_HPP_

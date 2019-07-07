@@ -146,7 +146,7 @@ void GEMM::GEMMDevice(const int kernel_id,
   case 0:
     GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    op_params_.launch_config->GetPotentialOccupancy(
+    op_params_.launch_config->QueryPotentialOccupancy(
       GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
@@ -156,7 +156,7 @@ void GEMM::GEMMDevice(const int kernel_id,
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
     GEMMDeviceV1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    op_params_.launch_config->GetPotentialOccupancy(
+    op_params_.launch_config->QueryPotentialOccupancy(
       GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
@@ -164,7 +164,7 @@ void GEMM::GEMMDevice(const int kernel_id,
     shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
     GEMMDeviceV2 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    op_params_.launch_config->GetPotentialOccupancy(
+    op_params_.launch_config->QueryPotentialOccupancy(
       GEMMDeviceV2, threads_per_block.x * threads_per_block.y, shared_memory_size,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
