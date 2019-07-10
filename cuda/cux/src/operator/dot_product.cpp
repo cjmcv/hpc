@@ -63,6 +63,9 @@ void VectorDotProduct::RunOnHost() {
   cpu_timer.Stop();
   cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
 
+  checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), 0);
+  checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), -1);
+
   CUXLOG_COUT("result: %f.", *out_->GetCpuData(NO_PUSH));
 }
 

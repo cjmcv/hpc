@@ -13,7 +13,7 @@ void PrintArray(std::string str, T *h_in, int num_items) {
 // Initialize the input data.
 void GenArray(const int len, float *arr) {
   for (int i = 0; i < len; i++) {
-    arr[i] = 1;//(float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
+    arr[i] = i % 2; // (float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
   }
 }
 
@@ -57,7 +57,8 @@ void DotProductTest(const bool is_show_info) {
   const int loop_cn = 3;
   executor->SetOpParams(loop_cn);
 
-  const int data_len = 10240000; // data_len % threads_per_block == 0.
+  // Too large a value may cause overflow.
+  const int data_len = 4096000; // data_len % threads_per_block == 0.
   cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 1, data_len);
   cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, 1, data_len);
   cux::CuxData<float> *out = new cux::CuxData<float>(1, 1, 1, 1);

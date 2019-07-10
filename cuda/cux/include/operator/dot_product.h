@@ -12,7 +12,7 @@ namespace cux {
 
 class VectorDotProduct : public Operator {
 public:
-  VectorDotProduct() :Operator(1, 3) {}
+  VectorDotProduct() :Operator(1, 4) {}
   static Operator *VectorDotProduct::Creator(std::string &params_str);
   
   void Help() const;
