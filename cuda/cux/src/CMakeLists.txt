@@ -22,13 +22,15 @@ file(GLOB_RECURSE SRC_LIST
     # Include
     "${INCLUDE_DIR}/*.h"
 )
-
 message(STATUS "src: ${SRC_LIST}")
+
+set(CUDA_LIBRARIES ${CUDA_LIBRARIES} ${CUDA_CUDA_LIBRARY} ${CUDA_CUBLAS_LIBRARIES})
+message(STATUS "CUDA_LIBRARIES: ${CUDA_LIBRARIES}")
 
 cuda_add_library(${PROJECT_NAME} STATIC ${SRC_LIST})  #SHARED
 
 set_target_properties(${PROJECT_NAME} PROPERTIES output_name "utils") 
-target_link_libraries(${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
 
 # Set output path
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../build)

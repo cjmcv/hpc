@@ -59,53 +59,11 @@ __global__ void GEMMDeviceV1(const int M, const int N,
   float *b_shared = &a_shared[blockDim.x * blockDim.x];
   //extern __shared__ float b_shared[];
 
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-  int xdim = blockDim.x * gridDim.x;
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  C[y * xdim + x] *= beta;
-  //__syncthreads();
-
-  float c_sub_acc = 0;
-  // For blocks in grid.
-  for (int bk = 0; bk < K / block_size; bk++) {
-    a_shared[threadIdx.y * block_size + threadIdx.x] = A[(blockIdx.y * block_size + threadIdx.y) * lda + (bk * block_size + threadIdx.x)];
-    b_shared[threadIdx.y * block_size + threadIdx.x] = B[(bk * block_size + threadIdx.y) * ldb + (blockIdx.x * block_size + threadIdx.x)];
-    // Wait for data to complete loading to Shared memory.
-    __syncthreads();
-
-    // For elements in a block.
-    for (int k = 0; k < block_size; k++) {
-      c_sub_acc += alpha * a_shared[threadIdx.y * block_size + k] * b_shared[k * block_size + threadIdx.x];
-    }
-    // To prevent the case from happening:
-    // The next round of data is loaded when the data in share memory is not used up.
-    __syncthreads();
-  }
-
-  C[(blockIdx.y * block_size + threadIdx.y) * ldc + (blockIdx.x * block_size + threadIdx.x)] += c_sub_acc;
-}
-
-// CUDA version 2.
-// Base on version 1. Use fewer unnecessary registers.
-//   Notice that v1 has only one active block, because 
-// each thread USES three more registers than v2, 
-// making it impossible to use more blocks
-__global__ void GEMMDeviceV2(const int M, const int N,
-                             const int K, const float alpha,
-                             const float *A, const int lda,
-                             const float *B, const int ldb,
-                             const float beta,
-                             float *C, const int ldc) {
-
-  const int block_size = blockDim.x;  
-
-  extern __shared__ float a_shared[];
-  float *b_shared = &a_shared[blockDim.x * blockDim.x];
-
   // y * xdim + x
-  C[(blockIdx.y * blockDim.y + threadIdx.y) 
-    * (blockDim.x * gridDim.x) 
+  C[(blockIdx.y * blockDim.y + threadIdx.y)
+    * (blockDim.x * gridDim.x)
     + (blockIdx.x * blockDim.x + threadIdx.x)] *= beta;
+  //__syncthreads();
 
   float c_sub_acc = 0;
   // For blocks in grid.
@@ -134,6 +92,11 @@ void GEMM::GEMMDevice(const int kernel_id,
                       const float *B, const int ldb,
                       const float beta,
                       float *C, const int ldc) {
+  cublasHandle_t cublas_handle;
+  if (cublasCreate(&cublas_handle) != CUBLAS_STATUS_SUCCESS) {
+    printf("Cannot create Cublas handle. Cublas won't be available.");
+  }
+
   // Layout.
   const int block_size = 32;
   dim3 threads_per_block(block_size, block_size);
@@ -161,12 +124,8 @@ void GEMM::GEMMDevice(const int kernel_id,
       gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
-    shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
-    GEMMDeviceV2 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
-      (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    op_params_.launch_config->QueryPotentialOccupancy(
-      GEMMDeviceV2, threads_per_block.x * threads_per_block.y, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N,
+      N, M, K, &alpha, B, ldb, A, lda, &beta, C, N);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
