@@ -23,7 +23,9 @@ struct GEMMKernelParam {
 
 class GEMM : public Operator {
 public:
-  GEMM(GEMMKernelParam &params) :kernel_params_(params), Operator(2, 3) {}
+  GEMM(GEMMKernelParam &params) :kernel_params_(params), Operator(2, 3) {
+    config_2d_.resize(gpu_kernel_cnt_);
+  }
   static Operator *GEMM::Creator(std::string &params_str);
 
   void Help() const;
@@ -48,12 +50,15 @@ public:
                   const float beta,
                   float *C, const int ldc);
 
+  void PrepareLaunchConfig(int N, int M);
+
 private:
   CuxData<float> *A_;
   CuxData<float> *B_;
   CuxData<float> *C_;
 
   GEMMKernelParam kernel_params_;
+  std::vector<Config2D> config_2d_;
 };
 } // cux.
 

@@ -162,4 +162,62 @@ void GEMM::RunOnHost() {
   CUXLOG_COUT("result: %f.", *C_->GetCpuData(PUSH));
 }
 
+//////////////////
+// cuda version.
+void GEMM::RunOnDevice() {
+  // Time recorder.
+  GpuTimer gpu_timer;
+
+  // Input.
+  gpu_timer.Start();
+  const float *A = A_->GetGpuData(PUSH_IF_EMPTY);
+  const float *B = B_->GetGpuData(PUSH_IF_EMPTY);
+  float *C = C_->GetGpuData(PUSH_IF_EMPTY);
+  gpu_timer.Stop();
+  gpu_time_in_record_ = gpu_timer.MilliSeconds();
+
+  const float alpha = kernel_params_.alpha;
+  const float beta = kernel_params_.beta;
+  const int M = A_->shape()[Shape::HEIGHT];
+  const int N = B_->shape()[Shape::WIDTH];
+  const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
+  const int lda = K;
+  const int ldb = N;
+  const int ldc = N;
+
+  // Save original data.
+  C_->Save(ON_DEVICE);
+
+  // Prepare launch config for kernels.
+  PrepareLaunchConfig(N, M);
+
+  // Warm up.
+  gpu_timer.Start();
+  GEMMDevice(0, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+  gpu_timer.Stop();
+  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
+
+  // Run.
+  gpu_time_kernel_record_.clear();
+  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
+    gpu_timer.Start();
+    for (int i = 0; i < op_params_.loop_cn; i++) {
+      //cudaMemset(C, 0, sizeof(float) * M * N);
+      C_->Restore(ON_DEVICE);
+      GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+    }
+    gpu_timer.Stop();
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
+
+    // Output, Only record the first time.
+    if (ki == 0) {
+      gpu_timer.Start();
+      C_->GetCpuData(PUSH);
+      gpu_timer.Stop();
+      gpu_time_out_record_ = gpu_timer.MilliSeconds();
+    }
+    checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
+  }
+}
+
 }

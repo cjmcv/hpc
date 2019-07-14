@@ -85,6 +85,37 @@ __global__ void GEMMDeviceV1(const int M, const int N,
   C[(blockIdx.y * block_size + threadIdx.y) * ldc + (blockIdx.x * block_size + threadIdx.x)] += c_sub_acc;
 }
 
+void GEMM::PrepareLaunchConfig(int N, int M) {
+  // V0 & V1
+  int kernel_id;
+  { 
+    Config2D config;
+    const int block_size = 32;
+    config.threads_per_block = dim3(block_size, block_size);
+    config.blocks_per_grid = dim3(N / config.threads_per_block.x, M / config.threads_per_block.y);
+
+    // V0
+    {
+      kernel_id = 0;
+      config_2d_[kernel_id] = config;
+
+      op_params_.launch_config->QueryPotentialOccupancy(
+        GEMMDeviceV0, config.threads_per_block.x * config.threads_per_block.y, 0,
+        gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    }
+    // V1
+    {
+      kernel_id = 1;
+      config.shared_memory_size = 2 * config.threads_per_block.x * config.threads_per_block.y * sizeof(float);
+      config_2d_[kernel_id] = config;
+
+      op_params_.launch_config->QueryPotentialOccupancy(
+        GEMMDeviceV1, config.threads_per_block.x * config.threads_per_block.y, config.shared_memory_size,
+        gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
+    }
+  }
+}
+
 void GEMM::GEMMDevice(const int kernel_id, 
                       const int M, const int N, 
                       const int K, const float alpha,
@@ -96,32 +127,19 @@ void GEMM::GEMMDevice(const int kernel_id,
   if (cublasCreate(&cublas_handle) != CUBLAS_STATUS_SUCCESS) {
     printf("Cannot create Cublas handle. Cublas won't be available.");
   }
-
-  // Layout.
-  const int block_size = 32;
-  dim3 threads_per_block(block_size, block_size);
-  dim3 blocks_per_grid(N / threads_per_block.x, M / threads_per_block.y);
-
-  int shared_memory_size = 0;
-  gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
-  gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
   switch (kernel_id) {
   case 0:
-    GEMMDeviceV0 << <blocks_per_grid, threads_per_block >> >
+    GEMMDeviceV0 << <config_2d_[kernel_id].blocks_per_grid, 
+                     config_2d_[kernel_id].threads_per_block >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    op_params_.launch_config->QueryPotentialOccupancy(
-      GEMMDeviceV0, threads_per_block.x * threads_per_block.y, 0,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 1:
     // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
     //       __shared__ float b_shared[threads_per_block.y][threads_per_block.x];
-    shared_memory_size = 2 * threads_per_block.x * threads_per_block.y * sizeof(float);
-    GEMMDeviceV1 << <blocks_per_grid, threads_per_block, shared_memory_size >> >
+    GEMMDeviceV1 << <config_2d_[kernel_id].blocks_per_grid, 
+                     config_2d_[kernel_id].threads_per_block, 
+                     config_2d_[kernel_id].shared_memory_size >> >
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    op_params_.launch_config->QueryPotentialOccupancy(
-      GEMMDeviceV1, threads_per_block.x * threads_per_block.y, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   case 2:
     cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N,
@@ -129,61 +147,6 @@ void GEMM::GEMMDevice(const int kernel_id,
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
-  }
-}
-
-//////////////////
-// cuda version.
-void GEMM::RunOnDevice() {
-  // Time recorder.
-  GpuTimer gpu_timer;
-
-  // Input.
-  gpu_timer.Start();
-  const float *A = A_->GetGpuData(PUSH_IF_EMPTY);
-  const float *B = B_->GetGpuData(PUSH_IF_EMPTY);
-  float *C = C_->GetGpuData(PUSH_IF_EMPTY);
-  gpu_timer.Stop();
-  gpu_time_in_record_ = gpu_timer.MilliSeconds();
-
-  const float alpha = kernel_params_.alpha;
-  const float beta = kernel_params_.beta;
-  const int M = A_->shape()[Shape::HEIGHT];
-  const int N = B_->shape()[Shape::WIDTH];
-  const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
-  const int lda = K;
-  const int ldb = N;
-  const int ldc = N;
-
-  // Save original data.
-  C_->Save(ON_DEVICE);
-
-  // Warm up.
-  gpu_timer.Start();
-  GEMMDevice(0, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-  gpu_timer.Stop();
-  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
-
-  // Run.
-  gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
-    gpu_timer.Start();
-    for (int i = 0; i < op_params_.loop_cn; i++) {
-      //cudaMemset(C, 0, sizeof(float) * M * N);
-      C_->Restore(ON_DEVICE);
-      GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    }
-    gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
-
-    // Output, Only record the first time.
-    if (ki == 0) {
-      gpu_timer.Start();
-      C_->GetCpuData(PUSH);
-      gpu_timer.Stop();
-      gpu_time_out_record_ = gpu_timer.MilliSeconds();
-    }
-    checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
   }
 }
 

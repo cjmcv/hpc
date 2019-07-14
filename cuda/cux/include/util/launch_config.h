@@ -23,18 +23,22 @@ struct Config1D {
   int threads_per_block = -1;
   // Number of blocks for Cuda kernel launch.
   int blocks_per_grid = -1;
+  // Shared memory
+  int shared_memory_size = 0;
 };
 
 struct Config2D {
   dim3 virtual_thread_count = dim3(0, 0, 0);
   dim3 threads_per_block = dim3(0, 0, 0);
   dim3 blocks_per_grid = dim3(0, 0, 0);
+  int shared_memory_size = 0;
 };
 
 struct Config3D {
   dim3 virtual_thread_count = dim3(0, 0, 0);
   dim3 threads_per_block = dim3(0, 0, 0);
   dim3 blocks_per_grid = dim3(0, 0, 0);
+  int shared_memory_size = 0;
 };
 
 class LaunchConfig {

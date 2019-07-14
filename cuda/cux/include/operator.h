@@ -44,7 +44,10 @@ class Operator {
 public:
   Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
     : cpu_kernel_cnt_(cpu_kernel_cnt),
-      gpu_kernel_cnt_(gpu_kernel_cnt) {}
+      gpu_kernel_cnt_(gpu_kernel_cnt) {
+    gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
+    gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
+  }
   inline void SetOpParams(const OpParams &params) {
     op_params_.launch_config = params.launch_config;
     op_params_.loop_cn = params.loop_cn;

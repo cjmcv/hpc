@@ -141,109 +141,54 @@ __global__ void VectorDotProductDeviceV3(const float *vec_a, const float *vec_b,
   }
 }
 
+void VectorDotProduct::PrepareLaunchConfig(int len) {
+  // V0 & V1 & V2, V3
+  std::vector<void *> kernel_funcs = { VectorDotProductDeviceV0, VectorDotProductDeviceV1, 
+                                       VectorDotProductDeviceV2, VectorDotProductDeviceV3 };
+  for(int id = 0; id < kernel_funcs.size(); id++) {
+    Config1D config;
+    config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, kernel_funcs[id], 0, len);
+    config.shared_memory_size = config.threads_per_block * sizeof(float);
+    config_1d_[id] = config;    
+    
+    op_params_.launch_config->QueryPotentialOccupancy(
+      kernel_funcs[id], config.threads_per_block, config.shared_memory_size,
+      gpu_kernel_active_blocks_[id], gpu_kernel_occupancys_[id]);
+  }
+  // default.
+  //config.threads_per_block = 1024;
+  //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
+}
+
 void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const float *vec_a, 
                                               const float *vec_b, const int len, float &res) {
-  // Layout.
-  Config1D config;
-  int shared_memory_size;
-
-  gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
-  gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
   switch (kernel_id) {
   case 0:
-    config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV0, 0, len);
-    shared_memory_size = config.threads_per_block * sizeof(float);
-
-    VectorDotProductDeviceV0<< <config.blocks_per_grid, config.threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV0<< <config_1d_[kernel_id].blocks_per_grid, 
+                                config_1d_[kernel_id].threads_per_block, 
+                                config_1d_[kernel_id].shared_memory_size >> >
       (vec_a, vec_b, len, res);
-
-    op_params_.launch_config->QueryPotentialOccupancy(
-      VectorDotProductDeviceV0, config.threads_per_block, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
-
   case 1:
-    config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV1, 0, len);
-    shared_memory_size = config.threads_per_block * sizeof(float);
-
-    VectorDotProductDeviceV1<< <config.blocks_per_grid, config.threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV1<< <config_1d_[kernel_id].blocks_per_grid, 
+                                config_1d_[kernel_id].threads_per_block, 
+                                config_1d_[kernel_id].shared_memory_size >> >
       (vec_a, vec_b, len, res);
-
-    op_params_.launch_config->QueryPotentialOccupancy(
-      VectorDotProductDeviceV1, config.threads_per_block, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
-
   case 2:
-    config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV2, 0, len);
-    shared_memory_size = config.threads_per_block * sizeof(float);
-
-    VectorDotProductDeviceV2<< <config.blocks_per_grid, config.threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV2<< <config_1d_[kernel_id].blocks_per_grid, 
+                                config_1d_[kernel_id].threads_per_block, 
+                                config_1d_[kernel_id].shared_memory_size >> >
       (vec_a, vec_b, len, res);
-
-    op_params_.launch_config->QueryPotentialOccupancy(
-      VectorDotProductDeviceV2, config.threads_per_block, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
-
   case 3:
-    //config.threads_per_block = 1024;
-    //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
-    config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV3, 0, len);
-    shared_memory_size = config.threads_per_block * sizeof(float);
-
-    VectorDotProductDeviceV3 << <config.blocks_per_grid, config.threads_per_block, shared_memory_size >> >
+    VectorDotProductDeviceV3 << <config_1d_[kernel_id].blocks_per_grid,
+                                 config_1d_[kernel_id].threads_per_block, 
+                                 config_1d_[kernel_id].shared_memory_size >> >
       (vec_a, vec_b, len, res);
-
-    op_params_.launch_config->QueryPotentialOccupancy(
-      VectorDotProductDeviceV3, config.threads_per_block, shared_memory_size,
-      gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
-  }
-}
-
-//////////////////
-// cuda version.
-void VectorDotProduct::RunOnDevice() {
-  // Time recorder.
-  GpuTimer gpu_timer;
-
-  // Input.
-  gpu_timer.Start();
-  const float *vec_a = in_a_->GetGpuData(PUSH_IF_EMPTY);
-  const float *vec_b = in_b_->GetGpuData(PUSH_IF_EMPTY);
-  const int len = in_a_->num_element();
-  float *result = out_->GetGpuData(NO_PUSH);
-  gpu_timer.Stop();
-  gpu_time_in_record_ = gpu_timer.MilliSeconds();
-
-  // Warm up.
-  gpu_timer.Start();
-  VectorDotProductDevice(0, vec_a, vec_b, len, *result);
-  gpu_timer.Stop();
-  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
-
-  // Run.
-  gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
-    gpu_timer.Start();
-    for (int i = 0; i < op_params_.loop_cn; i++) {
-      cudaMemset(result, 0, sizeof(float));
-      VectorDotProductDevice(ki, vec_a, vec_b, len, *result);
-    }
-    gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
-
-    // Output, Only record the first time.
-    if (ki == 0) {
-      gpu_timer.Start();
-      out_->GetCpuData(PUSH);
-      gpu_timer.Stop();
-      gpu_time_out_record_ = gpu_timer.MilliSeconds();
-    }
-    checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), ki);
   }
 }
 

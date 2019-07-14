@@ -69,4 +69,50 @@ void VectorDotProduct::RunOnHost() {
   CUXLOG_COUT("result: %f.", *out_->GetCpuData(NO_PUSH));
 }
 
+//////////////////
+// cuda version.
+void VectorDotProduct::RunOnDevice() {
+  // Time recorder.
+  GpuTimer gpu_timer;
+
+  // Input.
+  gpu_timer.Start();
+  const float *vec_a = in_a_->GetGpuData(PUSH_IF_EMPTY);
+  const float *vec_b = in_b_->GetGpuData(PUSH_IF_EMPTY);
+  const int len = in_a_->num_element();
+  float *result = out_->GetGpuData(NO_PUSH);
+  gpu_timer.Stop();
+  gpu_time_in_record_ = gpu_timer.MilliSeconds();
+
+  // Prepare launch config for kernels.
+  PrepareLaunchConfig(len);
+
+  // Warm up.
+  gpu_timer.Start();
+  VectorDotProductDevice(0, vec_a, vec_b, len, *result);
+  gpu_timer.Stop();
+  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
+
+  // Run.
+  gpu_time_kernel_record_.clear();
+  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
+    gpu_timer.Start();
+    for (int i = 0; i < op_params_.loop_cn; i++) {
+      cudaMemset(result, 0, sizeof(float));
+      VectorDotProductDevice(ki, vec_a, vec_b, len, *result);
+    }
+    gpu_timer.Stop();
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
+
+    // Output, Only record the first time.
+    if (ki == 0) {
+      gpu_timer.Start();
+      out_->GetCpuData(PUSH);
+      gpu_timer.Stop();
+      gpu_time_out_record_ = gpu_timer.MilliSeconds();
+    }
+    checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), ki);
+  }
+}
+
 }
