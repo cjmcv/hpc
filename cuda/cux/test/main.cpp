@@ -51,7 +51,7 @@ void MatrixPrint(const float* mat, const int height, const int width) {
 
 void DotProductTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
-  executor->Initialize(0, is_show_info);
+  executor->Initialize(0);
   executor->SelectOp("dot_product", "");
 
   const int loop_cn = 3;
@@ -90,7 +90,7 @@ void DotProductTest(const bool is_show_info) {
 
 void GEMMTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
-  executor->Initialize(0, is_show_info);
+  executor->Initialize(0);
   executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
 
   const int loop_cn = 2;
@@ -138,6 +138,7 @@ int main() {
     return -1;
   }
 
+  cux::QueryDevices();
   //////////
   printf("DotProductTest.\n");
   DotProductTest(true);

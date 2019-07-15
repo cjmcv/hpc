@@ -75,6 +75,13 @@ void VectorDotProduct::RunOnDevice() {
   // Time recorder.
   GpuTimer gpu_timer;
 
+  if (cublas_handle_ == nullptr) {
+    if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
+      CUXLOG_ERR("Cannot create Cublas handle. Cublas won't be available.");
+      return;
+    }
+  }
+
   // Input.
   gpu_timer.Start();
   const float *vec_a = in_a_->GetGpuData(PUSH_IF_EMPTY);
@@ -89,7 +96,7 @@ void VectorDotProduct::RunOnDevice() {
 
   // Warm up.
   gpu_timer.Start();
-  VectorDotProductDevice(0, vec_a, vec_b, len, *result);
+  VectorDotProductDevice(0, len, vec_a, vec_b, result);
   gpu_timer.Stop();
   gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
 
@@ -99,7 +106,7 @@ void VectorDotProduct::RunOnDevice() {
     gpu_timer.Start();
     for (int i = 0; i < op_params_.loop_cn; i++) {
       cudaMemset(result, 0, sizeof(float));
-      VectorDotProductDevice(ki, vec_a, vec_b, len, *result);
+      VectorDotProductDevice(ki, len, vec_a, vec_b, result);
     }
     gpu_timer.Stop();
     gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);

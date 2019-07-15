@@ -123,10 +123,6 @@ void GEMM::GEMMDevice(const int kernel_id,
                       const float *B, const int ldb,
                       const float beta,
                       float *C, const int ldc) {
-  cublasHandle_t cublas_handle;
-  if (cublasCreate(&cublas_handle) != CUBLAS_STATUS_SUCCESS) {
-    printf("Cannot create Cublas handle. Cublas won't be available.");
-  }
   switch (kernel_id) {
   case 0:
     GEMMDeviceV0 << <config_2d_[kernel_id].blocks_per_grid, 
@@ -142,7 +138,7 @@ void GEMM::GEMMDevice(const int kernel_id,
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     break;
   case 2:
-    cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N,
+    cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
       N, M, K, &alpha, B, ldb, A, lda, &beta, C, N);
     break;
   default:

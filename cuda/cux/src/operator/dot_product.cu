@@ -6,7 +6,7 @@ namespace cux {
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
 //template <int BLOCK_SIZE>
-__global__ void VectorDotProductDeviceV0(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV0(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len;
@@ -30,13 +30,13 @@ __global__ void VectorDotProductDeviceV0(const float *vec_a, const float *vec_b,
     }
 
     if (threadIdx.x == 0)
-      atomicAdd(&res, smem[0]);
+      atomicAdd(res, smem[0]);
   }
 }
 
 // CUDA kernel V1
 // Compute two blocks' data to the shared memory of one block.
-__global__ void VectorDotProductDeviceV1(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV1(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
@@ -60,12 +60,12 @@ __global__ void VectorDotProductDeviceV1(const float *vec_a, const float *vec_b,
     }
 
     if (threadIdx.x == 0)
-      atomicAdd(&res, smem[0]);
+      atomicAdd(res, smem[0]);
   }
 }
 
 // CUDA kernel V2
-__global__ void VectorDotProductDeviceV2(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 8;
@@ -93,12 +93,12 @@ __global__ void VectorDotProductDeviceV2(const float *vec_a, const float *vec_b,
     }
 
     if (threadIdx.x == 0)
-      atomicAdd(&res, smem[0]);
+      atomicAdd(res, smem[0]);
   }
 }
 
 // CUDA kernel V3
-__global__ void VectorDotProductDeviceV3(const float *vec_a, const float *vec_b, const int len, float &res) {
+__global__ void VectorDotProductDeviceV3(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 8;
@@ -137,7 +137,7 @@ __global__ void VectorDotProductDeviceV3(const float *vec_a, const float *vec_b,
     if (threadIdx.x < 1) smem[threadIdx.x] += smem[1 + threadIdx.x]; __syncthreads();
 
     if (threadIdx.x == 0)
-      atomicAdd(&res, smem[0]);
+      atomicAdd(res, smem[0]);
   }
 }
 
@@ -160,32 +160,38 @@ void VectorDotProduct::PrepareLaunchConfig(int len) {
   //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
 }
 
-void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const float *vec_a, 
-                                              const float *vec_b, const int len, float &res) {
+void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const int len, 
+                                              const float *vec_a, const float *vec_b, 
+                                              float *res) {
   switch (kernel_id) {
   case 0:
     VectorDotProductDeviceV0<< <config_1d_[kernel_id].blocks_per_grid, 
                                 config_1d_[kernel_id].threads_per_block, 
                                 config_1d_[kernel_id].shared_memory_size >> >
-      (vec_a, vec_b, len, res);
+      (len, vec_a, vec_b, res);
     break;
   case 1:
     VectorDotProductDeviceV1<< <config_1d_[kernel_id].blocks_per_grid, 
                                 config_1d_[kernel_id].threads_per_block, 
                                 config_1d_[kernel_id].shared_memory_size >> >
-      (vec_a, vec_b, len, res);
+      (len, vec_a, vec_b, res);
     break;
   case 2:
     VectorDotProductDeviceV2<< <config_1d_[kernel_id].blocks_per_grid, 
                                 config_1d_[kernel_id].threads_per_block, 
                                 config_1d_[kernel_id].shared_memory_size >> >
-      (vec_a, vec_b, len, res);
+      (len, vec_a, vec_b, res);
     break;
   case 3:
     VectorDotProductDeviceV3 << <config_1d_[kernel_id].blocks_per_grid,
                                  config_1d_[kernel_id].threads_per_block, 
                                  config_1d_[kernel_id].shared_memory_size >> >
-      (vec_a, vec_b, len, res);
+      (len, vec_a, vec_b, res);
+    break;
+  case 4:
+    float cpu_temp_res;
+    cublasSdot(cublas_handle_, len, vec_a, 1, vec_b, 1, &cpu_temp_res);
+    cudaMemcpy(res, &cpu_temp_res, 1 * sizeof(float), cudaMemcpyHostToDevice);
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);

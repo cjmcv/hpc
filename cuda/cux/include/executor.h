@@ -35,11 +35,45 @@ static void CleanUpEnvironment() {
   CUDA_CHECK(cudaDeviceReset());
 }
 
+static void QueryDevices() {
+  int device_count = 0;
+  CUDA_CHECK(cudaGetDeviceCount(&device_count));
+
+  CUXLOG_COUT("------------------ Information ------------------");
+  CUXLOG_COUT("-- The number of compute-capable devices: %d.", device_count);
+  CUXLOG_COUT("-------------------------------------------------");
+  for (int id = 0; id < device_count; ++id) {
+    cudaDeviceProp device_prop;
+    cudaGetDeviceProperties(&device_prop, id);
+    CUXLOG_COUT("***");
+    CUXLOG_COUT("* GPU Device %d: \"%s\". ", id, device_prop.name);
+    CUXLOG_COUT("* (device) Compute capability: %d.%d. ", device_prop.major, device_prop.minor);
+    CUXLOG_COUT("* (device) Number of multiprocessors on device: %d. ", device_prop.multiProcessorCount);
+    CUXLOG_COUT("* (device) Maximum resident threads per multiprocessor: %d. ", device_prop.maxThreadsPerMultiProcessor);
+    CUXLOG_COUT("* (device) Global memory available on device in bytes: %zd. ", device_prop.totalGlobalMem);
+    CUXLOG_COUT("* (device) Constant memory available on device in bytes: %zd. ", device_prop.totalConstMem);
+    CUXLOG_COUT("*");
+    CUXLOG_COUT("* (grid) Maximum size of each dimension of a grid: (%d, %d, %d). ",
+      device_prop.maxGridSize[0], device_prop.maxGridSize[1], device_prop.maxGridSize[2]);
+    CUXLOG_COUT("*");
+    CUXLOG_COUT("* (block) Shared memory available per block in bytes: %zd. ", device_prop.sharedMemPerBlock);
+    CUXLOG_COUT("* (block) 32-bit registers available per block: %d. ", device_prop.regsPerBlock);
+    CUXLOG_COUT("* (block) Maximum number of threads per block: %d. ", device_prop.maxThreadsPerBlock);
+    CUXLOG_COUT("* (block) Maximum size of each dimension of a block: (%d, %d, %d). ",
+      device_prop.maxThreadsDim[0], device_prop.maxThreadsDim[1], device_prop.maxThreadsDim[2]);
+    CUXLOG_COUT("*");
+    CUXLOG_COUT("* (thread) Warp size in threads: %d. ", device_prop.warpSize);
+    CUXLOG_COUT("*");
+    CUXLOG_COUT("***");
+  }
+  CUXLOG_COUT("-------------------------------------------------");
+}
+
 class Executor {
 public:
   Executor() :op_(nullptr), launch_config_(nullptr) {}
 
-  int Initialize(const int dev_id, const bool is_show_info = true) {
+  int Initialize(const int dev_id) {
     device_.id = dev_id;
 
     CUDA_CHECK(cudaSetDevice(device_.id));
@@ -48,31 +82,8 @@ public:
       CUXLOG_ERR("Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().");
       return -1;
     }
-    launch_config_ = new LaunchConfig(&device_);
 
-    if (is_show_info) {
-      CUXLOG_COUT("********************** Information ************************");
-      CUXLOG_COUT("*");
-      CUXLOG_COUT("* GPU Device %d: \"%s\". ", device_.id, device_.prop.name);
-      CUXLOG_COUT("* (device) Compute capability: %d.%d. ", device_.prop.major, device_.prop.minor);
-      CUXLOG_COUT("* (device) Number of multiprocessors on device: %d. ", device_.prop.multiProcessorCount);
-      CUXLOG_COUT("* (device) Maximum resident threads per multiprocessor: %d. ", device_.prop.maxThreadsPerMultiProcessor);
-      CUXLOG_COUT("* (device) Global memory available on device in bytes: %zd. ", device_.prop.totalGlobalMem);
-      CUXLOG_COUT("* (device) Constant memory available on device in bytes: %zd. ", device_.prop.totalConstMem);
-      CUXLOG_COUT("*");
-      CUXLOG_COUT("* (grid) Maximum size of each dimension of a grid: (%d, %d, %d). ",
-        device_.prop.maxGridSize[0], device_.prop.maxGridSize[1], device_.prop.maxGridSize[2]);
-      CUXLOG_COUT("*");
-      CUXLOG_COUT("* (block) Shared memory available per block in bytes: %zd. ", device_.prop.sharedMemPerBlock);
-      CUXLOG_COUT("* (block) 32-bit registers available per block: %d. ", device_.prop.regsPerBlock);
-      CUXLOG_COUT("* (block) Maximum number of threads per block: %d. ", device_.prop.maxThreadsPerBlock);
-      CUXLOG_COUT("* (block) Maximum size of each dimension of a block: (%d, %d, %d). ",
-        device_.prop.maxThreadsDim[0], device_.prop.maxThreadsDim[1], device_.prop.maxThreadsDim[2]);
-      CUXLOG_COUT("*");
-      CUXLOG_COUT("* (thread) Warp size in threads: %d. ", device_.prop.warpSize);
-      CUXLOG_COUT("*");
-      CUXLOG_COUT("***********************************************************");
-    }
+    launch_config_ = new LaunchConfig(&device_);
     return 0;
   }
 

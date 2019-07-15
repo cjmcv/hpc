@@ -157,10 +157,11 @@ public:
 //       4. 内存池（低优先级）
 //       5. CPU端异常处理/告警机制/错误码
 //       7. Layout渐变的效率分析？
-//       https://blog.csdn.net/dcrmg/article/details/54577709
-//       8. 检索查看所有gpu设备。deviceQuery，新增一个类，包含device的查询、分析函数和设备推荐等函数。
+//       8. 检索查看所有gpu设备。deviceQuery - finish
 //       9. cmake添加新筛选器？
 //       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
+//       11. CuxData添加半精度；
+//       11. gemm cublas半精度;
 ////
 // TODO: 1. 算法与cublas对应；命名统一、功能统一
 //       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。
