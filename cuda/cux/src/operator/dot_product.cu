@@ -160,7 +160,7 @@ void VectorDotProduct::PrepareLaunchConfig(int len) {
   //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
 }
 
-void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const int len, 
+void VectorDotProduct::VectorDotProductDevice(int kernel_id, int len, 
                                               const float *vec_a, const float *vec_b, 
                                               float *res) {
   switch (kernel_id) {
@@ -189,9 +189,10 @@ void VectorDotProduct::VectorDotProductDevice(const int kernel_id, const int len
       (len, vec_a, vec_b, res);
     break;
   case 4:
-    float cpu_temp_res;
-    cublasSdot(cublas_handle_, len, vec_a, 1, vec_b, 1, &cpu_temp_res);
-    cudaMemcpy(res, &cpu_temp_res, 1 * sizeof(float), cudaMemcpyHostToDevice);
+    // CUBLAS_POINTER_MODE_DEVICE: Return data on device -> res is a pointer for device.
+    // CUBLAS_POINTER_MODE_HOST: On host.
+    CUBLAS_CHECK(cublasSetPointerMode(cublas_handle_, CUBLAS_POINTER_MODE_DEVICE));
+    CUBLAS_CHECK(cublasSdot(cublas_handle_, len, vec_a, 1, vec_b, 1, res));
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);

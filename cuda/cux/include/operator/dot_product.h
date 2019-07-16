@@ -12,7 +12,7 @@ namespace cux {
 
 class VectorDotProduct : public Operator {
 public:
-  VectorDotProduct() :Operator(1, 5) {
+  VectorDotProduct() :Operator(2, 5) {
     config_1d_.resize(gpu_kernel_cnt_);
   }
   static Operator *VectorDotProduct::Creator(std::string &params_str);
@@ -23,7 +23,10 @@ public:
   void RunOnHost();
   void RunOnDevice();
 
-  void VectorDotProductDevice(const int kernel_id, const int len,
+  void VectorDotProductHost(int kernel_id, int len,
+                            const float *vec_a, const float *vec_b,
+                            float *res);
+  void VectorDotProductDevice(int kernel_id, int len,
                               const float *vec_a, const float *vec_b,
                               float *res);
 
@@ -35,8 +38,6 @@ private:
   CuxData<float> *out_;
 
   std::vector<Config1D> config_1d_;
-
-  cublasHandle_t cublas_handle_;
 };
 } // cux.
 

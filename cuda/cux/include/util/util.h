@@ -55,9 +55,25 @@ enum DataFetchMode {
 };
 
 ////////////////
+// Function.
+////////////////
+const char* CublasGetErrorString(cublasStatus_t error);
+
+////////////////
+// Class.
+////////////////
+class StrProcessor {
+public:
+  static std::string FetchSubStr(std::string &src_str, std::string start_str, std::string end_str) {
+    int start_idx = src_str.find(start_str) + start_str.length();
+    int end_idx = src_str.find(end_str, start_idx);
+    return src_str.substr(start_idx, end_idx - start_idx);
+  }
+};
+
+////////////////
 // Macro.
 ////////////////
-
 // Check for cuda error messages.
 #define CUDA_CHECK(condition) \
   do { \
@@ -68,6 +84,17 @@ enum DataFetchMode {
       exit(EXIT_FAILURE); \
     } \
   } while(0);
+
+// Check for cublas error messages.
+#define CUBLAS_CHECK(condition) \
+  do { \
+    cublasStatus_t status = condition; \
+	  if(status != CUBLAS_STATUS_SUCCESS) {	\
+		  fprintf(stderr, "CUBLAS_CHECK error in line %d of file %s : %s \n", \
+              __LINE__, __FILE__, cux::CublasGetErrorString(status) ); \
+		  exit(EXIT_FAILURE);	\
+	  } \
+  } while (0)
 
 // Log
 #define CUXLOG_ERR(format, ...) fprintf(stderr,"[ERROR]: "##format"\n", ##__VA_ARGS__); std::abort();
@@ -141,16 +168,6 @@ public:
 protected:
   std::chrono::time_point<clock> start_time_;
   std::chrono::time_point<clock> stop_time_;
-};
-
-// 
-class StrProcessor {
-public:
-  static std::string FetchSubStr(std::string &src_str, std::string start_str, std::string end_str) {
-    int start_idx = src_str.find(start_str) + start_str.length();
-    int end_idx = src_str.find(end_str, start_idx);
-    return src_str.substr(start_idx, end_idx - start_idx);
-  }
 };
 
 // TODO: 2. Éý¼¶CuxData£º¾²Ì¬¶¯Ì¬ÄÚ´æ¡¢Òì²½¿½±´¡¢¶ÔÆë¡£¡£

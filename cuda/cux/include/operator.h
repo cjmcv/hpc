@@ -44,9 +44,14 @@ class Operator {
 public:
   Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
     : cpu_kernel_cnt_(cpu_kernel_cnt),
-      gpu_kernel_cnt_(gpu_kernel_cnt) {
+      gpu_kernel_cnt_(gpu_kernel_cnt),
+      cublas_handle_(nullptr) {
     gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
     gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
+
+    if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
+      CUXLOG_ERR("Cannot create Cublas handle. Cublas won't be available.");
+    }
   }
   inline void SetOpParams(const OpParams &params) {
     op_params_.launch_config = params.launch_config;
@@ -85,6 +90,8 @@ public:
   // An element corresponds to a kernel.
   std::vector<double> gpu_kernel_occupancys_;
   std::vector<int> gpu_kernel_active_blocks_;
+
+  cublasHandle_t cublas_handle_;
 };
 } // cux.
 

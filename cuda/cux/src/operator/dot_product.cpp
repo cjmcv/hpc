@@ -4,10 +4,32 @@ namespace cux {
 
 ////////////////
 // CPU Kernel.
-void VectorDotProductHostV0(const float *vec_a, const float *vec_b, const int len, float &res) {
-  res = 0;
+void VectorDotProductHostV0(int len, const float *vec_a, const float *vec_b, float *res) {
+  float temp = 0;
   for (int i = 0; i < len; i++) {
-    res += vec_a[i] * vec_b[i];
+    temp += vec_a[i] * vec_b[i];
+  }
+  *res = temp;
+}
+void VectorDotProductHostV1(int len, const float *vec_a, const float *vec_b, float *res) {
+  float temp = 0;
+  for (int i = 0; i < len; i++) {
+    temp += vec_a[i] * vec_b[i];
+  }
+  *res = temp;
+}
+void VectorDotProduct::VectorDotProductHost(int kernel_id, int len,
+                                            const float *vec_a, const float *vec_b,
+                                            float *res) {
+  switch (kernel_id) {
+  case 0:
+    VectorDotProductHostV0(len, vec_a, vec_b, res);
+    break;
+  case 1:
+    VectorDotProductHostV1(len, vec_a, vec_b, res);
+    break;
+  default:
+    CUXLOG_ERR("Host Kernel id (%d) not found.", kernel_id);
   }
 }
 
@@ -55,16 +77,17 @@ void VectorDotProduct::RunOnHost() {
   
   // Run.
   cpu_time_kernel_record_.clear();
-  cpu_timer.Start();
-  for (int i = 0; i < op_params_.loop_cn; i++) {
-    *result = 0;
-    VectorDotProductHostV0(vec_a, vec_b, len, *result);
-  }
-  cpu_timer.Stop();
-  cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
+  for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
+    cpu_timer.Start();
+    for (int i = 0; i < op_params_.loop_cn; i++) {
+      *result = 0;
+      VectorDotProductHost(ki, len, vec_a, vec_b, result);
+    }
+    cpu_timer.Stop();  
 
-  checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), 0);
-  checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), -1);
+    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
+    checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), ki);
+  }
 
   CUXLOG_COUT("result: %f.", *out_->GetCpuData(NO_PUSH));
 }
@@ -74,13 +97,6 @@ void VectorDotProduct::RunOnHost() {
 void VectorDotProduct::RunOnDevice() {
   // Time recorder.
   GpuTimer gpu_timer;
-
-  if (cublas_handle_ == nullptr) {
-    if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
-      CUXLOG_ERR("Cannot create Cublas handle. Cublas won't be available.");
-      return;
-    }
-  }
 
   // Input.
   gpu_timer.Start();

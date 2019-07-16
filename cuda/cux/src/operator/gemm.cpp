@@ -168,13 +168,6 @@ void GEMM::RunOnDevice() {
   // Time recorder.
   GpuTimer gpu_timer;
 
-  if (cublas_handle_ == nullptr) {
-    if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
-      CUXLOG_ERR("Cannot create Cublas handle. Cublas won't be available.");
-      return;
-    }
-  }
-
   // Input.
   gpu_timer.Start();
   const float *A = A_->GetGpuData(PUSH_IF_EMPTY);

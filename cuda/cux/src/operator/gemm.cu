@@ -138,8 +138,8 @@ void GEMM::GEMMDevice(const int kernel_id,
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     break;
   case 2:
-    cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
-      N, M, K, &alpha, B, ldb, A, lda, &beta, C, N);
+    CUBLAS_CHECK(cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
+      N, M, K, &alpha, B, ldb, A, lda, &beta, C, N));
     break;
   default:
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
