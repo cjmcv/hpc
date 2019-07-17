@@ -2,7 +2,7 @@
 
 namespace cux {
   
-// CUDA kernel V0
+// CUDA version 0: 1.09 ms
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
 //template <int BLOCK_SIZE>
@@ -34,38 +34,8 @@ __global__ void VectorDotProductDeviceV0(const int len, const float *vec_a, cons
   }
 }
 
-// CUDA kernel V1
-// Compute two blocks' data to the shared memory of one block.
+// CUDA version 1: 0.46 ms
 __global__ void VectorDotProductDeviceV1(const int len, const float *vec_a, const float *vec_b, float *res) {
-  // Prevents memory access across the border.
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x;
-    i < len / 2;
-    i += blockDim.x * gridDim.x) {
-    extern __shared__ float smem[]; // Dynamic allocation.
-    // Mainly in here. 
-    // Limiting conditions: len is at least twice as large as block_size and len will be a multiple of 2.
-    smem[threadIdx.x] = vec_a[i] * vec_b[i] +vec_a[i + len / 2] * vec_b[i + len / 2];
-    __syncthreads();
-
-    // Limiting conditions: len should be a multiple of block_size.
-    int count = blockDim.x >> 1;
-    while (count >= 1) {
-      if (threadIdx.x < count) {
-        smem[threadIdx.x] += smem[count + threadIdx.x];
-      }
-      // Synchronize the threads within the block,
-      // then go to next round together.
-      __syncthreads();
-      count >>= 1;
-    }
-
-    if (threadIdx.x == 0)
-      atomicAdd(res, smem[0]);
-  }
-}
-
-// CUDA kernel V2
-__global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 8;
@@ -97,8 +67,8 @@ __global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, cons
   }
 }
 
-// CUDA kernel V3
-__global__ void VectorDotProductDeviceV3(const int len, const float *vec_a, const float *vec_b, float *res) {
+// CUDA version 2: 0.45 ms
+__global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 8;
@@ -142,9 +112,9 @@ __global__ void VectorDotProductDeviceV3(const int len, const float *vec_a, cons
 }
 
 void VectorDotProduct::PrepareLaunchConfig(int len) {
-  // V0 & V1 & V2, V3
+  // V0 & V1 & V2
   std::vector<void *> kernel_funcs = { VectorDotProductDeviceV0, VectorDotProductDeviceV1, 
-                                       VectorDotProductDeviceV2, VectorDotProductDeviceV3 };
+                                       VectorDotProductDeviceV2 };
   for(int id = 0; id < kernel_funcs.size(); id++) {
     Config1D config;
     config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, kernel_funcs[id], 0, len);
@@ -158,6 +128,17 @@ void VectorDotProduct::PrepareLaunchConfig(int len) {
   // default.
   //config.threads_per_block = 1024;
   //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
+}
+
+std::string &VectorDotProduct::GetDeviceKernelsInfo(int kernel_id) {
+  static std::string info[4] = { "Shared memory",
+                                 "Shared memory / Loop unrolling",
+                                 "Shared memory / Loop unrolling",
+                                 "Cublas" };
+  if (kernel_id < 0 || kernel_id >= 4) {
+    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+  }
+  return info[kernel_id];
 }
 
 void VectorDotProduct::VectorDotProductDevice(int kernel_id, int len, 
@@ -183,19 +164,14 @@ void VectorDotProduct::VectorDotProductDevice(int kernel_id, int len,
       (len, vec_a, vec_b, res);
     break;
   case 3:
-    VectorDotProductDeviceV3 << <config_1d_[kernel_id].blocks_per_grid,
-                                 config_1d_[kernel_id].threads_per_block, 
-                                 config_1d_[kernel_id].shared_memory_size >> >
-      (len, vec_a, vec_b, res);
-    break;
-  case 4:
+    // CUDA version 4: 0.59 ms
     // CUBLAS_POINTER_MODE_DEVICE: Return data on device -> res is a pointer for device.
     // CUBLAS_POINTER_MODE_HOST: On host.
     CUBLAS_CHECK(cublasSetPointerMode(cublas_handle_, CUBLAS_POINTER_MODE_DEVICE));
     CUBLAS_CHECK(cublasSdot(cublas_handle_, len, vec_a, 1, vec_b, 1, res));
     break;
   default:
-    CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
+    CUXLOG_ERR("VectorDotProductDevice -> Device Kernel id (%d) not found.", kernel_id);
   }
 }
 

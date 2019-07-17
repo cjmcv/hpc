@@ -57,7 +57,7 @@ public:
     op_params_.launch_config = params.launch_config;
     op_params_.loop_cn = params.loop_cn;
   }
-  void PrintElapsedTime(const OpRunMode mode) const;
+  void PrintElapsedTime(const OpRunMode mode);
   
   // Show relevant prompts.
   virtual void Help() const {};
@@ -66,6 +66,9 @@ public:
                         const std::vector< CuxData<float>* > &output) { return -1; };
   virtual void RunOnHost() {};
   virtual void RunOnDevice() {};
+
+  virtual std::string &GetHostKernelsInfo(int kernel_id) { static std::string t = ""; return t; };
+  virtual std::string &GetDeviceKernelsInfo(int kernel_id) { static std::string t = ""; return t; };
 
 public: 
   OpParams op_params_;

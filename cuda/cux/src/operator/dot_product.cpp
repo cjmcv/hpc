@@ -2,8 +2,8 @@
 
 namespace cux {
 
-////////////////
-// CPU Kernel.
+// CPU version 0: 11 ms
+// Normal version in cpu as a reference
 void VectorDotProductHostV0(int len, const float *vec_a, const float *vec_b, float *res) {
   float temp = 0;
   for (int i = 0; i < len; i++) {
@@ -11,13 +11,42 @@ void VectorDotProductHostV0(int len, const float *vec_a, const float *vec_b, flo
   }
   *res = temp;
 }
+
+// CPU version 1: 3 ms
+// SIMD.
 void VectorDotProductHostV1(int len, const float *vec_a, const float *vec_b, float *res) {
-  float temp = 0;
-  for (int i = 0; i < len; i++) {
-    temp += vec_a[i] * vec_b[i];
+  float result = 0;
+
+  // Using 8 as the base number to call simd.
+  if (len > 8) {
+    __m128 sum = _mm_setzero_ps();
+    for (int i = 0; i < len - 7; i += 8) {
+      __m128 a0 = _mm_loadu_ps(vec_a + i);
+      __m128 a1 = _mm_loadu_ps(vec_a + i + 4);
+
+      __m128 b0 = _mm_loadu_ps(vec_b + i);
+      __m128 b1 = _mm_loadu_ps(vec_b + i + 4);
+
+      sum = _mm_add_ps(sum, _mm_add_ps(_mm_mul_ps(a0, b0), _mm_mul_ps(a1, b1)));
+    }
+    result = sum.m128_f32[0] + sum.m128_f32[1] + sum.m128_f32[2] + sum.m128_f32[3];
   }
-  *res = temp;
+
+  // Calculate the remaining part.
+  for (int i = len / 8 * 8; i < len; i++) {
+    result += vec_a[i] * vec_b[i];
+  }
+  *res = result;
 }
+
+std::string &VectorDotProduct::GetHostKernelsInfo(int kernel_id) {
+  static std::string info[2] = { "Normal", "SIMD" };
+  if (kernel_id < 0 || kernel_id >= 2) {
+    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+  }
+  return info[kernel_id];
+}
+
 void VectorDotProduct::VectorDotProductHost(int kernel_id, int len,
                                             const float *vec_a, const float *vec_b,
                                             float *res) {

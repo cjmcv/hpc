@@ -49,10 +49,10 @@ INSTANTIATE_CLASS(ResultChecker);
 
 ///////////////
 // Operator
-void Operator::PrintElapsedTime(const OpRunMode mode) const {
+void Operator::PrintElapsedTime(const OpRunMode mode) {
   if (mode == OpRunMode::ON_HOST) {
     for (int ki = 0; ki < cpu_time_kernel_record_.size(); ki++) {
-      CUXLOG_COUT("CPU: %f ms for kernel V%d.", cpu_time_kernel_record_[ki], ki);
+      CUXLOG_COUT("CPU: %f ms for kernel V%d : %s.", cpu_time_kernel_record_[ki], ki, GetHostKernelsInfo(ki).c_str());
     }
   }
   else if (mode == OpRunMode::ON_DEVICE) {
@@ -64,8 +64,8 @@ void Operator::PrintElapsedTime(const OpRunMode mode) const {
       return;
     }
     for (int ki = 0; ki < gpu_time_kernel_record_.size(); ki++) {
-      CUXLOG_COUT("GPU: %f ms for kernel V%d (Occuancys :%f, active_blocks: %d).", 
-        gpu_time_kernel_record_[ki], ki, gpu_kernel_occupancys_[ki], gpu_kernel_active_blocks_[ki]);
+      CUXLOG_COUT("GPU: %f ms for kernel V%d (Occuancys :%f, active_blocks: %d) : %s.", 
+        gpu_time_kernel_record_[ki], ki, gpu_kernel_occupancys_[ki], gpu_kernel_active_blocks_[ki], GetDeviceKernelsInfo(ki).c_str());
     }
   }
 }

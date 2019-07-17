@@ -23,7 +23,7 @@ struct GEMMKernelParam {
 
 class GEMM : public Operator {
 public:
-  GEMM(GEMMKernelParam &params) :kernel_params_(params), Operator(2, 3) {
+  GEMM(GEMMKernelParam &params) :kernel_params_(params), Operator(3, 3) {
     config_2d_.resize(gpu_kernel_cnt_);
   }
   static Operator *GEMM::Creator(std::string &params_str);
@@ -33,6 +33,9 @@ public:
                 const std::vector< CuxData<float>* > &output);
   void RunOnHost();
   void RunOnDevice();
+
+  std::string &GetHostKernelsInfo(int kernel_id);
+  std::string &GetDeviceKernelsInfo(int kernel_id);
 
   void GEMMHost(const int kernel_id, 
                 const int M, const int N,

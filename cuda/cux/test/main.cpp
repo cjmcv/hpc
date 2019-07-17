@@ -54,7 +54,7 @@ void DotProductTest(const bool is_show_info) {
   executor->Initialize(0);
   executor->SelectOp("dot_product", "");
 
-  const int loop_cn = 3;
+  const int loop_cn = 1 ;
   executor->SetOpParams(loop_cn);
 
   // Too large a value may cause overflow.
@@ -93,7 +93,7 @@ void GEMMTest(const bool is_show_info) {
   executor->Initialize(0);
   executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
 
-  const int loop_cn = 2;
+  const int loop_cn = 1;
   executor->SetOpParams(loop_cn);
 
   int block_size = 32;

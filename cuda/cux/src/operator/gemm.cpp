@@ -5,9 +5,34 @@
 
 namespace cux {
   
-// CPU version 1: 1583 ms
+// CPU version 0: 3718 ms
 // Normal version in cpu as a reference
-void GEMMHostV0(const int M, const int N, 
+void GEMMHostV0(const int M, const int N,
+                const int K, const float alpha,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                const float beta,
+                float *C, const int ldc) {
+  int i, j, k;
+  for (i = 0; i < M; ++i) {
+    for (j = 0; j < N; ++j) {
+      C[i*ldc + j] *= beta;
+    }
+  }
+  for (i = 0; i < M; ++i) {
+    for (j = 0; j < N; ++j) {
+      float temp = C[i*ldc + j];
+      for (k = 0; k < K; ++k) {
+        temp += alpha * A[i*lda + k] * B[k*ldb + j];
+      }
+      C[i*ldc + j] = temp;
+    }
+  }
+}
+
+// CPU version 1: 383 ms
+// Normal version in cpu as a reference
+void GEMMHostV1(const int M, const int N, 
                 const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -29,9 +54,9 @@ void GEMMHostV0(const int M, const int N,
   }
 }
 
-// CPU version 2: 3389 ms
-// Block based matrix multiplication in cpu.
-void GEMMHostV1(const int M, const int N, 
+// CPU version 2: 1400 ms
+// Block-based matrix multiplication in cpu.
+void GEMMHostV2(const int M, const int N, 
                 const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -68,6 +93,14 @@ void GEMMHostV1(const int M, const int N,
 }
 
 //////////
+std::string &GEMM::GetHostKernelsInfo(int kernel_id) {
+  static std::string info[3] = { "Normal", "Adjust iteration order", "Block-based" };
+  if (kernel_id < 0 || kernel_id >= 3) {
+    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+  }
+  return info[kernel_id];
+}
+
 void GEMM::GEMMHost(const int kernel_id, 
                     const int M, const int N,
                     const int K, const float alpha,
@@ -82,6 +115,9 @@ void GEMM::GEMMHost(const int kernel_id,
     break;
   case 1:
     GEMMHostV1(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+    break;
+  case 2:
+    GEMMHostV2(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     break;
   default:
     CUXLOG_ERR("Host Kernel id (%d) not found.", kernel_id);

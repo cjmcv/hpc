@@ -20,7 +20,7 @@ static int InitEnvironment() {
   OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
   OpFactory::GetInstance().RegisterOpClass("gemm", GEMM::Creator);
 
-  CUXLOG_COUT("* Registered Op: < %s>", OpFactory::GetInstance().PrintList().c_str());
+  CUXLOG_COUT("* Registered Op: %s.", OpFactory::GetInstance().PrintList().c_str());
   return 0;
 }
 
@@ -39,7 +39,7 @@ static void QueryDevices() {
   int device_count = 0;
   CUDA_CHECK(cudaGetDeviceCount(&device_count));
 
-  CUXLOG_COUT("------------------ Information ------------------");
+  CUXLOG_COUT("-------------< Device Information >--------------");
   CUXLOG_COUT("-- The number of compute-capable devices: %d.", device_count);
   CUXLOG_COUT("-------------------------------------------------");
   for (int id = 0; id < device_count; ++id) {

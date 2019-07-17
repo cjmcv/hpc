@@ -4,7 +4,7 @@
 #include "operator/gemm.h"
 
 namespace cux {
-// CUDA version 1: 72 ms
+// CUDA version 0: 15 ms
 // It is rewrited from GEMMHostV2. 
 // bi,bj can be replaced by blockIdx.x,blockIdx.y
 // i,j can be replaced by threadIdx.x,threadIdx.y
@@ -41,7 +41,7 @@ __global__ void GEMMDeviceV0(const int M, const int N,
   C[(blockIdx.y * block_size + threadIdx.y) * ldc + (blockIdx.x * block_size + threadIdx.x)] += c_sub_acc;
 }
 
-// CUDA version 1.
+// CUDA version 1: 9 ms
 // Use shared memory.
 __global__ void GEMMDeviceV1(const int M, const int N, 
                              const int K, const float alpha,
@@ -116,6 +116,16 @@ void GEMM::PrepareLaunchConfig(int N, int M) {
   }
 }
 
+std::string &GEMM::GetDeviceKernelsInfo(int kernel_id) {
+  static std::string info[3] = { "Normal(Block-based)",
+                                 "Shared memory",
+                                 "Cublas" };
+  if (kernel_id < 0 || kernel_id >= 3) {
+    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+  }
+  return info[kernel_id];
+}
+
 void GEMM::GEMMDevice(const int kernel_id, 
                       const int M, const int N, 
                       const int K, const float alpha,
@@ -138,6 +148,7 @@ void GEMM::GEMMDevice(const int kernel_id,
       (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     break;
   case 2:
+    // CUDA version 2: 1.14 ms
     CUBLAS_CHECK(cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
       N, M, K, &alpha, B, ldb, A, lda, &beta, C, N));
     break;
