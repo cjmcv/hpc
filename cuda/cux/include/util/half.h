@@ -77,9 +77,11 @@ static int32_t const norC = 0x00400;  // min flt32 normal down shifted
 static int32_t const maxD = infC - maxC - 1;
 static int32_t const minD = minC - subC - 1;
 
-// fp32 9.125 = 0 10000010 00100100000000000000000
-// fp16 9.125 = 0 10010 0010010000
-uint16_t float2halfb(const float& value) {
+// Example:
+//   fp32 9.125 = 0 10000010 00100100000000000000000
+//   fp16 9.125 = 0 10010 0010010000
+// Host version of device function __float2half_rn()
+uint16_t float2half(const float& value) {
   Bits v, s;
   v.f = value;
   uint32_t sign = v.si & signN; // grab sign bit: 0 10000010 00100100000000000000000 & 1 00000000 00000000000000000000000
@@ -88,24 +90,6 @@ uint16_t float2halfb(const float& value) {
   sign >>= shiftSign;           // logical shift sign to fp16 position: sign = 0000000000000000 0 000000000000000
   s.si = mulN;                  // s.si = 0 10100100 00000000000000000000000‬ => 0 164-127 000.. = 1.0 * 2^37
   s.si = s.f * v.f;             // correct subnormals: s = 
-  v.si ^= (s.si ^ v.si) & -(minN > v.si);
-  v.si ^= (infN ^ v.si) & -((infN > v.si) & (v.si > maxN));
-  v.si ^= (nanN ^ v.si) & -((nanN > v.si) & (v.si > infN));
-  v.ui >>= shift;               // logical shift
-  v.si ^= ((v.si - maxD) ^ v.si) & -(v.si > maxC);
-  v.si ^= ((v.si - minD) ^ v.si) & -(v.si > subC);
-  return v.ui | sign;
-}
-
-// Host version of device function __float2half_rn()
-uint16_t float2half(const float& value) {
-  Bits v, s;
-  v.f = value;
-  uint32_t sign = v.si & signN; // grab sign bit
-  v.si ^= sign;                 // clear sign bit from v
-  sign >>= shiftSign;           // logical shift sign to fp16 position
-  s.si = mulN;
-  s.si = s.f * v.f;             // correct subnormals
   v.si ^= (s.si ^ v.si) & -(minN > v.si);
   v.si ^= (infN ^ v.si) & -((infN > v.si) & (v.si > maxN));
   v.si ^= (nanN ^ v.si) & -((nanN > v.si) & (v.si > infN));

@@ -1,5 +1,6 @@
 #include "operator.h"
 #include "executor.h"
+#include "util/half.h"
 // 
 template <typename T>
 void PrintArray(std::string str, T *h_in, int num_items) {
@@ -131,6 +132,14 @@ void GEMMTest(const bool is_show_info) {
   delete executor;
 }
 
+void HalfTest() {
+  float in = 9.125;
+  uint16_t out16 = cux::float2half(in);
+  float out32 = cux::half2float(out16);
+
+  printf("in: %f -> out16: %x -> out32: %f \n", in, out16, out32);
+}
+
 int main() {
   int ret = cux::InitEnvironment();
   if (ret != 0) {
@@ -138,13 +147,15 @@ int main() {
     return -1;
   }
 
-  cux::QueryDevices();
+  //cux::QueryDevices();
   //////////
-  printf("DotProductTest.\n");
-  DotProductTest(true);
+  //printf("DotProductTest.\n");
+  //DotProductTest(true);
 
-  printf("\n\nGEMMTest.\n");
-  GEMMTest(false);
+  //printf("\n\nGEMMTest.\n");
+  //GEMMTest(false);
+
+  HalfTest();
   //////////
   
   cux::CleanUpEnvironment();

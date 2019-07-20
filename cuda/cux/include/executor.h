@@ -15,7 +15,7 @@
 namespace cux {
 
 static int InitEnvironment() {
-  CUXLOG_INFO("Initialize Ennviroment.");
+  CUXLOG_INFO("Initialize Environment.");
 
   OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
   OpFactory::GetInstance().RegisterOpClass("gemm", GEMM::Creator);
@@ -25,7 +25,7 @@ static int InitEnvironment() {
 }
 
 static void CleanUpEnvironment() {
-  CUXLOG_INFO("Cleanup Ennviroment.");
+  CUXLOG_INFO("Cleanup Environment.");
   // Reset the device and exit
   // cudaDeviceReset causes the driver to clean up all state. While
   // not mandatory in normal operation, it is good practice.  It is also
