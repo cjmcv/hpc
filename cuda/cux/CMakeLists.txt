@@ -50,6 +50,16 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_30,code=\"sm_30,com
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-ftz=true)  # Flush denormals to zero
 
 ############################################
-# Subdir
+# source
 add_subdirectory(src)
-add_subdirectory(test)
+add_subdirectory(example)
+
+############################################
+# 3rdparty
+set(GOOGLETEST_VERSION 1.9.0)
+set(GTEST_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/googletest/googletest")
+set(GTEST_INCLUDE_DIR ${GTEST_ROOT}/include)
+set(GTEST_LIBRARIES gtest gtest_main)
+set(GTEST_MAIN_LIBRARY gtest_main)
+set(GTEST_LIBRARY gtest)
+add_subdirectory(${GTEST_ROOT})
