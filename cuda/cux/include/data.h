@@ -2,8 +2,8 @@
 * \brief CuxData.
 */
 
-#ifndef CUX_CUXDATA_HPP_
-#define CUX_CUXDATA_HPP_
+#ifndef CUX_CUXDATA_H_
+#define CUX_CUXDATA_H_
 
 #include "util/util.h"
 
@@ -162,4 +162,4 @@ private:
 };
 
 } // cux.
-#endif //CUX_CUXDATA_HPP_
+#endif //CUX_CUXDATA_H_

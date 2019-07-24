@@ -30,8 +30,8 @@ set(CMAKE_BUILD_TYPE "Release")  # Debug
 if(WIN32)
   # MSVC
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-  set(CMAKE_CXX_FLAGS_DEBUG "/D_DEBUG /MDd /Ob2 /Od")
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /D_ITERATOR_DEBUG_LEVEL=0")
+  set(CMAKE_CXX_FLAGS_DEBUG "/D_DEBUG /MTd /Ob2 /Od")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /D_ITERATOR_DEBUG_LEVEL=0")
   set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /D_ITERATOR_DEBUG_LEVEL=0")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /D_ITERATOR_DEBUG_LEVEL=0")
 else(WIN32)
@@ -49,10 +49,7 @@ set(CUDA_NVCC_FLAG_RELEASE "-O3 -Wall")
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_30,code=\"sm_30,compute_30\";-gencode arch=compute_35,code=\"sm_35,compute_35\";-gencode arch=compute_52,code=\"sm_52,compute_52\")
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-ftz=true)  # Flush denormals to zero
 
-############################################
-# source
-add_subdirectory(src)
-add_subdirectory(example)
+set(OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
 ############################################
 # 3rdparty
@@ -63,3 +60,16 @@ set(GTEST_LIBRARIES gtest gtest_main)
 set(GTEST_MAIN_LIBRARY gtest_main)
 set(GTEST_LIBRARY gtest)
 add_subdirectory(${GTEST_ROOT})
+
+############################################
+# cux source
+set(CUX_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_subdirectory(src)
+
+############################################
+# example
+add_subdirectory(example)
+
+############################################
+# unit test
+add_subdirectory(tests)

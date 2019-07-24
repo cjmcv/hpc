@@ -2,8 +2,8 @@
 * \brief gemm: C(M, N) = A(M, K) * B(K, N). -> (height, width)
 */
 
-#ifndef CUX_GEMM_HPP_
-#define CUX_GEMM_HPP_
+#ifndef CUX_GEMM_H_
+#define CUX_GEMM_H_
 
 #include "util/util.h"
 #include "operator.h"
@@ -65,4 +65,4 @@ private:
 };
 } // cux.
 
-#endif //CUX_GEMM_HPP_
+#endif //CUX_GEMM_H_

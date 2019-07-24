@@ -2,8 +2,8 @@
 * \brief Utility.
 */
 
-#ifndef CUX_UTIL_HPP_
-#define CUX_UTIL_HPP_
+#ifndef CUX_UTIL_H_
+#define CUX_UTIL_H_
 
 #include <iostream>
 #include <cuda_runtime.h>
@@ -193,7 +193,7 @@ protected:
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
 //                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断
-//                 2.使用cublas，添加到Op中作为测试基准.
+//                 2.使用cublas，添加到Op中作为测试基准.-Finish
 //                 https://nvlabs.github.io/cub/structcub_1_1_caching_device_allocator.html
 //                 https://github.com/mratsim/Arraymancer/issues/112
 //                 3.使用cub，封装显存管理模块.
@@ -201,4 +201,4 @@ protected:
 //                 5.python接口封装，前置任务->生成dll，导出多个必须的接口，才由python对这些接口做封装。
 //
 } // cux.
-#endif //CUX_UTIL_HPP_
+#endif //CUX_UTIL_H_

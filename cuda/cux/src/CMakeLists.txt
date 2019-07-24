@@ -6,7 +6,7 @@ set(PROJECT_NAME cux)
 
 # Include
 SET(INCLUDE_DIR
-    ${PROJECT_SOURCE_DIR}/../include
+    ${CUX_INCLUDE_DIR}
 )
 message(STATUS "include: ${INCLUDE_DIR}")
 include_directories(${INCLUDE_DIR})
@@ -33,5 +33,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES output_name "utils")
 target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
 
 # Set output path
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../build)
+set(LIBRARY_OUTPUT_PATH ${OUTPUT_DIR})
 message(STATUS "LIBRARY_OUTPUT_PATH: ${LIBRARY_OUTPUT_PATH}")

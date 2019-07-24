@@ -2,8 +2,8 @@
 * \brief Executor. cux's outermost scheduler.
 */
 
-#ifndef CUX_EXECUTOR_HPP_
-#define CUX_EXECUTOR_HPP_
+#ifndef CUX_EXECUTOR_H_
+#define CUX_EXECUTOR_H_
 
 #include "util/util.h"
 #include "util/op_factory.h"
@@ -131,4 +131,4 @@ private:
 };
 
 } // cux.
-#endif //CUX_EXECUTOR_HPP_
+#endif //CUX_EXECUTOR_H_

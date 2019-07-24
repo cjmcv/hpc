@@ -2,8 +2,8 @@
 * \brief Operator.
 */
 
-#ifndef CUX_OPERATOR_HPP_
-#define CUX_OPERATOR_HPP_
+#ifndef CUX_OPERATOR_H_
+#define CUX_OPERATOR_H_
 
 #include <vector>
 #include "util/util.h"
@@ -98,4 +98,4 @@ public:
 };
 } // cux.
 
-#endif //CUX_OPERATOR_HPP_
+#endif //CUX_OPERATOR_H_

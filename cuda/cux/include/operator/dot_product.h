@@ -2,8 +2,8 @@
 * \brief Dot Product.
 */
 
-#ifndef CUX_DOT_PRODUCT_HPP_
-#define CUX_DOT_PRODUCT_HPP_
+#ifndef CUX_DOT_PRODUCT_H_
+#define CUX_DOT_PRODUCT_H_
 
 #include "util/util.h"
 #include "operator.h"
@@ -44,4 +44,4 @@ private:
 };
 } // cux.
 
-#endif //CUX_DOT_PRODUCT_HPP_
+#endif //CUX_DOT_PRODUCT_H_
