@@ -1,6 +1,7 @@
 #include "operator.h"
 #include "executor.h"
 #include "util/half.h"
+#include "gtest/gtest.h"
 // 
 template <typename T>
 void PrintArray(std::string str, T *h_in, int num_items) {
@@ -133,14 +134,16 @@ void GEMMTest(const bool is_show_info) {
 }
 
 void HalfTest() {
-  float in = 9.125;
-  uint16_t out16 = cux::float2half(in);
-  float out32 = cux::half2float(out16);
+  cux::half a;
+  cux::half *ptr = new cux::half[10];
 
-  printf("in: %f -> out16: %x -> out32: %f \n", in, out16, out32);
+  printf("size: %d. %d\n", sizeof(a), sizeof(cux::half));
 }
 
 int main() {
+  testing::InitGoogleTest();
+  RUN_ALL_TESTS();
+
   int ret = cux::InitEnvironment();
   if (ret != 0) {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
@@ -154,10 +157,9 @@ int main() {
 
   //printf("\n\nGEMMTest.\n");
   //GEMMTest(false);
-
-  HalfTest();
   //////////
-  
+  //HalfTest();
+
   cux::CleanUpEnvironment();
   system("pause");
   return 0;

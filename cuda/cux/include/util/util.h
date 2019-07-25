@@ -177,10 +177,10 @@ protected:
 //       8. 检索查看所有gpu设备。deviceQuery - finish
 //       9. cmake添加新筛选器？
 //       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
-//       11. CuxData添加半精度；
+//       11. CuxData添加半精度；- Finish
 //       11. gemm cublas半精度;
 ////
-// TODO: 1. 算法与cublas对应；命名统一、功能统一
+// TODO: 1. 算法与cublas对应；命名统一、功能统一 - Finih
 //       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。
 //
 //       3. demo：1）多组数据连续处理（预取），2）多操作混搭组合成公式做运算
@@ -192,7 +192,7 @@ protected:
 //       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）.
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
-//                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断
+//                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断 - Finish
 //                 2.使用cublas，添加到Op中作为测试基准.-Finish
 //                 https://nvlabs.github.io/cub/structcub_1_1_caching_device_allocator.html
 //                 https://github.com/mratsim/Arraymancer/issues/112

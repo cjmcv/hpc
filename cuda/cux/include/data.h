@@ -5,7 +5,9 @@
 #ifndef CUX_CUXDATA_H_
 #define CUX_CUXDATA_H_
 
+#include <vector>
 #include "util/util.h"
+#include "util/half.h"
 
 namespace cux {
 
@@ -89,7 +91,7 @@ public:
     }
   }
 
-  inline const std::vector<int> &shape() { return shape_; }
+  inline const std::vector<int> shape() const { return shape_; }
   inline int num_element() { return num_element_; }
   inline int size() { return size_; }
 
@@ -123,12 +125,10 @@ public:
       cpu_data_ = new Dtype[num_element_];
       is_create = true;
     }
-
     bool is_push = (mode == PUSH || (mode == PUSH_IF_EMPTY && is_create));
     if (is_push && gpu_data_ != nullptr) {
       CUDA_CHECK(cudaMemcpy(cpu_data_, gpu_data_, size(), cudaMemcpyDeviceToHost));
     }
-
     return cpu_data_;
   }
 
@@ -138,12 +138,10 @@ public:
       CUDA_CHECK(cudaMalloc(&gpu_data_, size()));
       is_create = true;
     }
-
     bool is_push = (mode == PUSH || (mode == PUSH_IF_EMPTY && is_create));
     if (is_push && cpu_data_ != nullptr) {
       CUDA_CHECK(cudaMemcpy(gpu_data_, cpu_data_, size(), cudaMemcpyHostToDevice));
     }
-
     return gpu_data_;
   }
 
