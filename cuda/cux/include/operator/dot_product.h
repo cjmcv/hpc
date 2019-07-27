@@ -10,7 +10,8 @@
 
 namespace cux {
 
-class VectorDotProduct : public Operator {
+template <typename Dtype>
+class VectorDotProduct : public Operator<Dtype> {
 public:
   VectorDotProduct() :Operator(2, 4) {
     config_1d_.resize(gpu_kernel_cnt_);
@@ -18,27 +19,28 @@ public:
   static Operator *VectorDotProduct::Creator(std::string &params_str);
   
   void Help() const;
-  int SetIoData(const std::vector< CuxData<float>* > &input,
-                const std::vector< CuxData<float>* > &output);
+  int SetIoData(const std::vector< CuxData<Dtype>* > &input,
+                const std::vector< CuxData<Dtype>* > &output);
   void RunOnHost();
   void RunOnDevice();
 
+private:
   std::string &GetHostKernelsInfo(int kernel_id);
   std::string &GetDeviceKernelsInfo(int kernel_id);
 
   void VectorDotProductHost(int kernel_id, int len,
-                            const float *vec_a, const float *vec_b,
-                            float *res);
+                            const Dtype *vec_a, const Dtype *vec_b,
+                            Dtype *res);
   void VectorDotProductDevice(int kernel_id, int len,
-                              const float *vec_a, const float *vec_b,
-                              float *res);
+                              const Dtype *vec_a, const Dtype *vec_b,
+                              Dtype *res);
 
   void PrepareLaunchConfig(int len);
 
 private:
-  CuxData<float> *in_a_;
-  CuxData<float> *in_b_;
-  CuxData<float> *out_;
+  CuxData<Dtype> *in_a_;
+  CuxData<Dtype> *in_b_;
+  CuxData<Dtype> *out_;
 
   std::vector<Config1D> config_1d_;
 };

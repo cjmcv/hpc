@@ -6,11 +6,11 @@
 #define CUX_UTIL_H_
 
 #include <iostream>
+#include <chrono>
+
 #include <cuda_runtime.h>
 #include "device_launch_parameters.h"
 #include <cublas_v2.h>
-
-#include <chrono>
 
 namespace cux {
 
@@ -102,10 +102,14 @@ public:
 #define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_COUT(format, ...) fprintf(stdout,"> "##format"\n", ##__VA_ARGS__);
 
+//#define INSTANTIATE_CLASS(classname) \
+//  char gInstantiationGuard##classname; \
+//  template class classname<float>; \
+//  template class classname<double>
+
 #define INSTANTIATE_CLASS(classname) \
   char gInstantiationGuard##classname; \
-  template class classname<float>; \
-  template class classname<double>
+  template class classname<float>
 
 ////////////////
 // Struct.

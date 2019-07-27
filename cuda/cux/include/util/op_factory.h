@@ -14,13 +14,14 @@
 
 namespace cux { 
 
+template <typename Dtype>
 class OpFactory {
   // A function pointer.
-  typedef Operator *(*OpCreator)(std::string &params_str);
+  typedef Operator<Dtype> *(*OpCreator)(std::string &params_str);
 public:
   ~OpFactory() {};
 
-  Operator *CreateOpByType(std::string type, std::string param_str) {
+  Operator<Dtype> *CreateOpByType(std::string type, std::string param_str) {
     std::map<std::string, OpCreator>::iterator it = op_creator_map_.find(type);
     if (it == op_creator_map_.end()) {
       CUXLOG_ERR("Can not find Op: %s", type.c_str());

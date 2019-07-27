@@ -39,7 +39,8 @@ void VectorDotProductHostV1(int len, const float *vec_a, const float *vec_b, flo
   *res = result;
 }
 
-std::string &VectorDotProduct::GetHostKernelsInfo(int kernel_id) {
+template <typename Dtype>
+std::string &VectorDotProduct<Dtype>::GetHostKernelsInfo(int kernel_id) {
   static std::string info[2] = { "Normal", "SIMD" };
   if (kernel_id < 0 || kernel_id >= 2) {
     CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
@@ -47,9 +48,10 @@ std::string &VectorDotProduct::GetHostKernelsInfo(int kernel_id) {
   return info[kernel_id];
 }
 
-void VectorDotProduct::VectorDotProductHost(int kernel_id, int len,
-                                            const float *vec_a, const float *vec_b,
-                                            float *res) {
+template <typename Dtype>
+void VectorDotProduct<Dtype>::VectorDotProductHost(int kernel_id, int len,
+                                                   const Dtype *vec_a, const Dtype *vec_b,
+                                                   Dtype *res) {
   switch (kernel_id) {
   case 0:
     VectorDotProductHostV0(len, vec_a, vec_b, res);
@@ -62,7 +64,8 @@ void VectorDotProduct::VectorDotProductHost(int kernel_id, int len,
   }
 }
 
-void VectorDotProduct::Help() const {
+template <typename Dtype>
+void VectorDotProduct<Dtype>::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: Vector Dot Product.");
   CUXLOG_COUT("* Function: sum += a[i] * b[i]");
@@ -72,12 +75,14 @@ void VectorDotProduct::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-Operator *VectorDotProduct::Creator(std::string &params_str) {
+template <typename Dtype>
+Operator<Dtype> *VectorDotProduct<Dtype>::Creator(std::string &params_str) {
   return new VectorDotProduct();
 }
 
-int VectorDotProduct::SetIoData(const std::vector< CuxData<float>* > &input,
-                                const std::vector< CuxData<float>* > &output) {
+template <typename Dtype>
+int VectorDotProduct<Dtype>::SetIoData(const std::vector< CuxData<Dtype>* > &input,
+                                       const std::vector< CuxData<Dtype>* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
@@ -95,7 +100,8 @@ int VectorDotProduct::SetIoData(const std::vector< CuxData<float>* > &input,
 ////////////////////////////////////////////////
 // cpp version: 965ms
 // Normal version in cpu as a reference
-void VectorDotProduct::RunOnHost() {
+template <typename Dtype>
+void VectorDotProduct<Dtype>::RunOnHost() {
   CpuTimer cpu_timer;
 
   // Warp.
@@ -123,7 +129,20 @@ void VectorDotProduct::RunOnHost() {
 
 //////////////////
 // cuda version.
-void VectorDotProduct::RunOnDevice() {
+template <typename Dtype>
+std::string &VectorDotProduct<Dtype>::GetDeviceKernelsInfo(int kernel_id) {
+  static std::string info[4] = { "Shared memory",
+    "Shared memory / Loop unrolling",
+    "Shared memory / Loop unrolling",
+    "Cublas" };
+  if (kernel_id < 0 || kernel_id >= 4) {
+    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+  }
+  return info[kernel_id];
+}
+
+template <typename Dtype>
+void VectorDotProduct<Dtype>::RunOnDevice() {
   // Time recorder.
   GpuTimer gpu_timer;
 
@@ -166,5 +185,5 @@ void VectorDotProduct::RunOnDevice() {
     checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), ki);
   }
 }
-
+INSTANTIATE_CLASS(VectorDotProduct);
 }

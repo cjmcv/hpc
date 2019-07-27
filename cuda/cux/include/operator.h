@@ -40,6 +40,7 @@ struct OpParams {
   int loop_cn;
 };
 
+template <typename Dtype>
 class Operator {
 public:
   Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
@@ -60,12 +61,12 @@ public:
   void PrintElapsedTime(const OpRunMode mode);
   
   // Show relevant prompts.
-  virtual void Help() const {};
+  virtual void Help() const = 0;
   // Set the input and output data.
-  virtual int SetIoData(const std::vector< CuxData<float>* > &input,
-                        const std::vector< CuxData<float>* > &output) { return -1; };
-  virtual void RunOnHost() {};
-  virtual void RunOnDevice() {};
+  virtual int SetIoData(const std::vector< CuxData<Dtype>* > &input,
+                        const std::vector< CuxData<Dtype>* > &output) { return -1; };
+  virtual void RunOnHost() = 0;
+  virtual void RunOnDevice() = 0;
 
   virtual std::string &GetHostKernelsInfo(int kernel_id) { static std::string t = ""; return t; };
   virtual std::string &GetDeviceKernelsInfo(int kernel_id) { static std::string t = ""; return t; };
@@ -83,7 +84,7 @@ public:
   std::vector<float> cpu_time_kernel_record_;
   
   // Verify the correctness of the output.
-  ResultChecker<float> checker_;
+  ResultChecker<Dtype> checker_;
 
   // The total number of Kenrels.
   int cpu_kernel_cnt_;

@@ -85,7 +85,8 @@ __global__ void GEMMDeviceV1(const int M, const int N,
   C[(blockIdx.y * block_size + threadIdx.y) * ldc + (blockIdx.x * block_size + threadIdx.x)] += c_sub_acc;
 }
 
-void GEMM::PrepareLaunchConfig(int N, int M) {
+template <typename Dtype>
+void GEMM<Dtype>::PrepareLaunchConfig(int N, int M) {
   // V0 & V1
   int kernel_id;
   { 
@@ -116,23 +117,14 @@ void GEMM::PrepareLaunchConfig(int N, int M) {
   }
 }
 
-std::string &GEMM::GetDeviceKernelsInfo(int kernel_id) {
-  static std::string info[3] = { "Normal(Block-based)",
-                                 "Shared memory",
-                                 "Cublas" };
-  if (kernel_id < 0 || kernel_id >= 3) {
-    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
-  }
-  return info[kernel_id];
-}
-
-void GEMM::GEMMDevice(const int kernel_id, 
+template <typename Dtype>
+void GEMM<Dtype>::GEMMDevice(const int kernel_id,
                       const int M, const int N, 
                       const int K, const float alpha,
-                      const float *A, const int lda,
-                      const float *B, const int ldb,
+                      const Dtype *A, const int lda,
+                      const Dtype *B, const int ldb,
                       const float beta,
-                      float *C, const int ldc) {
+                      Dtype *C, const int ldc) {
   switch (kernel_id) {
   case 0:
     GEMMDeviceV0 << <config_2d_[kernel_id].blocks_per_grid, 
@@ -156,5 +148,22 @@ void GEMM::GEMMDevice(const int kernel_id,
     CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
   }
 }
+
+template void GEMM<float>::GEMMDevice(const int kernel_id,
+                                      const int M, const int N,
+                                      const int K, const float alpha,
+                                      const float *A, const int lda,
+                                      const float *B, const int ldb,
+                                      const float beta,
+                                      float *C, const int ldc);
+//template void GEMM<half>::GEMMDevice(const int kernel_id,
+//                                      const int M, const int N,
+//                                      const int K, const float alpha,
+//                                      const half *A, const int lda,
+//                                      const half *B, const int ldb,
+//                                      const float beta,
+//                                      half *C, const int ldc);
+
+template void GEMM<float>::PrepareLaunchConfig(int N, int M);
 
 } // namespace cux

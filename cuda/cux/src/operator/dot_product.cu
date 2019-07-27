@@ -111,7 +111,8 @@ __global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, cons
   }
 }
 
-void VectorDotProduct::PrepareLaunchConfig(int len) {
+template <typename Dtype>
+void VectorDotProduct<Dtype>::PrepareLaunchConfig(int len) {
   // V0 & V1 & V2
   std::vector<void *> kernel_funcs = { VectorDotProductDeviceV0, VectorDotProductDeviceV1, 
                                        VectorDotProductDeviceV2 };
@@ -130,20 +131,10 @@ void VectorDotProduct::PrepareLaunchConfig(int len) {
   //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
 }
 
-std::string &VectorDotProduct::GetDeviceKernelsInfo(int kernel_id) {
-  static std::string info[4] = { "Shared memory",
-                                 "Shared memory / Loop unrolling",
-                                 "Shared memory / Loop unrolling",
-                                 "Cublas" };
-  if (kernel_id < 0 || kernel_id >= 4) {
-    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
-  }
-  return info[kernel_id];
-}
-
-void VectorDotProduct::VectorDotProductDevice(int kernel_id, int len, 
-                                              const float *vec_a, const float *vec_b, 
-                                              float *res) {
+template <typename Dtype>
+void VectorDotProduct<Dtype>::VectorDotProductDevice(int kernel_id, int len,
+                                                     const Dtype *vec_a, const Dtype *vec_b,
+                                                     Dtype *res) {
   switch (kernel_id) {
   case 0:
     VectorDotProductDeviceV0<< <config_1d_[kernel_id].blocks_per_grid, 
@@ -174,5 +165,9 @@ void VectorDotProduct::VectorDotProductDevice(int kernel_id, int len,
     CUXLOG_ERR("VectorDotProductDevice -> Device Kernel id (%d) not found.", kernel_id);
   }
 }
+
+template void VectorDotProduct<float>::VectorDotProductDevice(
+  int kernel_id, int len, const float *vec_a, const float *vec_b, float *res);
+template void VectorDotProduct<float>::PrepareLaunchConfig(int len);
 
 }

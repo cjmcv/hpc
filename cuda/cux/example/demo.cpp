@@ -133,13 +133,6 @@ void GEMMTest(const bool is_show_info) {
   delete executor;
 }
 
-void HalfTest() {
-  cux::half a;
-  cux::half *ptr = new cux::half[10];
-
-  printf("size: %d. %d\n", sizeof(a), sizeof(cux::half));
-}
-
 int main() {
   testing::InitGoogleTest();
   RUN_ALL_TESTS();
@@ -149,7 +142,6 @@ int main() {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
     return -1;
   }
-
   //cux::QueryDevices();
   //////////
   //printf("DotProductTest.\n");

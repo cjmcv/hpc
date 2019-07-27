@@ -49,7 +49,8 @@ INSTANTIATE_CLASS(ResultChecker);
 
 ///////////////
 // Operator
-void Operator::PrintElapsedTime(const OpRunMode mode) {
+template <typename Dtype>
+void Operator<Dtype>::PrintElapsedTime(const OpRunMode mode) {
   if (mode == OpRunMode::ON_HOST) {
     for (int ki = 0; ki < cpu_time_kernel_record_.size(); ki++) {
       CUXLOG_COUT("CPU: %f ms for kernel V%d : %s.", cpu_time_kernel_record_[ki], ki, GetHostKernelsInfo(ki).c_str());
@@ -70,4 +71,5 @@ void Operator::PrintElapsedTime(const OpRunMode mode) {
   }
 }
 
+INSTANTIATE_CLASS(Operator);
 } // cux.

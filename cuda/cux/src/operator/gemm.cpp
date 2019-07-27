@@ -93,7 +93,8 @@ void GEMMHostV2(const int M, const int N,
 }
 
 //////////
-std::string &GEMM::GetHostKernelsInfo(int kernel_id) {
+template <typename Dtype>
+std::string &GEMM<Dtype>::GetHostKernelsInfo(int kernel_id) {
   static std::string info[3] = { "Normal", "Adjust iteration order", "Block-based" };
   if (kernel_id < 0 || kernel_id >= 3) {
     CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
@@ -101,13 +102,14 @@ std::string &GEMM::GetHostKernelsInfo(int kernel_id) {
   return info[kernel_id];
 }
 
-void GEMM::GEMMHost(const int kernel_id, 
+template <typename Dtype>
+void GEMM<Dtype>::GEMMHost(const int kernel_id,
                     const int M, const int N,
                     const int K, const float alpha,
-                    const float *A, const int lda,
-                    const float *B, const int ldb,
+                    const Dtype *A, const int lda,
+                    const Dtype *B, const int ldb,
                     const float beta,
-                    float *C, const int ldc) {
+                    Dtype *C, const int ldc) {
   int shared_memory_size = 0;
   switch (kernel_id) {
   case 0:
@@ -124,7 +126,8 @@ void GEMM::GEMMHost(const int kernel_id,
   }
 }
 
-void GEMM::Help() const {
+template <typename Dtype>
+void GEMM<Dtype>::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: GEMM.");
   CUXLOG_COUT("* Function: C(M, N) = A(M, K) * B(K, N) -> (height, width)");
@@ -134,15 +137,17 @@ void GEMM::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-Operator *GEMM::Creator(std::string &params_str) {
+template <typename Dtype>
+Operator<Dtype> *GEMM<Dtype>::Creator(std::string &params_str) {
   GEMMKernelParam params;
   params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
   params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
   return new GEMM(params);
 }
 
-int GEMM::SetIoData(const std::vector< CuxData<float>* > &input,
-                    const std::vector< CuxData<float>* > &output) {
+template <typename Dtype>
+int GEMM<Dtype>::SetIoData(const std::vector< CuxData<Dtype>* > &input,
+                    const std::vector< CuxData<Dtype>* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
@@ -160,7 +165,8 @@ int GEMM::SetIoData(const std::vector< CuxData<float>* > &input,
 ////////////////////////////////////////////////
 // cpp version
 // Normal version in cpu as a reference
-void GEMM::RunOnHost() {
+template <typename Dtype>
+void GEMM<Dtype>::RunOnHost() {
   CpuTimer cpu_timer;
 
   // Warp.
@@ -200,7 +206,19 @@ void GEMM::RunOnHost() {
 
 //////////////////
 // cuda version.
-void GEMM::RunOnDevice() {
+template <typename Dtype>
+std::string &GEMM<Dtype>::GetDeviceKernelsInfo(int kernel_id) {
+  static std::string info[3] = { "Normal(Block-based)",
+    "Shared memory",
+    "Cublas" };
+  if (kernel_id < 0 || kernel_id >= 3) {
+    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+  }
+  return info[kernel_id];
+}
+
+template <typename Dtype>
+void GEMM<Dtype>::RunOnDevice() {
   // Time recorder.
   GpuTimer gpu_timer;
 
@@ -255,5 +273,5 @@ void GEMM::RunOnDevice() {
     checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
   }
 }
-
+INSTANTIATE_CLASS(GEMM);
 }
