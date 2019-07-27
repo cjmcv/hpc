@@ -12,10 +12,14 @@
 namespace cux {
 
 // Mainly used for backup and restore of cuxdata.
-template <typename Dtype>
 class CuxDataBack {
 public:
-  CuxDataBack() : cpu_data_(nullptr), gpu_data_(nullptr) {}
+  CuxDataBack(int type_flag) : cpu_data_(nullptr),
+    gpu_data_(nullptr),
+    type_flag_(type_flag) {
+    TYPE_SWITCH(type_flag, T, element_size_ = sizeof(T););
+  }
+
   ~CuxDataBack() {
     if (cpu_data_ != nullptr) {
       delete[]cpu_data_;
@@ -26,41 +30,45 @@ public:
       gpu_data_ = nullptr;
     }
   }
+  inline int type_flag() { return type_flag_; }
 
-  void SaveCpuData(const Dtype *cpu_data, const int num_element) {
+  void SaveCpuData(const void *cpu_data, const int num_element) {
     if (cpu_data_ == nullptr) {
-      cpu_data_ = new Dtype[num_element];
+      TYPE_SWITCH(type_flag_, T, cpu_data_ = new T[num_element];);
     }
-    memcpy(cpu_data_, cpu_data, sizeof(Dtype) * num_element);
+    memcpy(cpu_data_, cpu_data, element_size_ * num_element);
   }
-  void RestoreCpuData(Dtype *cpu_data, int &num_element) {
+  void RestoreCpuData(void *cpu_data, int &num_element) {
     if (cpu_data_ == nullptr) {
       return;
     }
-    memcpy(cpu_data, cpu_data_, sizeof(Dtype) * num_element);
+    memcpy(cpu_data, cpu_data_, element_size_ * num_element);
   }
   //
-  void SaveGpuData(const Dtype *gpu_data, const int num_element) {
+  void SaveGpuData(const void *gpu_data, const int num_element) {
     if (gpu_data_ == nullptr) {
-      CUDA_CHECK(cudaMalloc(&gpu_data_, sizeof(Dtype) * num_element));
+      CUDA_CHECK(cudaMalloc(&gpu_data_, element_size_ * num_element));
     }
-    CUDA_CHECK(cudaMemcpy(gpu_data_, gpu_data, sizeof(Dtype) * num_element, cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(gpu_data_, gpu_data, element_size_ * num_element, cudaMemcpyDeviceToDevice));
   }
-  void RestoreGpuData(Dtype *gpu_data, int &num_element) {
+  void RestoreGpuData(void *gpu_data, int &num_element) {
     if (gpu_data_ == nullptr) {
       return;
     }
-    CUDA_CHECK(cudaMemcpy(gpu_data, gpu_data_, sizeof(Dtype) * num_element, cudaMemcpyDeviceToDevice));
+    CUDA_CHECK(cudaMemcpy(gpu_data, gpu_data_, element_size_ * num_element, cudaMemcpyDeviceToDevice));
   }
 public:
-  Dtype *cpu_data_;
-  Dtype *gpu_data_;
+  void *cpu_data_;
+  void *gpu_data_;
+
+  int type_flag_;
+  int element_size_;
 };
 
 template <typename Dtype>
 class CuxData {
 public:
-  explicit CuxData(const int num, const int channels, const int height, const int width) {
+  explicit CuxData(int num, int channels, int height, int width) {
     shape_.clear();
     shape_.push_back(num);
     shape_.push_back(channels);
@@ -101,7 +109,7 @@ public:
   // Save data to CuxDataBack.
   void Save(OpRunMode mode) {
     if (backup_ == nullptr)
-      backup_ = new CuxDataBack<Dtype>();
+      backup_ = new CuxDataBack(DataType<Dtype>::kFlag);
 
     if (mode == ON_HOST)
       backup_->SaveCpuData(cpu_data_, num_element_);
@@ -156,7 +164,7 @@ private:
   int size_;
   // For data backup and restore.
   // Refer to the matrix C in gemm.
-  CuxDataBack<Dtype> *backup_;
+  CuxDataBack *backup_;
 };
 
 } // cux.

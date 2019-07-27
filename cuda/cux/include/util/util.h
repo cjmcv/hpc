@@ -12,6 +12,8 @@
 #include "device_launch_parameters.h"
 #include <cublas_v2.h>
 
+#include "util/half.h"
+
 namespace cux {
 
 ////////////////
@@ -34,6 +36,13 @@ enum Code {
   UNIMPLEMENTED = 12,
   INTERNAL = 13,
   UNAVAILABLE = 14,
+};
+
+enum TypeFlag {
+  kFloat32 = 0,
+  kFloat16 = 1, 
+  kInt32 = 2,
+  kInt8 = 3,
 };
 
 enum OpRunMode {
@@ -111,12 +120,60 @@ public:
   char gInstantiationGuard##classname; \
   template class classname<float>
 
+#define TYPE_SWITCH(type, DType, ...)               \
+  switch (type) {                                   \
+  case cux::TypeFlag::kFloat32:                     \
+    {                                               \
+      typedef float DType;                          \
+      {__VA_ARGS__}                                 \
+    }                                               \
+    break;                                          \
+  case cux::TypeFlag::kFloat16:                     \
+    {                                               \
+      typedef cux::half DType;                      \
+      {__VA_ARGS__}                                 \
+    }                                               \
+    break;                                          \
+  case cux::TypeFlag::kInt32:                       \
+    {                                               \
+      typedef int32_t DType;                        \
+      {__VA_ARGS__}                                 \
+    }                                               \
+    break;                                          \
+  case cux::TypeFlag::kInt8:                        \
+    {                                               \
+      typedef int8_t DType;                         \
+      {__VA_ARGS__}                                 \
+    }                                               \
+    break;                                          \
+  default:                                          \
+    CUXLOG_ERR("Unknown type enum %d", type);       \
+  }
 ////////////////
 // Struct.
 ////////////////
 struct Device {
   int id;
   cudaDeviceProp prop;
+};
+
+template<typename DType>
+struct DataType;
+template<>
+struct DataType<float> {
+  static const int kFlag = cux::TypeFlag::kFloat32;
+};
+template<>
+struct DataType<cux::half> {
+  static const int kFlag = cux::TypeFlag::kFloat16;
+};
+template<>
+struct DataType<int32_t> {
+  static const int kFlag = cux::TypeFlag::kInt32;
+};
+template<>
+struct DataType<int8_t> {
+  static const int kFlag = cux::TypeFlag::kInt8;
 };
 
 ////////////////
@@ -184,7 +241,7 @@ protected:
 //       11. CuxData添加半精度；- Finish
 //       11. gemm cublas半精度;
 ////
-// TODO: 1. 算法与cublas对应；命名统一、功能统一 - Finih
+// TODO: 1. 算法与cublas对应；命名统一、功能统一 - Finish
 //       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。
 //
 //       3. demo：1）多组数据连续处理（预取），2）多操作混搭组合成公式做运算
@@ -193,7 +250,8 @@ protected:
 //       6. InnerThread, 内部线程，为堵塞队列替换数据，共同服务于预取器Prefetcher
 //
 //       7. 在demo中，由用户自定义OP.
-//       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）.
+//       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）- Finish
+//       9. DataType根据模板的类型获得类型的变量，从而切换该调用的kernel
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
 //                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断 - Finish
