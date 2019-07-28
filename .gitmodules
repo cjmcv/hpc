@@ -1,3 +1,3 @@
-[submodule "cuda/cux/3rdparty/googletest"]
-	path = cuda/cux/3rdparty/googletest
+[submodule "0-frameworks/cux/3rdparty/googletest"]
+	path = 0-frameworks/cux/3rdparty/googletest
 	url = https://github.com/google/googletest.git
