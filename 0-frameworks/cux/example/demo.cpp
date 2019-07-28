@@ -1,7 +1,6 @@
 #include "operator.h"
 #include "executor.h"
 #include "util/half.h"
-#include "gtest/gtest.h"
 // 
 template <typename T>
 void PrintArray(std::string str, T *h_in, int num_items) {
@@ -134,9 +133,6 @@ void GEMMTest(const bool is_show_info) {
 }
 
 int main() {
-  testing::InitGoogleTest();
-  RUN_ALL_TESTS();
-
   int ret = cux::InitEnvironment();
   if (ret != 0) {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
@@ -144,8 +140,8 @@ int main() {
   }
   //cux::QueryDevices();
   //////////
-  //printf("DotProductTest.\n");
-  //DotProductTest(true);
+  printf("DotProductTest.\n");
+  DotProductTest(true);
 
   //printf("\n\nGEMMTest.\n");
   //GEMMTest(false);
