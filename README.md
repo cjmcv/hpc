@@ -1,6 +1,28 @@
-## A collection of practical code for high performance computing.
+# Learning and practice of high performance computing
 
-## Distributed
+## Practice
+
+<details>
+  <summary><strong>cux</strong> -- An experimental framework for performance analysis and optimization of CUDA kernel functions.</summary>
+  
+  [https://github.com/cjmcv/hpc/tree/master/0-frameworks/cux](https://github.com/cjmcv/hpc/tree/master/0-frameworks/cux)
+  
+  tag: cuda / simd / openmp.
+</details>
+
+<details>
+  <summary><strong>vky</strong> -- A Vulkan-based computing framework.</summary>
+  
+  [https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky](https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky)
+  
+  tag: vulkan.
+</details>
+
+---
+
+## Learning
+
+### Distributed computing
 
 <details>
   <summary>mpi/mpi4py</summary>
@@ -19,15 +41,10 @@
 * [py_base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_send_recv.py) ： Record the basic usage of Send and Recv.
 </details>
 
-## Stand-alone
-
 ### Heterogeneous computing
 
 <details>
   <summary>cuda</summary>
-  
-  > framework
-  >> [cux](https://github.com/cjmcv/hpc/tree/master/cuda/cux)
 
 * [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
 * [alg_histogram](https://github.com/cjmcv/hpc/blob/master/cuda/alg_histogram.cu) ： histogram, mainly introduce atomicAdd.
@@ -61,8 +78,7 @@
 <details>
   <summary>vulkan</summary>
   
-  > framework
-  >> [vky](https://github.com/cjmcv/hpc/tree/master/vulkan/vky)
+* [vky](https://github.com/cjmcv/hpc/tree/master/vulkan/vky)
 </details>
 
 <details>
