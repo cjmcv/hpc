@@ -102,8 +102,8 @@ public:
     op_ = OpFactory<float>::GetInstance().CreateOpByType(op_name, params);
   }
 
-  int SetOpIoData(const std::vector< CuxData<float>* > &input, 
-                  const std::vector< CuxData<float>* > &output) {
+  int SetOpIoData(const std::vector< Array4D* > &input, 
+                  const std::vector< Array4D* > &output) {
     return op_->SetIoData(input, output);
   }
 

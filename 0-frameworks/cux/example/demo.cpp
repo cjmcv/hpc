@@ -60,19 +60,19 @@ void DotProductTest(const bool is_show_info) {
 
   // Too large a value may cause overflow.
   const int data_len = 4096000; // data_len % threads_per_block == 0.
-  cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, 1, data_len);
-  cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, 1, data_len);
-  cux::CuxData<float> *out = new cux::CuxData<float>(1, 1, 1, 1);
+  cux::Array4D *in_a = new cux::Array4D(1, 1, 1, data_len);
+  cux::Array4D *in_b = new cux::Array4D(1, 1, 1, data_len);
+  cux::Array4D *out = new cux::Array4D(1, 1, 1, 1);
 
   // Initialize 
   srand(0);
-  GenArray(data_len, in_a->GetCpuData());
-  GenArray(data_len, in_b->GetCpuData());
+  GenArray(data_len, in_a->GetCpuData<float>());
+  GenArray(data_len, in_b->GetCpuData<float>());
 
-  std::vector<cux::CuxData<float> *> inputs;
+  std::vector<cux::Array4D*> inputs;
   inputs.push_back(in_a);
   inputs.push_back(in_b);
-  std::vector<cux::CuxData<float> *> outputs;
+  std::vector<cux::Array4D*> outputs;
   outputs.push_back(out);
 
   executor->SetOpIoData(inputs, outputs);
@@ -98,30 +98,29 @@ void GEMMTest(const bool is_show_info) {
   executor->SetOpParams(loop_cn);
 
   int block_size = 32;
-  cux::CuxData<float> *in_a = new cux::CuxData<float>(1, 1, block_size * 30, block_size * 25);
-  cux::CuxData<float> *in_b = new cux::CuxData<float>(1, 1, block_size * 25, block_size * 40);
+  cux::Array4D *in_a = new cux::Array4D(1, 1, block_size * 16, block_size * 25);
+  cux::Array4D *in_b = new cux::Array4D(1, 1, block_size * 25, block_size * 20);
   std::vector<int> shape_a = in_a->shape();
   std::vector<int> shape_b = in_b->shape();
-  cux::CuxData<float> *out_c = new cux::CuxData<float>(1, 1,
-    shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
+  cux::Array4D *out_c = new cux::Array4D(1, 1, shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
 
   // Initialize 
   srand(0);
-  GenMatrix(shape_a[cux::HEIGHT], shape_a[cux::WIDTH], in_a->GetCpuData());
-  GenMatrix(shape_b[cux::HEIGHT], shape_b[cux::WIDTH], in_b->GetCpuData());
-  GenMatrix(shape_a[cux::HEIGHT], shape_b[cux::WIDTH], out_c->GetCpuData());
+  GenMatrix(shape_a[cux::HEIGHT], shape_a[cux::WIDTH], in_a->GetCpuData<float>());
+  GenMatrix(shape_b[cux::HEIGHT], shape_b[cux::WIDTH], in_b->GetCpuData<float>());
+  GenMatrix(shape_a[cux::HEIGHT], shape_b[cux::WIDTH], out_c->GetCpuData<float>());
 
-  std::vector<cux::CuxData<float> *> inputs;
+  std::vector<cux::Array4D*> inputs;
   inputs.push_back(in_a);
   inputs.push_back(in_b);
-  std::vector<cux::CuxData<float> *> outputs;
+  std::vector<cux::Array4D*> outputs;
   outputs.push_back(out_c);
 
   executor->SetOpIoData(inputs, outputs);
 
   // Run.
   executor->Run(cux::OpRunMode::ON_HOST);
-  out_c->Restore(cux::ON_HOST); // For beta in gemm.
+  out_c->Restore(cux::TypeFlag::kFloat32, cux::ON_HOST); // For beta in gemm.
   executor->Run(cux::OpRunMode::ON_DEVICE);
 
   delete in_a;
@@ -132,21 +131,21 @@ void GEMMTest(const bool is_show_info) {
   delete executor;
 }
 
-int main() {
+int main() {  
   int ret = cux::InitEnvironment();
   if (ret != 0) {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
     return -1;
   }
-  //cux::QueryDevices();
-  //////////
+
+  cux::QueryDevices();
+  ////////
   printf("DotProductTest.\n");
   DotProductTest(true);
 
-  //printf("\n\nGEMMTest.\n");
-  //GEMMTest(false);
+  printf("\n\nGEMMTest.\n");
+  GEMMTest(false);
   //////////
-  //HalfTest();
 
   cux::CleanUpEnvironment();
   system("pause");

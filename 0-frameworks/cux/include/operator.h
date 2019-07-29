@@ -8,7 +8,7 @@
 #include <vector>
 #include "util/util.h"
 #include "util/launch_config.h"
-#include "data.h"
+#include "array.h"
 
 namespace cux {
 
@@ -63,8 +63,8 @@ public:
   // Show relevant prompts.
   virtual void Help() const = 0;
   // Set the input and output data.
-  virtual int SetIoData(const std::vector< CuxData<Dtype>* > &input,
-                        const std::vector< CuxData<Dtype>* > &output) { return -1; };
+  virtual int SetIoData(const std::vector< Array4D* > &input,
+                        const std::vector< Array4D* > &output) { return -1; };
   virtual void RunOnHost() = 0;
   virtual void RunOnDevice() = 0;
 

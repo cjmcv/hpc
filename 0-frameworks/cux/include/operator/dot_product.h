@@ -19,8 +19,8 @@ public:
   static Operator *VectorDotProduct::Creator(std::string &params_str);
   
   void Help() const;
-  int SetIoData(const std::vector< CuxData<Dtype>* > &input,
-                const std::vector< CuxData<Dtype>* > &output);
+  int SetIoData(const std::vector< Array4D* > &input,
+                const std::vector< Array4D* > &output);
   void RunOnHost();
   void RunOnDevice();
 
@@ -38,9 +38,9 @@ private:
   void PrepareLaunchConfig(int len);
 
 private:
-  CuxData<Dtype> *in_a_;
-  CuxData<Dtype> *in_b_;
-  CuxData<Dtype> *out_;
+  Array4D *in_a_;
+  Array4D *in_b_;
+  Array4D *out_;
 
   std::vector<Config1D> config_1d_;
 };

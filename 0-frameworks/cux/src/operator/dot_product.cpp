@@ -69,8 +69,8 @@ void VectorDotProduct<Dtype>::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: Vector Dot Product.");
   CUXLOG_COUT("* Function: sum += a[i] * b[i]");
-  CUXLOG_COUT("* Inputs:  [Two] CuxData with one vector each. ");
-  CUXLOG_COUT("* Outputs: [One] CuxData with one element.");
+  CUXLOG_COUT("* Inputs:  [Two] Array4D with one vector each. ");
+  CUXLOG_COUT("* Outputs: [One] Array4D with one element.");
   CUXLOG_COUT("* Params:  [None].");
   CUXLOG_COUT("**************************************************");
 }
@@ -81,8 +81,8 @@ Operator<Dtype> *VectorDotProduct<Dtype>::Creator(std::string &params_str) {
 }
 
 template <typename Dtype>
-int VectorDotProduct<Dtype>::SetIoData(const std::vector< CuxData<Dtype>* > &input,
-                                       const std::vector< CuxData<Dtype>* > &output) {
+int VectorDotProduct<Dtype>::SetIoData(const std::vector< Array4D* > &input,
+                                       const std::vector< Array4D* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
@@ -105,10 +105,10 @@ void VectorDotProduct<Dtype>::RunOnHost() {
   CpuTimer cpu_timer;
 
   // Warp.
-  const float *vec_a = in_a_->GetCpuData(PUSH_IF_EMPTY);
-  const float *vec_b = in_b_->GetCpuData(PUSH_IF_EMPTY);
+  const float *vec_a = in_a_->GetCpuData<float>(PUSH_IF_EMPTY);
+  const float *vec_b = in_b_->GetCpuData<float>(PUSH_IF_EMPTY);
   const int len = in_a_->num_element();
-  float *result = out_->GetCpuData(NO_PUSH);
+  float *result = out_->GetCpuData<float>(NO_PUSH);
   
   // Run.
   cpu_time_kernel_record_.clear();
@@ -121,10 +121,10 @@ void VectorDotProduct<Dtype>::RunOnHost() {
     cpu_timer.Stop();  
 
     cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
-    checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), ki);
+    checker_.CheckArray(out_->GetCpuData<float>(PUSH), out_->num_element(), ki);
   }
 
-  CUXLOG_COUT("result: %f.", *out_->GetCpuData(NO_PUSH));
+  CUXLOG_COUT("result: %f.", *out_->GetCpuData<float>(NO_PUSH));
 }
 
 //////////////////
@@ -148,10 +148,10 @@ void VectorDotProduct<Dtype>::RunOnDevice() {
 
   // Input.
   gpu_timer.Start();
-  const float *vec_a = in_a_->GetGpuData(PUSH_IF_EMPTY);
-  const float *vec_b = in_b_->GetGpuData(PUSH_IF_EMPTY);
+  const float *vec_a = in_a_->GetGpuData<float>(PUSH_IF_EMPTY);
+  const float *vec_b = in_b_->GetGpuData<float>(PUSH_IF_EMPTY);
   const int len = in_a_->num_element();
-  float *result = out_->GetGpuData(NO_PUSH);
+  float *result = out_->GetGpuData<float>(NO_PUSH);
   gpu_timer.Stop();
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
@@ -178,11 +178,11 @@ void VectorDotProduct<Dtype>::RunOnDevice() {
     // Output, Only record the first time.
     if (ki == 0) {
       gpu_timer.Start();
-      out_->GetCpuData(PUSH);
+      out_->GetCpuData<float>(PUSH);
       gpu_timer.Stop();
       gpu_time_out_record_ = gpu_timer.MilliSeconds();
     }
-    checker_.CheckArray(out_->GetCpuData(PUSH), out_->num_element(), ki);
+    checker_.CheckArray(out_->GetCpuData<float>(PUSH), out_->num_element(), ki);
   }
 }
 INSTANTIATE_CLASS(VectorDotProduct);

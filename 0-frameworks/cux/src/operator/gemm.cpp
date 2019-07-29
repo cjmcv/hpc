@@ -131,8 +131,8 @@ void GEMM<Dtype>::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: GEMM.");
   CUXLOG_COUT("* Function: C(M, N) = A(M, K) * B(K, N) -> (height, width)");
-  CUXLOG_COUT("* Inputs:  [Two] CuxData with one matrix each. ");
-  CUXLOG_COUT("* Outputs: [One] CuxData with one matrix.");
+  CUXLOG_COUT("* Inputs:  [Two] Array4D with one matrix each. ");
+  CUXLOG_COUT("* Outputs: [One] Array4D with one matrix.");
   CUXLOG_COUT("* Params:  [Two] alpha / beta -> alpha: 1.0, beta: 0.0");
   CUXLOG_COUT("**************************************************");
 }
@@ -146,8 +146,8 @@ Operator<Dtype> *GEMM<Dtype>::Creator(std::string &params_str) {
 }
 
 template <typename Dtype>
-int GEMM<Dtype>::SetIoData(const std::vector< CuxData<Dtype>* > &input,
-                    const std::vector< CuxData<Dtype>* > &output) {
+int GEMM<Dtype>::SetIoData(const std::vector< Array4D* > &input,
+                    const std::vector< Array4D* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
@@ -170,9 +170,9 @@ void GEMM<Dtype>::RunOnHost() {
   CpuTimer cpu_timer;
 
   // Warp.
-  const float *A = A_->GetCpuData(PUSH_IF_EMPTY);
-  const float *B = B_->GetCpuData(PUSH_IF_EMPTY);
-  float *C = C_->GetCpuData(PUSH_IF_EMPTY);
+  const float *A = A_->GetCpuData<float>(PUSH_IF_EMPTY);
+  const float *B = B_->GetCpuData<float>(PUSH_IF_EMPTY);
+  float *C = C_->GetCpuData<float>(PUSH_IF_EMPTY);
 
   const float alpha = kernel_params_.alpha;
   const float beta = kernel_params_.beta;
@@ -184,7 +184,7 @@ void GEMM<Dtype>::RunOnHost() {
   const int ldc = N;
 
   // Save original data.
-  C_->Save(ON_HOST);
+  C_->Save(TypeFlag::kFloat32, ON_HOST);
 
   // Run.
   cpu_time_kernel_record_.clear();
@@ -192,16 +192,16 @@ void GEMM<Dtype>::RunOnHost() {
     cpu_timer.Start();
     for (int i = 0; i < op_params_.loop_cn; i++) {
       //(C, 0, sizeof(float) * M * N);
-      C_->Restore(ON_HOST);
+      C_->Restore(TypeFlag::kFloat32, ON_HOST);
       GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     cpu_timer.Stop();
     cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
 
-    checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
+    checker_.CheckArray(C_->GetCpuData<float>(PUSH), C_->num_element(), ki);
   }
 
-  CUXLOG_COUT("result: %f.", *C_->GetCpuData(PUSH));
+  CUXLOG_COUT("result: %f.", *C_->GetCpuData<float>(PUSH));
 }
 
 //////////////////
@@ -224,9 +224,9 @@ void GEMM<Dtype>::RunOnDevice() {
 
   // Input.
   gpu_timer.Start();
-  const float *A = A_->GetGpuData(PUSH_IF_EMPTY);
-  const float *B = B_->GetGpuData(PUSH_IF_EMPTY);
-  float *C = C_->GetGpuData(PUSH_IF_EMPTY);
+  const float *A = A_->GetGpuData<float>(PUSH_IF_EMPTY);
+  const float *B = B_->GetGpuData<float>(PUSH_IF_EMPTY);
+  float *C = C_->GetGpuData<float>(PUSH_IF_EMPTY);
   gpu_timer.Stop();
   gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
@@ -240,7 +240,7 @@ void GEMM<Dtype>::RunOnDevice() {
   const int ldc = N;
 
   // Save original data.
-  C_->Save(ON_DEVICE);
+  C_->Save(TypeFlag::kFloat32, ON_DEVICE);
 
   // Prepare launch config for kernels.
   PrepareLaunchConfig(N, M);
@@ -257,7 +257,7 @@ void GEMM<Dtype>::RunOnDevice() {
     gpu_timer.Start();
     for (int i = 0; i < op_params_.loop_cn; i++) {
       //cudaMemset(C, 0, sizeof(float) * M * N);
-      C_->Restore(ON_DEVICE);
+      C_->Restore(TypeFlag::kFloat32, ON_DEVICE);
       GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     }
     gpu_timer.Stop();
@@ -266,11 +266,11 @@ void GEMM<Dtype>::RunOnDevice() {
     // Output, Only record the first time.
     if (ki == 0) {
       gpu_timer.Start();
-      C_->GetCpuData(PUSH);
+      C_->GetCpuData<float>(PUSH);
       gpu_timer.Stop();
       gpu_time_out_record_ = gpu_timer.MilliSeconds();
     }
-    checker_.CheckArray(C_->GetCpuData(PUSH), C_->num_element(), ki);
+    checker_.CheckArray(C_->GetCpuData<float>(PUSH), C_->num_element(), ki);
   }
 }
 INSTANTIATE_CLASS(GEMM);

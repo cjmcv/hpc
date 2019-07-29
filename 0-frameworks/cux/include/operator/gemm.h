@@ -30,8 +30,8 @@ public:
   static Operator *GEMM::Creator(std::string &params_str);
 
   void Help() const;
-  int SetIoData(const std::vector< CuxData<Dtype>* > &input,
-                const std::vector< CuxData<Dtype>* > &output);
+  int SetIoData(const std::vector< Array4D* > &input,
+                const std::vector< Array4D* > &output);
   void RunOnHost();
   void RunOnDevice();
 
@@ -58,9 +58,9 @@ private:
   void PrepareLaunchConfig(int N, int M);
 
 private:
-  CuxData<Dtype> *A_;
-  CuxData<Dtype> *B_;
-  CuxData<Dtype> *C_;
+  Array4D *A_;
+  Array4D *B_;
+  Array4D *C_;
 
   GEMMKernelParam kernel_params_;
   std::vector<Config2D> config_2d_;

@@ -157,6 +157,10 @@ struct Device {
   cudaDeviceProp prop;
 };
 
+struct DataTypeSum {
+  static const int kNum = 4;
+};
+
 template<typename DType>
 struct DataType;
 template<>
@@ -172,10 +176,17 @@ struct DataType<int32_t> {
   static const int kFlag = cux::TypeFlag::kInt32;
 };
 template<>
+struct DataType<uint32_t> {
+  static const int kFlag = cux::TypeFlag::kInt32;
+};
+template<>
 struct DataType<int8_t> {
   static const int kFlag = cux::TypeFlag::kInt8;
 };
-
+template<>
+struct DataType<uint8_t> {
+  static const int kFlag = cux::TypeFlag::kInt8;
+};
 ////////////////
 // Class.
 ////////////////
@@ -231,14 +242,14 @@ protected:
   std::chrono::time_point<clock> stop_time_;
 };
 
-// TODO: 2. 升级CuxData：静态动态内存、异步拷贝、对齐。。
+// TODO: 2. 升级Array4D：静态动态内存、异步拷贝、对齐。。
 //       4. 内存池（低优先级）
 //       5. CPU端异常处理/告警机制/错误码
 //       7. Layout渐变的效率分析？
 //       8. 检索查看所有gpu设备。deviceQuery - finish
 //       9. cmake添加新筛选器？
 //       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
-//       11. CuxData添加半精度；- Finish
+//       11. Array4D添加半精度；- Finish
 //       11. gemm cublas半精度;
 ////
 // TODO: 1. 算法与cublas对应；命名统一、功能统一 - Finish
