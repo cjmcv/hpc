@@ -122,7 +122,7 @@ public:
   // Restore data from Array4DBackup.
   void Restore(int type_flag, OpRunMode mode) {
     if (backup_[type_flag] == nullptr) {
-      return;
+      CUXLOG_ERR("Restore -> The data is not stored.");
     }
     if (mode == ON_HOST)
       backup_[type_flag]->RestoreCpuData(cpu_data_[type_flag], num_element_);
@@ -159,6 +159,28 @@ public:
       CUDA_CHECK(cudaMemcpy(gpu_data_[type_flag], cpu_data_[type_flag], num_element_ * sizeof(DType), cudaMemcpyHostToDevice));
     }
     return static_cast<DType*>(gpu_data_[type_flag]);
+  }
+
+  template<typename SrcType, typename DstType>
+  void PrecsCpuCvt() {
+    int src_data_type = DataType<SrcType>::kFlag;
+    int dst_data_type = DataType<DstType>::kFlag;
+
+    if (src_data_type == dst_data_type) {
+      CUXLOG_ERR("PrecsCpuCvt -> src_data_type == dst_data_type.");
+    }
+    if (cpu_data_[src_data_type] == nullptr) {
+      CUXLOG_ERR("PrecsCpuCvt -> cpu_data_[src_data_type] == nullptr.");
+    }
+    if (cpu_data_[dst_data_type] == nullptr) {
+      TYPE_SWITCH(dst_data_type, T, cpu_data_[dst_data_type] = new T[num_element_];);
+    }
+
+    DstType *dst = (DstType *)cpu_data_[dst_data_type];
+    SrcType *src = (SrcType *)cpu_data_[src_data_type];
+    for (int i = 0; i < num_element_; i++) {
+      dst[i] = src[i];
+    }
   }
 
 private:  

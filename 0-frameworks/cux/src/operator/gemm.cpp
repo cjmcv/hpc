@@ -189,14 +189,12 @@ void GEMM<Dtype>::RunOnHost() {
   // Run.
   cpu_time_kernel_record_.clear();
   for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
+    C_->Restore(TypeFlag::kFloat32, ON_HOST);
+    
     cpu_timer.Start();
-    for (int i = 0; i < op_params_.loop_cn; i++) {
-      //(C, 0, sizeof(float) * M * N);
-      C_->Restore(TypeFlag::kFloat32, ON_HOST);
-      GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    }
+    GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     cpu_timer.Stop();
-    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
+    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds());
 
     checker_.CheckArray(C_->GetCpuData<float>(PUSH), C_->num_element(), ki);
   }
@@ -254,14 +252,12 @@ void GEMM<Dtype>::RunOnDevice() {
   // Run.
   gpu_time_kernel_record_.clear();
   for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
+    C_->Restore(TypeFlag::kFloat32, ON_DEVICE);
+
     gpu_timer.Start();
-    for (int i = 0; i < op_params_.loop_cn; i++) {
-      //cudaMemset(C, 0, sizeof(float) * M * N);
-      C_->Restore(TypeFlag::kFloat32, ON_DEVICE);
-      GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    }
+    GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
     gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds());
 
     // Output, Only record the first time.
     if (ki == 0) {

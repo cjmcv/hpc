@@ -36,8 +36,6 @@ private:
 
 struct OpParams {
   LaunchConfig *launch_config;
-  // How many times the Kernel will be executed.
-  int loop_cn;
 };
 
 template <typename Dtype>
@@ -56,7 +54,6 @@ public:
   }
   inline void SetOpParams(const OpParams &params) {
     op_params_.launch_config = params.launch_config;
-    op_params_.loop_cn = params.loop_cn;
   }
   void PrintElapsedTime(const OpRunMode mode);
   
@@ -64,7 +61,7 @@ public:
   virtual void Help() const = 0;
   // Set the input and output data.
   virtual int SetIoData(const std::vector< Array4D* > &input,
-                        const std::vector< Array4D* > &output) { return -1; };
+                        const std::vector< Array4D* > &output) = 0;
   virtual void RunOnHost() = 0;
   virtual void RunOnDevice() = 0;
 

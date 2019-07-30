@@ -113,14 +113,13 @@ void VectorDotProduct<Dtype>::RunOnHost() {
   // Run.
   cpu_time_kernel_record_.clear();
   for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
-    cpu_timer.Start();
-    for (int i = 0; i < op_params_.loop_cn; i++) {
-      *result = 0;
-      VectorDotProductHost(ki, len, vec_a, vec_b, result);
-    }
-    cpu_timer.Stop();  
+    *result = 0;
 
-    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds() / op_params_.loop_cn);
+    cpu_timer.Start();
+    VectorDotProductHost(ki, len, vec_a, vec_b, result);
+    cpu_timer.Stop();  
+    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds());
+
     checker_.CheckArray(out_->GetCpuData<float>(PUSH), out_->num_element(), ki);
   }
 
@@ -167,13 +166,12 @@ void VectorDotProduct<Dtype>::RunOnDevice() {
   // Run.
   gpu_time_kernel_record_.clear();
   for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
+    cudaMemset(result, 0, sizeof(float));
+
     gpu_timer.Start();
-    for (int i = 0; i < op_params_.loop_cn; i++) {
-      cudaMemset(result, 0, sizeof(float));
-      VectorDotProductDevice(ki, len, vec_a, vec_b, result);
-    }
+    VectorDotProductDevice(ki, len, vec_a, vec_b, result);
     gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds() / op_params_.loop_cn);
+    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds());
 
     // Output, Only record the first time.
     if (ki == 0) {

@@ -107,10 +107,9 @@ public:
     return op_->SetIoData(input, output);
   }
 
-  void SetOpParams(const int loop_cn) {
+  void SetOpParams() {
     OpParams params;
     params.launch_config = launch_config_;
-    params.loop_cn = loop_cn;
     op_->SetOpParams(params);
   }
 

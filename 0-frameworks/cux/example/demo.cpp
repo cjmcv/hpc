@@ -53,10 +53,9 @@ void MatrixPrint(const float* mat, const int height, const int width) {
 void DotProductTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
   executor->Initialize(0);
-  executor->SelectOp("dot_product", "");
 
-  const int loop_cn = 1 ;
-  executor->SetOpParams(loop_cn);
+  executor->SelectOp("dot_product", "");
+  executor->SetOpParams();
 
   // Too large a value may cause overflow.
   const int data_len = 4096000; // data_len % threads_per_block == 0.
@@ -92,10 +91,9 @@ void DotProductTest(const bool is_show_info) {
 void GEMMTest(const bool is_show_info) {
   cux::Executor *executor = new cux::Executor();
   executor->Initialize(0);
-  executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
 
-  const int loop_cn = 1;
-  executor->SetOpParams(loop_cn);
+  executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
+  executor->SetOpParams();
 
   int block_size = 32;
   cux::Array4D *in_a = new cux::Array4D(1, 1, block_size * 16, block_size * 25);
