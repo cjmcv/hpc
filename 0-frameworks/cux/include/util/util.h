@@ -187,60 +187,6 @@ template<>
 struct DataType<uint8_t> {
   static const int kFlag = cux::TypeFlag::kInt8;
 };
-////////////////
-// Class.
-////////////////
-
-// Timer for gpu.
-class GpuTimer {
-public:
-  GpuTimer() {
-    CUDA_CHECK(cudaEventCreate(&start_));
-    CUDA_CHECK(cudaEventCreate(&stop_));
-  }
-  ~GpuTimer() {
-    CUDA_CHECK(cudaEventDestroy(start_));
-    CUDA_CHECK(cudaEventDestroy(stop_));
-  }
-  inline void Start() { CUDA_CHECK(cudaEventRecord(start_, NULL)); }
-  inline void Stop() { CUDA_CHECK(cudaEventRecord(stop_, NULL)); }
-  inline float MilliSeconds() {
-    float elapsed;
-    CUDA_CHECK(cudaEventSynchronize(stop_));
-    CUDA_CHECK(cudaEventElapsedTime(&elapsed, start_, stop_));
-    return elapsed;
-  }
-
-protected:
-  cudaEvent_t start_;
-  cudaEvent_t stop_;
-};
-
-// Timer for cpu.
-class CpuTimer {
-public:
-  typedef std::chrono::high_resolution_clock clock;
-  typedef std::chrono::nanoseconds ns;
-
-  inline void Start() { start_time_ = clock::now(); }
-  inline void Stop() { stop_time_ = clock::now(); }
-  inline float NanoSeconds() {
-    return (float)std::chrono::duration_cast<ns>(stop_time_ - start_time_).count();
-  }
-
-  // Returns the elapsed time in milliseconds.
-  inline float MilliSeconds() { return NanoSeconds() / 1000000.f; }
-
-  // Returns the elapsed time in microseconds.
-  inline float MicroSeconds() { return NanoSeconds() / 1000.f; }
-
-  // Returns the elapsed time in seconds.
-  inline float Seconds() { return NanoSeconds() / 1000000000.f; }
-
-protected:
-  std::chrono::time_point<clock> start_time_;
-  std::chrono::time_point<clock> stop_time_;
-};
 
 // TODO: 2. 升级Array4D：静态动态内存、异步拷贝、对齐。。
 //       4. 内存池（低优先级）

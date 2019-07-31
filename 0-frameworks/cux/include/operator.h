@@ -7,6 +7,7 @@
 
 #include <vector>
 #include "util/util.h"
+#include "util/timer.h"
 #include "util/launch_config.h"
 #include "array.h"
 
