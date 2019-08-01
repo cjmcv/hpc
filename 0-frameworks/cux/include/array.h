@@ -39,7 +39,7 @@ public:
   }
   void RestoreCpuData(void *cpu_data, int &num_element) {
     if (cpu_data_ == nullptr) {
-      return;
+      CUXLOG_ERR("RestoreCpuData -> The data has not been saved. Please check again.");
     }
     memcpy(cpu_data, cpu_data_, element_size_ * num_element);
   }
@@ -52,7 +52,7 @@ public:
   }
   void RestoreGpuData(void *gpu_data, int &num_element) {
     if (gpu_data_ == nullptr) {
-      return;
+      CUXLOG_ERR("RestoreGpuData -> The data has not been saved. Please check again.");
     }
     CUDA_CHECK(cudaMemcpy(gpu_data, gpu_data_, element_size_ * num_element, cudaMemcpyDeviceToDevice));
   }
@@ -122,7 +122,7 @@ public:
   // Restore data from Array4DBackup.
   void Restore(int type_flag, OpRunMode mode) {
     if (backup_[type_flag] == nullptr) {
-      CUXLOG_ERR("Restore -> The data is not stored.");
+      CUXLOG_ERR("Restore -> backup_[%d] does not exist.", type_flag);
     }
     if (mode == ON_HOST)
       backup_[type_flag]->RestoreCpuData(cpu_data_[type_flag], num_element_);

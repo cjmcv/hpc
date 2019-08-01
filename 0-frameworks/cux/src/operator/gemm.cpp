@@ -7,7 +7,7 @@ namespace cux {
   
 // CPU version 0: 3718 ms
 // Normal version in cpu as a reference
-void GEMMHostV0(const int M, const int N,
+void GemmHostV0(const int M, const int N,
                 const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -32,7 +32,7 @@ void GEMMHostV0(const int M, const int N,
 
 // CPU version 1: 383 ms
 // Normal version in cpu as a reference
-void GEMMHostV1(const int M, const int N, 
+void GemmHostV1(const int M, const int N, 
                 const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -56,7 +56,7 @@ void GEMMHostV1(const int M, const int N,
 
 // CPU version 2: 1400 ms
 // Block-based matrix multiplication in cpu.
-void GEMMHostV2(const int M, const int N, 
+void GemmHostV2(const int M, const int N, 
                 const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -93,43 +93,73 @@ void GEMMHostV2(const int M, const int N,
 }
 
 //////////
-template <typename Dtype>
-std::string &GEMM<Dtype>::GetHostKernelsInfo(int kernel_id) {
-  static std::string info[3] = { "Normal", "Adjust iteration order", "Block-based" };
-  if (kernel_id < 0 || kernel_id >= 3) {
-    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
-  }
-  return info[kernel_id];
-}
-
-template <typename Dtype>
-void GEMM<Dtype>::GEMMHost(const int kernel_id,
-                    const int M, const int N,
+void Gemm::CpuKernelsSetup() {
+  cpu_kernels_.clear();
+  // Kernel v0.
+  {
+    auto func = [&](const int M, const int N,
                     const int K, const float alpha,
-                    const Dtype *A, const int lda,
-                    const Dtype *B, const int ldb,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
                     const float beta,
-                    Dtype *C, const int ldc) {
-  int shared_memory_size = 0;
-  switch (kernel_id) {
-  case 0:
-    GEMMHostV0(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    break;
-  case 1:
-    GEMMHostV1(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    break;
-  case 2:
-    GEMMHostV2(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    break;
-  default:
-    CUXLOG_ERR("Host Kernel id (%d) not found.", kernel_id);
+                    void *C, const int ldc) -> void {
+      GemmHostV0(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+    };
+
+    GemmCpuKernel *kernel = new GemmCpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->func = func;
+    kernel->describe_info = "Normal";
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
+
+    cpu_kernels_.push_back(kernel);
+  }
+  // Kernel v1.
+  {
+    auto func = [&](const int M, const int N,
+      const int K, const float alpha,
+      const void *A, const int lda,
+      const void *B, const int ldb,
+      const float beta,
+      void *C, const int ldc) -> void {
+      GemmHostV1(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+    };
+
+    GemmCpuKernel *kernel = new GemmCpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->func = func;
+    kernel->describe_info = "Adjust iteration order";
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
+
+    cpu_kernels_.push_back(kernel);
+  }
+  // Kernel v2.
+  {
+    auto func = [&](const int M, const int N,
+      const int K, const float alpha,
+      const void *A, const int lda,
+      const void *B, const int ldb,
+      const float beta,
+      void *C, const int ldc) -> void {
+      GemmHostV2(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+    };
+
+    GemmCpuKernel *kernel = new GemmCpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->func = func;
+    kernel->describe_info = "Block-based";
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
+
+    cpu_kernels_.push_back(kernel);
   }
 }
 
-template <typename Dtype>
-void GEMM<Dtype>::Help() const {
+void Gemm::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
-  CUXLOG_COUT("* Name: GEMM.");
+  CUXLOG_COUT("* Name: Gemm.");
   CUXLOG_COUT("* Function: C(M, N) = A(M, K) * B(K, N) -> (height, width)");
   CUXLOG_COUT("* Inputs:  [Two] Array4D with one matrix each. ");
   CUXLOG_COUT("* Outputs: [One] Array4D with one matrix.");
@@ -137,23 +167,19 @@ void GEMM<Dtype>::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-template <typename Dtype>
-Operator<Dtype> *GEMM<Dtype>::Creator(std::string &params_str) {
-  GEMMKernelParam params;
+Operator *Gemm::Creator(Device *device, std::string &params_str) {
+  GemmKernelParam params;
   params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
   params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
-  return new GEMM(params);
+  return new Gemm(device, params);
 }
 
-template <typename Dtype>
-int GEMM<Dtype>::SetIoData(const std::vector< Array4D* > &input,
+int Gemm::SetIoData(const std::vector< Array4D* > &input,
                     const std::vector< Array4D* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
-    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
     Help();
-    // TODO: Error code.
-    return -1;
+    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
   }
 
   A_ = input[0];
@@ -164,18 +190,8 @@ int GEMM<Dtype>::SetIoData(const std::vector< Array4D* > &input,
 
 ////////////////////////////////////////////////
 // cpp version
-// Normal version in cpu as a reference
-template <typename Dtype>
-void GEMM<Dtype>::RunOnHost() {
-  CpuTimer cpu_timer;
-
-  // Warp.
-  const float *A = A_->GetCpuData<float>(PUSH_IF_EMPTY);
-  const float *B = B_->GetCpuData<float>(PUSH_IF_EMPTY);
-  float *C = C_->GetCpuData<float>(PUSH_IF_EMPTY);
-
-  const float alpha = kernel_params_.alpha;
-  const float beta = kernel_params_.beta;
+void Gemm::RunOnHost() {
+  CUXLOG_COUT("Gemm -> CPU: ");
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
@@ -183,53 +199,41 @@ void GEMM<Dtype>::RunOnHost() {
   const int ldb = N;
   const int ldc = N;
 
-  // Save original data.
-  C_->Save(TypeFlag::kFloat32, ON_HOST);
+  for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
+    GemmCpuKernel *kernel = cpu_kernels_[ki];
 
-  // Run.
-  cpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
-    C_->Restore(TypeFlag::kFloat32, ON_HOST);
-    
-    cpu_timer.Start();
-    GEMMHost(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    cpu_timer.Stop();
-    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds());
-
-    checker_.CheckArray(C_->GetCpuData<float>(PUSH), C_->num_element(), ki);
+    const void *A, *B;
+    void *C;
+    kernel->time_record.input = GET_TIME_DIFF(cpu_timer_,
+      TYPE_SWITCH(kernel->type_flag, T, {
+        A = A_->GetCpuData<T>(PUSH_IF_EMPTY);
+        B = B_->GetCpuData<T>(PUSH_IF_EMPTY);
+        C = C_->GetCpuData<T>(PUSH_IF_EMPTY);
+      };);
+    );
+    // Save original data.
+    if (ki == 0) {
+      C_->Save(kernel->type_flag, ON_HOST);
+    }
+    // Run.
+    C_->Restore(kernel->type_flag, ON_HOST);
+    kernel->time_record.run = GET_TIME_DIFF(cpu_timer_,
+      kernel->func(M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
+    );
+    TYPE_SWITCH(kernel->type_flag, T,
+      checker_.CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
+    );
   }
-
-  CUXLOG_COUT("result: %f.", *C_->GetCpuData<float>(PUSH));
+  // Show.
+  for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
+    PrintRecordedInfo(OpRunMode::ON_HOST, ki, cpu_kernels_[ki]);
+  }
 }
 
 //////////////////
 // cuda version.
-template <typename Dtype>
-std::string &GEMM<Dtype>::GetDeviceKernelsInfo(int kernel_id) {
-  static std::string info[3] = { "Normal(Block-based)",
-    "Shared memory",
-    "Cublas" };
-  if (kernel_id < 0 || kernel_id >= 3) {
-    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
-  }
-  return info[kernel_id];
-}
-
-template <typename Dtype>
-void GEMM<Dtype>::RunOnDevice() {
-  // Time recorder.
-  GpuTimer gpu_timer;
-
-  // Input.
-  gpu_timer.Start();
-  const float *A = A_->GetGpuData<float>(PUSH_IF_EMPTY);
-  const float *B = B_->GetGpuData<float>(PUSH_IF_EMPTY);
-  float *C = C_->GetGpuData<float>(PUSH_IF_EMPTY);
-  gpu_timer.Stop();
-  gpu_time_in_record_ = gpu_timer.MilliSeconds();
-
-  const float alpha = kernel_params_.alpha;
-  const float beta = kernel_params_.beta;
+void Gemm::RunOnDevice() {
+  CUXLOG_COUT("Gemm -> GPU: ");
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
@@ -237,37 +241,51 @@ void GEMM<Dtype>::RunOnDevice() {
   const int ldb = N;
   const int ldc = N;
 
-  // Save original data.
-  C_->Save(TypeFlag::kFloat32, ON_DEVICE);
+  // TODO: 记录第一个kernel的类型，切换到其他类型的核时，需要拷贝数据;还是在准备数据时，先完成拷贝？
+  for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
+    GemmGpuKernel *kernel = gpu_kernels_[ki];
+    Config2D config = kernel->get_config(M, N);
 
-  // Prepare launch config for kernels.
-  PrepareLaunchConfig(N, M);
-
-  // Warm up.
-  gpu_timer.Start();
-  GEMMDevice(0, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-  gpu_timer.Stop();
-  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
-
-  // Run.
-  gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
-    C_->Restore(TypeFlag::kFloat32, ON_DEVICE);
-
-    gpu_timer.Start();
-    GEMMDevice(ki, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds());
-
-    // Output, Only record the first time.
+    // Record the occupancy for profiling.
+    QueryPotentialOccupancy(kernel->kernel_address, ki,
+                            config.threads_per_block.x * config.threads_per_block.y,
+                            config.shared_memory_size);
+    // Input.
+    const void *A, *B;
+    void *C;
+    kernel->time_record.input = GET_TIME_DIFF(gpu_timer_,
+      TYPE_SWITCH(kernel->type_flag, T, {
+        A = A_->GetGpuData<T>(PUSH_IF_EMPTY);
+        B = B_->GetGpuData<T>(PUSH_IF_EMPTY);
+        C = C_->GetGpuData<T>(PUSH_IF_EMPTY);
+      };);
+    ); 
+    // Save original data.
     if (ki == 0) {
-      gpu_timer.Start();
-      C_->GetCpuData<float>(PUSH);
-      gpu_timer.Stop();
-      gpu_time_out_record_ = gpu_timer.MilliSeconds();
+      C_->Save(kernel->type_flag, ON_DEVICE);
     }
-    checker_.CheckArray(C_->GetCpuData<float>(PUSH), C_->num_element(), ki);
+    // Warm up.
+    kernel->time_record.warnup = GET_TIME_DIFF(gpu_timer_,
+      kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
+    );
+    // Run.
+    C_->Restore(kernel->type_flag, ON_DEVICE);
+    kernel->time_record.run = GET_TIME_DIFF(gpu_timer_,
+      kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
+    );
+    // Output.
+    kernel->time_record.output = GET_TIME_DIFF(gpu_timer_, 
+      TYPE_SWITCH(kernel->type_flag, T, { C_->GetCpuData<T>(PUSH); });
+    );
+    // Check.
+    TYPE_SWITCH(kernel->type_flag, T, 
+      checker_.CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
+    );
+  }
+  // Show.
+  for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
+    PrintRecordedInfo(OpRunMode::ON_DEVICE, ki, gpu_kernels_[ki]);
   }
 }
-INSTANTIATE_CLASS(GEMM);
+
 }

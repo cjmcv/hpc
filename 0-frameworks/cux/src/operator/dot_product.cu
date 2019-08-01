@@ -111,63 +111,109 @@ __global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, cons
   }
 }
 
-template <typename Dtype>
-void VectorDotProduct<Dtype>::PrepareLaunchConfig(int len) {
-  // V0 & V1 & V2
-  std::vector<void *> kernel_funcs = { VectorDotProductDeviceV0, VectorDotProductDeviceV1, 
-                                       VectorDotProductDeviceV2 };
-  for(int id = 0; id < kernel_funcs.size(); id++) {
-    Config1D config;
-    config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, kernel_funcs[id], 0, len);
-    config.shared_memory_size = config.threads_per_block * sizeof(float);
-    config_1d_[id] = config;    
-    
-    op_params_.launch_config->QueryPotentialOccupancy(
-      kernel_funcs[id], config.threads_per_block, config.shared_memory_size,
-      gpu_kernel_active_blocks_[id], gpu_kernel_occupancys_[id]);
-  }
-  // default.
-  //config.threads_per_block = 1024;
-  //config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;    
-}
+void VectorDotProduct::GpuKernelsSetup() {
+  gpu_kernels_.clear();
+  // Kernel v0
+  {
+    auto get_config = [&](int len) -> Config1D {
+      Config1D config;
+      config.threads_per_block = 1024;
+      config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;
+      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV0, 0, len);
+      config.shared_memory_size = config.threads_per_block * sizeof(float);
+      return config;
+    };
+    auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
+      VectorDotProductDeviceV0 << <config.blocks_per_grid,
+        config.threads_per_block,
+        config.shared_memory_size >> >
+        (len, (float *)vec_a, (float *)vec_b, (float *)res);
+    };
 
-template <typename Dtype>
-void VectorDotProduct<Dtype>::VectorDotProductDevice(int kernel_id, int len,
-                                                     const Dtype *vec_a, const Dtype *vec_b,
-                                                     Dtype *res) {
-  switch (kernel_id) {
-  case 0:
-    VectorDotProductDeviceV0<< <config_1d_[kernel_id].blocks_per_grid, 
-                                config_1d_[kernel_id].threads_per_block, 
-                                config_1d_[kernel_id].shared_memory_size >> >
-      (len, vec_a, vec_b, res);
-    break;
-  case 1:
-    VectorDotProductDeviceV1<< <config_1d_[kernel_id].blocks_per_grid, 
-                                config_1d_[kernel_id].threads_per_block, 
-                                config_1d_[kernel_id].shared_memory_size >> >
-      (len, vec_a, vec_b, res);
-    break;
-  case 2:
-    VectorDotProductDeviceV2<< <config_1d_[kernel_id].blocks_per_grid, 
-                                config_1d_[kernel_id].threads_per_block, 
-                                config_1d_[kernel_id].shared_memory_size >> >
-      (len, vec_a, vec_b, res);
-    break;
-  case 3:
-    // CUDA version 4: 0.59 ms
-    // CUBLAS_POINTER_MODE_DEVICE: Return data on device -> res is a pointer for device.
-    // CUBLAS_POINTER_MODE_HOST: On host.
-    CUBLAS_CHECK(cublasSetPointerMode(cublas_handle_, CUBLAS_POINTER_MODE_DEVICE));
-    CUBLAS_CHECK(cublasSdot(cublas_handle_, len, vec_a, 1, vec_b, 1, res));
-    break;
-  default:
-    CUXLOG_ERR("VectorDotProductDevice -> Device Kernel id (%d) not found.", kernel_id);
+    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->describe_info = "Shared memory";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = VectorDotProductDeviceV0;
+
+    gpu_kernels_.push_back(kernel);
+  }
+  // Kernel v1
+  {
+    auto get_config = [&](int len) -> Config1D {
+      Config1D config;
+      config.threads_per_block = 1024;
+      config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;
+      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV1, 0, len);
+      config.shared_memory_size = config.threads_per_block * sizeof(float);
+      return config;
+    };
+    auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
+      VectorDotProductDeviceV1 << <config.blocks_per_grid,
+        config.threads_per_block,
+        config.shared_memory_size >> >
+        (len, (float *)vec_a, (float *)vec_b, (float *)res);
+    };
+
+    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->describe_info = "Shared memory / Loop unrolling";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = VectorDotProductDeviceV1;
+
+    gpu_kernels_.push_back(kernel);
+  }
+  // Kernel v2
+  {
+    auto get_config = [&](int len) -> Config1D {
+      Config1D config;
+      config.threads_per_block = 1024;
+      config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;
+      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV2, 0, len);
+      config.shared_memory_size = config.threads_per_block * sizeof(float);
+      return config;
+    };
+    auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
+      VectorDotProductDeviceV2 << <config.blocks_per_grid,
+        config.threads_per_block,
+        config.shared_memory_size >> >
+        (len, (float *)vec_a, (float *)vec_b, (float *)res);
+    };
+
+    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;  
+    kernel->describe_info = "Shared memory / Loop unrolling";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = VectorDotProductDeviceV2;
+
+    gpu_kernels_.push_back(kernel);
+  }
+  // Kernel v3.
+  {
+
+    auto get_config = [&](int len) -> Config1D {
+      Config1D config;
+      return config;
+    };
+    auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
+      // CUBLAS_POINTER_MODE_DEVICE: Return data on device -> res is a pointer for device.
+      // CUBLAS_POINTER_MODE_HOST: On host.
+      CUBLAS_CHECK(cublasSetPointerMode(cublas_handle_, CUBLAS_POINTER_MODE_DEVICE));
+      CUBLAS_CHECK(cublasSdot(cublas_handle_, len, (float *)vec_a, 1, (float *)vec_b, 1, (float *)res));
+    };
+
+    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->describe_info = "Cublas";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = nullptr;
+
+    gpu_kernels_.push_back(kernel);
   }
 }
-
-template void VectorDotProduct<float>::VectorDotProductDevice(
-  int kernel_id, int len, const float *vec_a, const float *vec_b, float *res);
-template void VectorDotProduct<float>::PrepareLaunchConfig(int len);
 
 }

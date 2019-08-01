@@ -17,10 +17,10 @@ namespace cux {
 static int InitEnvironment() {
   CUXLOG_INFO("Initialize Environment.");
 
-  OpFactory<float>::GetInstance().RegisterOpClass("dot_product", VectorDotProduct<float>::Creator);
-  OpFactory<float>::GetInstance().RegisterOpClass("gemm", GEMM<float>::Creator);
+  OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
+  OpFactory::GetInstance().RegisterOpClass("gemm", Gemm::Creator);
 
-  CUXLOG_COUT("* Registered Op: %s.", OpFactory<float>::GetInstance().PrintList().c_str());
+  CUXLOG_COUT("* Registered Op: %s.", OpFactory::GetInstance().PrintList().c_str());
   return 0;
 }
 
@@ -99,7 +99,7 @@ public:
   }
 
   void SelectOp(std::string op_name, std::string params) {
-    op_ = OpFactory<float>::GetInstance().CreateOpByType(op_name, params);
+    op_ = OpFactory::GetInstance().CreateOpByType(op_name, &device_, params);
   }
 
   int SetOpIoData(const std::vector< Array4D* > &input, 
@@ -120,13 +120,12 @@ public:
     else {
       op_->RunOnDevice();
     }  
-    op_->PrintElapsedTime(mode);
   }
 
 private:
   Device device_;
   LaunchConfig *launch_config_;
-  Operator<float> *op_;
+  Operator *op_;
 };
 
 } // cux.

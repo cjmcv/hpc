@@ -5,18 +5,42 @@
 #ifndef CUX_DOT_PRODUCT_H_
 #define CUX_DOT_PRODUCT_H_
 
+#include <functional>
+
 #include "util/util.h"
 #include "operator.h"
 
 namespace cux {
 
-template <typename Dtype>
-class VectorDotProduct : public Operator<Dtype> {
+struct DotProductCpuKernel :OpKernel {
+  std::function<void(int len, const void *vec_a, const void *vec_b, void *res)> func;
+};
+
+struct DotProductGpuKernel :OpKernel { 
+  std::function<Config1D(int len)> get_config;
+  std::function<void(Config1D, int len, const void *vec_a, const void *vec_b, void *res)> func;
+  
+  void *kernel_address;
+};
+
+
+class VectorDotProduct : public Operator {
 public:
-  VectorDotProduct() :Operator(2, 4) {
-    config_1d_.resize(gpu_kernel_cnt_);
+  VectorDotProduct(Device *device) :Operator(device) {
+    CpuKernelsSetup();
+    GpuKernelsSetup();
+    gpu_kernel_occupancys_.resize(gpu_kernels_.size());
+    gpu_kernel_active_blocks_.resize(gpu_kernels_.size());
   }
-  static Operator *VectorDotProduct::Creator(std::string &params_str);
+  ~VectorDotProduct() {
+    for (int i = 0; i < cpu_kernels_.size(); i++) {
+      delete cpu_kernels_[i];
+    }
+    for (int i = 0; i < gpu_kernels_.size(); i++) {
+      delete gpu_kernels_[i];
+    }
+  }
+  static Operator *VectorDotProduct::Creator(Device *device, std::string &params_str);
   
   void Help() const;
   int SetIoData(const std::vector< Array4D* > &input,
@@ -25,24 +49,16 @@ public:
   void RunOnDevice();
 
 private:
-  std::string &GetHostKernelsInfo(int kernel_id);
-  std::string &GetDeviceKernelsInfo(int kernel_id);
-
-  void VectorDotProductHost(int kernel_id, int len,
-                            const Dtype *vec_a, const Dtype *vec_b,
-                            Dtype *res);
-  void VectorDotProductDevice(int kernel_id, int len,
-                              const Dtype *vec_a, const Dtype *vec_b,
-                              Dtype *res);
-
-  void PrepareLaunchConfig(int len);
+  void CpuKernelsSetup();
+  void GpuKernelsSetup();
 
 private:
-  Array4D *in_a_;
+  Array4D *in_a_; // Don not hold, needn't be released here.
   Array4D *in_b_;
   Array4D *out_;
 
-  std::vector<Config1D> config_1d_;
+  std::vector<DotProductCpuKernel *> cpu_kernels_;
+  std::vector<DotProductGpuKernel *> gpu_kernels_;
 };
 } // cux.
 

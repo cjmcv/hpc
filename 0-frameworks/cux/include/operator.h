@@ -14,7 +14,6 @@
 namespace cux {
 
 // Used to check the correctness of the output of those functions.
-template <typename Dtype>
 class ResultChecker {
 public:
   ResultChecker() :prev_data_(nullptr), len_(0) {}
@@ -24,39 +23,53 @@ public:
       len_ = 0;
     }
   }
-  bool CheckArray(const Dtype *in, const int len, const int id);
+  template <typename DType>
+  bool CheckArray(DType *in, int len, int id);
 
 private:
   // Set the benchmark data, which is correct by default.
-  void SetBenchmarkData(const Dtype *in, const int len);
+  template <typename DType>
+  void SetBenchmarkData(DType *in, int len);
 
 private:
-  Dtype *prev_data_;
+  float *prev_data_;
   int len_;
+};
+
+struct KernelTimeRecord {
+  float run = 0.0;
+
+  float warnup = 0.0;
+  float input = 0.0;
+  float output = 0.0;
+};
+
+struct OpKernel {
+  TypeFlag type_flag;
+  std::string describe_info;
+  KernelTimeRecord time_record;
 };
 
 struct OpParams {
   LaunchConfig *launch_config;
 };
 
-template <typename Dtype>
 class Operator {
 public:
-  Operator(const int cpu_kernel_cnt, const int gpu_kernel_cnt)
-    : cpu_kernel_cnt_(cpu_kernel_cnt),
-      gpu_kernel_cnt_(gpu_kernel_cnt),
-      cublas_handle_(nullptr) {
-    gpu_kernel_occupancys_.resize(gpu_kernel_cnt_);
-    gpu_kernel_active_blocks_.resize(gpu_kernel_cnt_);
-
+  Operator(Device *device)
+    : device_(device), cublas_handle_(nullptr) {
     if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
       CUXLOG_ERR("Cannot create Cublas handle. Cublas won't be available.");
     }
   }
+  //TODO: launch_config should be defined here. 
   inline void SetOpParams(const OpParams &params) {
     op_params_.launch_config = params.launch_config;
   }
-  void PrintElapsedTime(const OpRunMode mode);
+
+  void QueryPotentialOccupancy(const void *kernel_address, int kernel_id, int threads_per_block, int shared_memory_size);
+
+  void PrintRecordedInfo(const OpRunMode &mode, int kernel_id, const OpKernel *kernel_info);
   
   // Show relevant prompts.
   virtual void Help() const = 0;
@@ -66,30 +79,19 @@ public:
   virtual void RunOnHost() = 0;
   virtual void RunOnDevice() = 0;
 
-  virtual std::string &GetHostKernelsInfo(int kernel_id) { static std::string t = ""; return t; };
-  virtual std::string &GetDeviceKernelsInfo(int kernel_id) { static std::string t = ""; return t; };
-
 public: 
+  Device *device_;
   OpParams op_params_;
   
   GpuTimer gpu_timer_;
-  std::vector<float> gpu_time_kernel_record_;
-  float gpu_time_in_record_;
-  float gpu_time_out_record_;
-  float gpu_time_warnup_record_;
-
   CpuTimer cpu_timer_;
-  std::vector<float> cpu_time_kernel_record_;
-  
-  // Verify the correctness of the output.
-  ResultChecker<Dtype> checker_;
 
-  // The total number of Kenrels.
-  int cpu_kernel_cnt_;
-  int gpu_kernel_cnt_;
-  
+  // Verify the correctness of the output.
+  ResultChecker checker_;
+
   // occupancys for each kernel.
   // An element corresponds to a kernel.
+  LaunchConfig *launch_config_;
   std::vector<double> gpu_kernel_occupancys_;
   std::vector<int> gpu_kernel_active_blocks_;
 

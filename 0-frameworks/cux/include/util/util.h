@@ -114,7 +114,7 @@ public:
 //#define INSTANTIATE_CLASS(classname) \
 //  char gInstantiationGuard##classname; \
 //  template class classname<float>; \
-//  template class classname<double>
+//  template class classname<half>
 
 #define INSTANTIATE_CLASS(classname) \
   char gInstantiationGuard##classname; \
@@ -209,6 +209,7 @@ struct DataType<uint8_t> {
 //       7. 在demo中，由用户自定义OP.
 //       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）- Finish
 //       9. DataType根据模板的类型获得类型的变量，从而切换该调用的kernel
+//       10. other: 图任务自动调度框架。自己定义op，及其依赖关系。
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
 //                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断 - Finish

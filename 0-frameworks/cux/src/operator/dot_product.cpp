@@ -39,33 +39,37 @@ void VectorDotProductHostV1(int len, const float *vec_a, const float *vec_b, flo
   *res = result;
 }
 
-template <typename Dtype>
-std::string &VectorDotProduct<Dtype>::GetHostKernelsInfo(int kernel_id) {
-  static std::string info[2] = { "Normal", "SIMD" };
-  if (kernel_id < 0 || kernel_id >= 2) {
-    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
+void VectorDotProduct::CpuKernelsSetup() {
+  cpu_kernels_.clear();
+  // Kernel v0.
+  {
+    auto func = [&](int len, const void *vec_a, const void *vec_b, void *res) -> void {
+      VectorDotProductHostV0(len, (float *)vec_a, (float *)vec_b, (float *)res);
+    };
+
+    DotProductCpuKernel *kernel = new DotProductCpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->func = func;
+    kernel->describe_info = "Normal";
+
+    cpu_kernels_.push_back(kernel);
   }
-  return info[kernel_id];
+  // Kernel v1.
+  {
+    auto func = [&](int len, const void *vec_a, const void *vec_b, void *res) -> void {
+      VectorDotProductHostV1(len, (float *)vec_a, (float *)vec_b, (float *)res);
+    };
+
+    DotProductCpuKernel *kernel = new DotProductCpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->func = func;
+    kernel->describe_info = "SIMD";
+
+    cpu_kernels_.push_back(kernel);
+  }
 }
 
-template <typename Dtype>
-void VectorDotProduct<Dtype>::VectorDotProductHost(int kernel_id, int len,
-                                                   const Dtype *vec_a, const Dtype *vec_b,
-                                                   Dtype *res) {
-  switch (kernel_id) {
-  case 0:
-    VectorDotProductHostV0(len, vec_a, vec_b, res);
-    break;
-  case 1:
-    VectorDotProductHostV1(len, vec_a, vec_b, res);
-    break;
-  default:
-    CUXLOG_ERR("Host Kernel id (%d) not found.", kernel_id);
-  }
-}
-
-template <typename Dtype>
-void VectorDotProduct<Dtype>::Help() const {
+void VectorDotProduct::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: Vector Dot Product.");
   CUXLOG_COUT("* Function: sum += a[i] * b[i]");
@@ -75,20 +79,16 @@ void VectorDotProduct<Dtype>::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-template <typename Dtype>
-Operator<Dtype> *VectorDotProduct<Dtype>::Creator(std::string &params_str) {
-  return new VectorDotProduct();
+Operator *VectorDotProduct::Creator(Device *device, std::string &params_str) {
+  return new VectorDotProduct(device);
 }
 
-template <typename Dtype>
-int VectorDotProduct<Dtype>::SetIoData(const std::vector< Array4D* > &input,
-                                       const std::vector< Array4D* > &output) {
+int VectorDotProduct::SetIoData(const std::vector< Array4D* > &input,
+                                const std::vector< Array4D* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
-    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
     Help();
-    // TODO: Error code.
-    return -1;
+    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
   }
 
   in_a_ = input[0];
@@ -98,90 +98,85 @@ int VectorDotProduct<Dtype>::SetIoData(const std::vector< Array4D* > &input,
   return 0;
 }
 ////////////////////////////////////////////////
-// cpp version: 965ms
-// Normal version in cpu as a reference
-template <typename Dtype>
-void VectorDotProduct<Dtype>::RunOnHost() {
-  CpuTimer cpu_timer;
-
-  // Warp.
-  const float *vec_a = in_a_->GetCpuData<float>(PUSH_IF_EMPTY);
-  const float *vec_b = in_b_->GetCpuData<float>(PUSH_IF_EMPTY);
+// cpu version.
+void VectorDotProduct::RunOnHost() {
+  CUXLOG_COUT("VectorDotProduct -> CPU: ");
   const int len = in_a_->num_element();
-  float *result = out_->GetCpuData<float>(NO_PUSH);
-  
-  // Run.
-  cpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < cpu_kernel_cnt_; ki++) {
-    *result = 0;
 
-    cpu_timer.Start();
-    VectorDotProductHost(ki, len, vec_a, vec_b, result);
-    cpu_timer.Stop();  
-    cpu_time_kernel_record_.push_back(cpu_timer.MilliSeconds());
+  for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
+    DotProductCpuKernel *kernel = cpu_kernels_[ki];
 
-    checker_.CheckArray(out_->GetCpuData<float>(PUSH), out_->num_element(), ki);
+    // Input.
+    const void *vec_a, *vec_b;
+    void *result;
+    kernel->time_record.input = GET_TIME_DIFF(cpu_timer_,
+      TYPE_SWITCH(kernel->type_flag, T, {
+        vec_a = in_a_->GetCpuData<T>(PUSH_IF_EMPTY);
+        vec_b = in_b_->GetCpuData<T>(PUSH_IF_EMPTY);
+        result = out_->GetCpuData<T>(NO_PUSH);
+      };);
+    );
+    // Run.
+    kernel->time_record.run = GET_TIME_DIFF(cpu_timer_,
+      kernel->func(len, vec_a, vec_b, result);
+    );
+    // Output.
+    TYPE_SWITCH(kernel->type_flag, T,
+      checker_.CheckArray(out_->GetCpuData<T>(PUSH), out_->num_element(), ki);
+    );
   }
-
-  CUXLOG_COUT("result: %f.", *out_->GetCpuData<float>(NO_PUSH));
+  // Show.
+  for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
+    PrintRecordedInfo(OpRunMode::ON_HOST, ki, cpu_kernels_[ki]);
+  }
 }
 
 //////////////////
 // cuda version.
-template <typename Dtype>
-std::string &VectorDotProduct<Dtype>::GetDeviceKernelsInfo(int kernel_id) {
-  static std::string info[4] = { "Shared memory",
-    "Shared memory / Loop unrolling",
-    "Shared memory / Loop unrolling",
-    "Cublas" };
-  if (kernel_id < 0 || kernel_id >= 4) {
-    CUXLOG_ERR("GetDeviceKernelsInfo -> Device Kernel id (%d) not found.", kernel_id);
-  }
-  return info[kernel_id];
-}
-
-template <typename Dtype>
-void VectorDotProduct<Dtype>::RunOnDevice() {
-  // Time recorder.
-  GpuTimer gpu_timer;
-
-  // Input.
-  gpu_timer.Start();
-  const float *vec_a = in_a_->GetGpuData<float>(PUSH_IF_EMPTY);
-  const float *vec_b = in_b_->GetGpuData<float>(PUSH_IF_EMPTY);
+void VectorDotProduct::RunOnDevice() {
+  CUXLOG_COUT("VectorDotProduct -> GPU:");
   const int len = in_a_->num_element();
-  float *result = out_->GetGpuData<float>(NO_PUSH);
-  gpu_timer.Stop();
-  gpu_time_in_record_ = gpu_timer.MilliSeconds();
 
-  // Prepare launch config for kernels.
-  PrepareLaunchConfig(len);
+  for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
+    DotProductGpuKernel *kernel = gpu_kernels_[ki];
+    Config1D config = kernel->get_config(len);
 
-  // Warm up.
-  gpu_timer.Start();
-  VectorDotProductDevice(0, len, vec_a, vec_b, result);
-  gpu_timer.Stop();
-  gpu_time_warnup_record_ = gpu_timer.MilliSeconds();
-
-  // Run.
-  gpu_time_kernel_record_.clear();
-  for (int ki = 0; ki < gpu_kernel_cnt_; ki++) {
-    cudaMemset(result, 0, sizeof(float));
-
-    gpu_timer.Start();
-    VectorDotProductDevice(ki, len, vec_a, vec_b, result);
-    gpu_timer.Stop();
-    gpu_time_kernel_record_.push_back(gpu_timer.MilliSeconds());
-
-    // Output, Only record the first time.
-    if (ki == 0) {
-      gpu_timer.Start();
-      out_->GetCpuData<float>(PUSH);
-      gpu_timer.Stop();
-      gpu_time_out_record_ = gpu_timer.MilliSeconds();
-    }
-    checker_.CheckArray(out_->GetCpuData<float>(PUSH), out_->num_element(), ki);
+    // Record the occupancy for profiling.
+    QueryPotentialOccupancy(kernel->kernel_address, ki,
+                            config.threads_per_block, 
+                            config.shared_memory_size);
+    // Input.
+    const void *vec_a, *vec_b;
+    void *result;
+    kernel->time_record.input = GET_TIME_DIFF(gpu_timer_,
+      TYPE_SWITCH(kernel->type_flag, T, {
+        vec_a = in_a_->GetGpuData<T>(PUSH_IF_EMPTY);
+        vec_b = in_b_->GetGpuData<T>(PUSH_IF_EMPTY);
+        result = out_->GetGpuData<T>(NO_PUSH); 
+      };);
+    );
+    // Warm up.
+    kernel->time_record.warnup = GET_TIME_DIFF(gpu_timer_,
+      kernel->func(config, len, vec_a, vec_b, result);
+    );
+    // Run.
+    TYPE_SWITCH(kernel->type_flag, T, cudaMemset(result, 0, sizeof(T)););
+    kernel->time_record.run = GET_TIME_DIFF(gpu_timer_,
+      kernel->func(config, len, vec_a, vec_b, result);
+    );
+    // Output.
+    kernel->time_record.output = GET_TIME_DIFF(gpu_timer_,
+      TYPE_SWITCH(kernel->type_flag, T, { out_->GetCpuData<T>(PUSH); });
+    );
+    // Check.
+    TYPE_SWITCH(kernel->type_flag, T,
+      checker_.CheckArray(out_->GetCpuData<T>(PUSH), out_->num_element(), ki);
+    );
+  }
+  // Show.
+  for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
+    PrintRecordedInfo(OpRunMode::ON_DEVICE, ki, gpu_kernels_[ki]);
   }
 }
-INSTANTIATE_CLASS(VectorDotProduct);
+
 }

@@ -5,29 +5,70 @@
 #ifndef CUX_GEMM_H_
 #define CUX_GEMM_H_
 
+#include <functional>
+
 #include "util/util.h"
 #include "operator.h"
 
 namespace cux {
 
-struct GEMMKernelParam {
+struct GemmKernelParam {
   float alpha = 1.0;
   float beta = 0.0;
 
-  GEMMKernelParam& operator=(const GEMMKernelParam& in) {
+  GemmKernelParam& operator=(const GemmKernelParam& in) {
     alpha = in.alpha;
     beta = in.beta;
     return *this;
   }
 };
 
-template <typename Dtype>
-class GEMM : public Operator<Dtype> {
+//// Lambda functions cannot be assigned in this case.
+//// So use std::function instead.
+//typedef void (*KernelFuncPtr)();
+struct GemmCpuKernel :OpKernel {
+  GemmKernelParam params;
+
+  std::function<void(const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc)> func;
+};
+
+struct GemmGpuKernel :OpKernel {  
+  GemmKernelParam params;
+   
+  std::function<Config2D(int M, int N)> get_config;
+  std::function<void(Config2D, 
+                    const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc)> func;
+
+  void *kernel_address;
+};
+
+class Gemm : public Operator {
 public:
-  GEMM(GEMMKernelParam &params) :kernel_params_(params), Operator(3, 3) {
-    config_2d_.resize(gpu_kernel_cnt_);
+  Gemm(Device *device, GemmKernelParam &params) :kernel_params_(params), Operator(device) {
+    CpuKernelsSetup();
+    GpuKernelsSetup();
+    gpu_kernel_occupancys_.resize(gpu_kernels_.size());
+    gpu_kernel_active_blocks_.resize(gpu_kernels_.size());
   }
-  static Operator *GEMM::Creator(std::string &params_str);
+  ~Gemm() {
+    for (int i = 0; i < cpu_kernels_.size(); i++) {
+      delete cpu_kernels_[i];
+    }
+    for (int i = 0; i < gpu_kernels_.size(); i++) {
+      delete gpu_kernels_[i];
+    }
+  }
+  static Operator *Gemm::Creator(Device *device, std::string &params_str);
 
   void Help() const;
   int SetIoData(const std::vector< Array4D* > &input,
@@ -36,34 +77,18 @@ public:
   void RunOnDevice();
 
 private:
-  std::string &GetHostKernelsInfo(int kernel_id);
-  std::string &GetDeviceKernelsInfo(int kernel_id);
-
-  void GEMMHost(const int kernel_id, 
-                const int M, const int N,
-                const int K, const float ALPHA,
-                const Dtype *A, const int lda,
-                const Dtype *B, const int ldb,
-                const float beta,
-                Dtype *C, const int ldc);
-
-  void GEMMDevice(const int kernel_id,
-                  const int M, const int N, 
-                  const int K, const float ALPHA,
-                  const Dtype *A, const int lda,
-                  const Dtype *B, const int ldb,
-                  const float beta,
-                  Dtype *C, const int ldc);
-
-  void PrepareLaunchConfig(int N, int M);
+  void CpuKernelsSetup();
+  void GpuKernelsSetup();
 
 private:
   Array4D *A_;
   Array4D *B_;
   Array4D *C_;
 
-  GEMMKernelParam kernel_params_;
-  std::vector<Config2D> config_2d_;
+  std::vector<GemmCpuKernel *> cpu_kernels_;
+  std::vector<GemmGpuKernel *> gpu_kernels_;
+
+  GemmKernelParam kernel_params_;
 };
 } // cux.
 

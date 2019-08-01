@@ -5,7 +5,7 @@
 
 namespace cux {
 // CUDA version 0: 15 ms
-// It is rewrited from GEMMHostV2. 
+// It is rewrited from GemmHostV2. 
 // bi,bj can be replaced by blockIdx.x,blockIdx.y
 // i,j can be replaced by threadIdx.x,threadIdx.y
 // so just bk and k left. Grid and block is related to the dst matrix.
@@ -14,7 +14,7 @@ namespace cux {
 // for bk -> bk_num_per_grid
 //     for k -> k_num_per_block
 //         C[bi*bs + ty, bj*bs + tx] = A[bi*bs + ty, bk*bs + k] * B[k*bs + k, bj*bs + tx]
-__global__ void GEMMDeviceV0(const int M, const int N, 
+__global__ void GemmDeviceV0(const int M, const int N, 
                              const int K, const float alpha,
                              const float *A, const int lda,
                              const float *B, const int ldb,
@@ -43,7 +43,7 @@ __global__ void GEMMDeviceV0(const int M, const int N,
 
 // CUDA version 1: 9 ms
 // Use shared memory.
-__global__ void GEMMDeviceV1(const int M, const int N, 
+__global__ void GemmDeviceV1(const int M, const int N, 
                              const int K, const float alpha,
                              const float *A, const int lda,
                              const float *B, const int ldb,
@@ -85,85 +85,101 @@ __global__ void GEMMDeviceV1(const int M, const int N,
   C[(blockIdx.y * block_size + threadIdx.y) * ldc + (blockIdx.x * block_size + threadIdx.x)] += c_sub_acc;
 }
 
-template <typename Dtype>
-void GEMM<Dtype>::PrepareLaunchConfig(int N, int M) {
-  // V0 & V1
-  int kernel_id;
-  { 
-    Config2D config;
-    const int block_size = 32;
-    config.threads_per_block = dim3(block_size, block_size);
-    config.blocks_per_grid = dim3(N / config.threads_per_block.x, M / config.threads_per_block.y);
+////////////////////////////////////
+void Gemm::GpuKernelsSetup() {
+  gpu_kernels_.clear();
+  // Kernel v0.
+  {
+    auto get_config = [&](int M, int N) -> Config2D {
+      Config2D config;
+      const int block_size = 32;
+      config.threads_per_block = dim3(block_size, block_size);
+      config.blocks_per_grid = dim3(N / config.threads_per_block.x, M / config.threads_per_block.y);
+      return config;
+    };
+    auto func = [&](Config2D config,
+                    const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void{
+      GemmDeviceV0 << <config.blocks_per_grid, config.threads_per_block >> >
+        (M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+    };
 
-    // V0
-    {
-      kernel_id = 0;
-      config_2d_[kernel_id] = config;
+    GemmGpuKernel *kernel = new GemmGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;   
+    kernel->describe_info = "Normal(Block-based)";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = GemmDeviceV0;
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
 
-      op_params_.launch_config->QueryPotentialOccupancy(
-        GEMMDeviceV0, config.threads_per_block.x * config.threads_per_block.y, 0,
-        gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
-    }
-    // V1
-    {
-      kernel_id = 1;
+    gpu_kernels_.push_back(kernel);
+  }
+  // Kernel v1.
+  {
+    auto get_config = [&](int M, int N) -> Config2D {
+      Config2D config;
+      const int block_size = 32;
+      config.threads_per_block = dim3(block_size, block_size);
+      config.blocks_per_grid = dim3(N / config.threads_per_block.x, M / config.threads_per_block.y);
       config.shared_memory_size = 2 * config.threads_per_block.x * config.threads_per_block.y * sizeof(float);
-      config_2d_[kernel_id] = config;
+      return config;
+    };
+    auto func = [&](Config2D config,
+                    const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
+      GemmDeviceV1 << <config.blocks_per_grid, config.threads_per_block, config.shared_memory_size >> >
+        (M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+    };
 
-      op_params_.launch_config->QueryPotentialOccupancy(
-        GEMMDeviceV1, config.threads_per_block.x * config.threads_per_block.y, config.shared_memory_size,
-        gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
-    }
+    GemmGpuKernel *kernel = new GemmGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;  
+    kernel->describe_info = "Shared memory";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = GemmDeviceV1;
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
+
+    gpu_kernels_.push_back(kernel);
+  }
+  // Kernel v2.
+  {
+    auto get_config = [&](int M, int N) -> Config2D {
+      Config2D config;
+      return config;
+    };
+    auto func = [&](Config2D config,
+                    const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
+      // Note: Column first in cublas.
+      CUBLAS_CHECK(cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
+        N, M, K, &alpha, (float *)B, ldb, (float *)A, lda, &beta, (float *)C, ldc));
+    };
+
+    GemmGpuKernel *kernel = new GemmGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat32;   
+    kernel->describe_info = "Cublas";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = nullptr;
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
+
+    gpu_kernels_.push_back(kernel);
   }
 }
-
-template <typename Dtype>
-void GEMM<Dtype>::GEMMDevice(const int kernel_id,
-                      const int M, const int N, 
-                      const int K, const float alpha,
-                      const Dtype *A, const int lda,
-                      const Dtype *B, const int ldb,
-                      const float beta,
-                      Dtype *C, const int ldc) {
-  switch (kernel_id) {
-  case 0:
-    GEMMDeviceV0 << <config_2d_[kernel_id].blocks_per_grid, 
-                     config_2d_[kernel_id].threads_per_block >> >
-      (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    break;
-  case 1:
-    // For:  __shared__ float a_shared[threads_per_block.y][threads_per_block.x];
-    //       __shared__ float b_shared[threads_per_block.y][threads_per_block.x];
-    GEMMDeviceV1 << <config_2d_[kernel_id].blocks_per_grid, 
-                     config_2d_[kernel_id].threads_per_block, 
-                     config_2d_[kernel_id].shared_memory_size >> >
-      (M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
-    break;
-  case 2:
-    // CUDA version 2: 1.14 ms
-    CUBLAS_CHECK(cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
-      N, M, K, &alpha, B, ldb, A, lda, &beta, C, N));
-    break;
-  default:
-    CUXLOG_ERR("Device Kernel id (%d) not found.", kernel_id);
-  }
-}
-
-template void GEMM<float>::GEMMDevice(const int kernel_id,
-                                      const int M, const int N,
-                                      const int K, const float alpha,
-                                      const float *A, const int lda,
-                                      const float *B, const int ldb,
-                                      const float beta,
-                                      float *C, const int ldc);
-//template void GEMM<half>::GEMMDevice(const int kernel_id,
-//                                      const int M, const int N,
-//                                      const int K, const float alpha,
-//                                      const half *A, const int lda,
-//                                      const half *B, const int ldb,
-//                                      const float beta,
-//                                      half *C, const int ldc);
-
-template void GEMM<float>::PrepareLaunchConfig(int N, int M);
 
 } // namespace cux

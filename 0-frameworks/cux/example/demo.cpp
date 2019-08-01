@@ -23,7 +23,7 @@ void GenArray(const int len, float *arr) {
 void GenMatrix(const int height, const int width, float *mat) {
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
-      mat[i*width + j] = (float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
+      mat[i*width + j] = i + j;// (float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
     }
   }
 }
