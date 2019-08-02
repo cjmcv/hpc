@@ -165,7 +165,7 @@ void Gemm::GpuKernelsSetup() {
                     const float beta,
                     void *C, const int ldc) -> void {
       // Note: Column first in cublas.
-      CUBLAS_CHECK(cublasSgemm(cublas_handle_, CUBLAS_OP_N, CUBLAS_OP_N,
+      CUBLAS_CHECK(cublasSgemm(assistor_->cublas_handle(), CUBLAS_OP_N, CUBLAS_OP_N,
         N, M, K, &alpha, (float *)B, ldb, (float *)A, lda, &beta, (float *)C, ldc));
     };
 

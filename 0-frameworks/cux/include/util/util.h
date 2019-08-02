@@ -208,7 +208,9 @@ struct DataType<uint8_t> {
 //
 //       7. 在demo中，由用户自定义OP.
 //       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）- Finish
-//       9. DataType根据模板的类型获得类型的变量，从而切换该调用的kernel
+//       9. DataType根据模板的类型获得类型的变量，从而切换该调用的kernel - Finish
+//       10. OpAssist: 用于辅助Operator，在executor上定义变量，引入到每个Op上，保存op中只需要一个备份的变量.
+//                     如cublas的句柄，现在在Operator上，创建两个Op时，也将创建两个句柄
 //       10. other: 图任务自动调度框架。自己定义op，及其依赖关系。
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用

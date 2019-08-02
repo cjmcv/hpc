@@ -26,7 +26,7 @@ struct DotProductGpuKernel :OpKernel {
 
 class VectorDotProduct : public Operator {
 public:
-  VectorDotProduct(Device *device) :Operator(device) {
+  VectorDotProduct(OpAssistor *assistor) :Operator(assistor) {
     CpuKernelsSetup();
     GpuKernelsSetup();
     gpu_kernel_occupancys_.resize(gpu_kernels_.size());
@@ -40,7 +40,7 @@ public:
       delete gpu_kernels_[i];
     }
   }
-  static Operator *VectorDotProduct::Creator(Device *device, std::string &params_str);
+  static Operator *VectorDotProduct::Creator(OpAssistor *op_assistor, std::string &params_str);
   
   void Help() const;
   int SetIoData(const std::vector< Array4D* > &input,

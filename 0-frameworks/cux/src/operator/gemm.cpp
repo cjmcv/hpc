@@ -167,11 +167,11 @@ void Gemm::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-Operator *Gemm::Creator(Device *device, std::string &params_str) {
+Operator *Gemm::Creator(OpAssistor *assistor, std::string &params_str) {
   GemmKernelParam params;
   params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
   params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
-  return new Gemm(device, params);
+  return new Gemm(assistor, params);
 }
 
 int Gemm::SetIoData(const std::vector< Array4D* > &input,
@@ -221,7 +221,7 @@ void Gemm::RunOnHost() {
       kernel->func(M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
     );
     TYPE_SWITCH(kernel->type_flag, T,
-      checker_.CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
+      assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
     );
   }
   // Show.
@@ -279,7 +279,7 @@ void Gemm::RunOnDevice() {
     );
     // Check.
     TYPE_SWITCH(kernel->type_flag, T, 
-      checker_.CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
+      assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
     );
   }
   // Show.

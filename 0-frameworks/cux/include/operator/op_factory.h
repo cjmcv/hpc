@@ -16,11 +16,11 @@ namespace cux {
 
 class OpFactory {
   // A function pointer.
-  typedef Operator *(*OpCreator)(Device *device, std::string &params_str);
+  typedef Operator *(*OpCreator)(OpAssistor *assistor, std::string &params_str);
 public:
   ~OpFactory() {};
 
-  Operator *CreateOpByType(std::string type, Device *device, std::string param_str) {
+  Operator *CreateOpByType(std::string type, OpAssistor *assistor, std::string param_str) {
     std::map<std::string, OpCreator>::iterator it = op_creator_map_.find(type);
     if (it == op_creator_map_.end()) {
       CUXLOG_ERR("Can not find Op: %s", type.c_str());
@@ -32,7 +32,7 @@ public:
     if (!creator)
       return nullptr;
 
-    return creator(device, param_str);
+    return creator(assistor, param_str);
   }
 
   // Registerer, set the mapping relation between operator's class name and it's specific pointer function.

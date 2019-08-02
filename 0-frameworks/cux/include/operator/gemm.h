@@ -54,7 +54,7 @@ struct GemmGpuKernel :OpKernel {
 
 class Gemm : public Operator {
 public:
-  Gemm(Device *device, GemmKernelParam &params) :kernel_params_(params), Operator(device) {
+  Gemm(OpAssistor *assistor, GemmKernelParam &params) :kernel_params_(params), Operator(assistor) {
     CpuKernelsSetup();
     GpuKernelsSetup();
     gpu_kernel_occupancys_.resize(gpu_kernels_.size());
@@ -68,7 +68,7 @@ public:
       delete gpu_kernels_[i];
     }
   }
-  static Operator *Gemm::Creator(Device *device, std::string &params_str);
+  static Operator *Gemm::Creator(OpAssistor *assistor, std::string &params_str);
 
   void Help() const;
   int SetIoData(const std::vector< Array4D* > &input,

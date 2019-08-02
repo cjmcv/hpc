@@ -6,9 +6,9 @@
 #define CUX_EXECUTOR_H_
 
 #include "util/util.h"
-#include "util/op_factory.h"
 #include "util/launch_config.h"
-#include "operator.h"
+#include "operator/operator.h"
+#include "operator/op_factory.h"
 #include "operator/dot_product.h"
 #include "operator/gemm.h"
 
@@ -71,7 +71,7 @@ static void QueryDevices() {
 
 class Executor {
 public:
-  Executor() :op_(nullptr), launch_config_(nullptr) {}
+  Executor() :op_(nullptr), op_assistor_(nullptr) {}
 
   int Initialize(const int dev_id) {
     device_.id = dev_id;
@@ -83,7 +83,7 @@ public:
       return -1;
     }
 
-    launch_config_ = new LaunchConfig(&device_);
+    op_assistor_ = new OpAssistor(&device_);
     return 0;
   }
 
@@ -92,14 +92,14 @@ public:
       delete op_;
       op_ = nullptr;
     }
-    if (launch_config_ != nullptr) {
-      delete launch_config_;
-      launch_config_ = nullptr;
+    if (op_assistor_ != nullptr) {
+      delete op_assistor_;
+      op_assistor_ = nullptr;
     }
   }
 
   void SelectOp(std::string op_name, std::string params) {
-    op_ = OpFactory::GetInstance().CreateOpByType(op_name, &device_, params);
+    op_ = OpFactory::GetInstance().CreateOpByType(op_name, op_assistor_, params);
   }
 
   int SetOpIoData(const std::vector< Array4D* > &input, 
@@ -109,7 +109,7 @@ public:
 
   void SetOpParams() {
     OpParams params;
-    params.launch_config = launch_config_;
+    //params.launch_config = launch_config_;
     op_->SetOpParams(params);
   }
 
@@ -124,7 +124,7 @@ public:
 
 private:
   Device device_;
-  LaunchConfig *launch_config_;
+  OpAssistor *op_assistor_;
   Operator *op_;
 };
 

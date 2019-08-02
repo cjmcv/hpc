@@ -201,8 +201,8 @@ void VectorDotProduct::GpuKernelsSetup() {
     auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
       // CUBLAS_POINTER_MODE_DEVICE: Return data on device -> res is a pointer for device.
       // CUBLAS_POINTER_MODE_HOST: On host.
-      CUBLAS_CHECK(cublasSetPointerMode(cublas_handle_, CUBLAS_POINTER_MODE_DEVICE));
-      CUBLAS_CHECK(cublasSdot(cublas_handle_, len, (float *)vec_a, 1, (float *)vec_b, 1, (float *)res));
+      CUBLAS_CHECK(cublasSetPointerMode(assistor_->cublas_handle(), CUBLAS_POINTER_MODE_DEVICE));
+      CUBLAS_CHECK(cublasSdot(assistor_->cublas_handle(), len, (float *)vec_a, 1, (float *)vec_b, 1, (float *)res));
     };
 
     DotProductGpuKernel *kernel = new DotProductGpuKernel();

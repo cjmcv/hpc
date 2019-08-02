@@ -79,8 +79,8 @@ void VectorDotProduct::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-Operator *VectorDotProduct::Creator(Device *device, std::string &params_str) {
-  return new VectorDotProduct(device);
+Operator *VectorDotProduct::Creator(OpAssistor *op_assistor, std::string &params_str) {
+  return new VectorDotProduct(op_assistor);
 }
 
 int VectorDotProduct::SetIoData(const std::vector< Array4D* > &input,
@@ -122,7 +122,7 @@ void VectorDotProduct::RunOnHost() {
     );
     // Output.
     TYPE_SWITCH(kernel->type_flag, T,
-      checker_.CheckArray(out_->GetCpuData<T>(PUSH), out_->num_element(), ki);
+      assistor_->checker()->CheckArray(out_->GetCpuData<T>(PUSH), out_->num_element(), ki);
     );
   }
   // Show.
@@ -170,7 +170,7 @@ void VectorDotProduct::RunOnDevice() {
     );
     // Check.
     TYPE_SWITCH(kernel->type_flag, T,
-      checker_.CheckArray(out_->GetCpuData<T>(PUSH), out_->num_element(), ki);
+      assistor_->checker()->CheckArray(out_->GetCpuData<T>(PUSH), out_->num_element(), ki);
     );
   }
   // Show.
