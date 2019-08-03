@@ -93,7 +93,7 @@ void GemmHostV2(const int M, const int N,
 }
 
 //////////
-void Gemm::CpuKernelsSetup() {
+void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
   cpu_kernels_.clear();
   // Kernel v0.
   {
@@ -107,11 +107,11 @@ void Gemm::CpuKernelsSetup() {
     };
 
     GemmCpuKernel *kernel = new GemmCpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Normal";
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     cpu_kernels_.push_back(kernel);
   }
@@ -127,11 +127,11 @@ void Gemm::CpuKernelsSetup() {
     };
 
     GemmCpuKernel *kernel = new GemmCpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Adjust iteration order";
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     cpu_kernels_.push_back(kernel);
   }
@@ -147,11 +147,11 @@ void Gemm::CpuKernelsSetup() {
     };
 
     GemmCpuKernel *kernel = new GemmCpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Block-based";
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     cpu_kernels_.push_back(kernel);
   }
@@ -241,6 +241,7 @@ void Gemm::RunOnDevice() {
   const int ldb = N;
   const int ldc = N;
 
+  int last_type_flag = -1;
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
     GemmGpuKernel *kernel = gpu_kernels_[ki];
     Config2D config = kernel->get_config(M, N);

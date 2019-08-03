@@ -28,17 +28,9 @@ struct OpKernel {
   KernelTimeRecord time_record;
 };
 
-struct OpParams {
-  LaunchConfig *launch_config;
-};
-
 class Operator {
 public:
   Operator(OpAssistor *assistor) : assistor_(assistor) {}
-
-  inline void SetOpParams(const OpParams &params) {
-    //op_params_.launch_config = params.launch_config;
-  }
 
   void QueryPotentialOccupancy(const void *kernel_address, int kernel_id, 
                                int threads_per_block, int shared_memory_size);
@@ -55,7 +47,6 @@ public:
 
 public:   
   OpAssistor *assistor_;
-  OpParams op_params_;
   
   GpuTimer gpu_timer_;
   CpuTimer cpu_timer_;

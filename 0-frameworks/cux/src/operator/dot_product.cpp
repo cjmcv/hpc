@@ -48,7 +48,7 @@ void VectorDotProduct::CpuKernelsSetup() {
     };
 
     DotProductCpuKernel *kernel = new DotProductCpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Normal";
 
@@ -61,7 +61,7 @@ void VectorDotProduct::CpuKernelsSetup() {
     };
 
     DotProductCpuKernel *kernel = new DotProductCpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "SIMD";
 

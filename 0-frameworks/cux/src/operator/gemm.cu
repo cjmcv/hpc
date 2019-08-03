@@ -86,7 +86,7 @@ __global__ void GemmDeviceV1(const int M, const int N,
 }
 
 ////////////////////////////////////
-void Gemm::GpuKernelsSetup() {
+void Gemm::GpuKernelsSetup(GemmKernelParam &params) {
   gpu_kernels_.clear();
   // Kernel v0.
   {
@@ -109,13 +109,13 @@ void Gemm::GpuKernelsSetup() {
     };
 
     GemmGpuKernel *kernel = new GemmGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;   
+    kernel->type_flag = TypeFlag::FLOAT32;   
     kernel->describe_info = "Normal(Block-based)";
     kernel->get_config = get_config;
     kernel->func = func;
     kernel->kernel_address = GemmDeviceV0;
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -141,13 +141,13 @@ void Gemm::GpuKernelsSetup() {
     };
 
     GemmGpuKernel *kernel = new GemmGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;  
+    kernel->type_flag = TypeFlag::FLOAT32;  
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
     kernel->func = func;
     kernel->kernel_address = GemmDeviceV1;
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -170,13 +170,13 @@ void Gemm::GpuKernelsSetup() {
     };
 
     GemmGpuKernel *kernel = new GemmGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;   
+    kernel->type_flag = TypeFlag::FLOAT32;   
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;
     kernel->func = func;
     kernel->kernel_address = nullptr;
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -203,13 +203,13 @@ void Gemm::GpuKernelsSetup() {
     }; 
 
     GemmGpuKernel *kernel = new GemmGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat16;
+    kernel->type_flag = TypeFlag::FLOAT16;
     kernel->describe_info = "Cublas / Half";
     kernel->get_config = get_config;
     kernel->func = func;
     kernel->kernel_address = nullptr;
-    kernel->params.alpha = 1.0;
-    kernel->params.beta = 0.0;
+    kernel->params.alpha = params.alpha;
+    kernel->params.beta = params.beta;
 
     gpu_kernels_.push_back(kernel);
   }

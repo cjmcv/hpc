@@ -107,12 +107,6 @@ public:
     return op_->SetIoData(input, output);
   }
 
-  void SetOpParams() {
-    OpParams params;
-    //params.launch_config = launch_config_;
-    op_->SetOpParams(params);
-  }
-
   void Run(const OpRunMode mode) {
     if (mode == OpRunMode::ON_HOST) {
       op_->RunOnHost();

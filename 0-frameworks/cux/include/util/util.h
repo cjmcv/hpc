@@ -39,10 +39,10 @@ enum Code {
 };
 
 enum TypeFlag {
-  kFloat32 = 0,
-  kInt32 = 1,
-  kFloat16 = 2, 
-  kInt8 = 3,
+  FLOAT32 = 0,
+  INT32 = 1,
+  FLOAT16 = 2, 
+  INT8 = 3
 };
 
 enum OpRunMode {
@@ -122,25 +122,25 @@ public:
 
 #define TYPE_SWITCH(type, DType, ...)               \
   switch (type) {                                   \
-  case cux::TypeFlag::kFloat32:                     \
+  case cux::TypeFlag::FLOAT32:                     \
     {                                               \
       typedef float DType;                          \
       {__VA_ARGS__}                                 \
     }                                               \
     break;                                          \
-  case cux::TypeFlag::kFloat16:                     \
+  case cux::TypeFlag::FLOAT16:                     \
     {                                               \
       typedef cux::half DType;                      \
       {__VA_ARGS__}                                 \
     }                                               \
     break;                                          \
-  case cux::TypeFlag::kInt32:                       \
+  case cux::TypeFlag::INT32:                       \
     {                                               \
       typedef int32_t DType;                        \
       {__VA_ARGS__}                                 \
     }                                               \
     break;                                          \
-  case cux::TypeFlag::kInt8:                        \
+  case cux::TypeFlag::INT8:                        \
     {                                               \
       typedef int8_t DType;                         \
       {__VA_ARGS__}                                 \
@@ -165,27 +165,27 @@ template<typename DType>
 struct DataType;
 template<>
 struct DataType<float> {
-  static const int kFlag = cux::TypeFlag::kFloat32;
+  static const int kFlag = cux::TypeFlag::FLOAT32;
 };
 template<>
 struct DataType<cux::half> {
-  static const int kFlag = cux::TypeFlag::kFloat16;
+  static const int kFlag = cux::TypeFlag::FLOAT16;
 };
 template<>
 struct DataType<int32_t> {
-  static const int kFlag = cux::TypeFlag::kInt32;
+  static const int kFlag = cux::TypeFlag::INT32;
 };
 template<>
 struct DataType<uint32_t> {
-  static const int kFlag = cux::TypeFlag::kInt32;
+  static const int kFlag = cux::TypeFlag::INT32;
 };
 template<>
 struct DataType<int8_t> {
-  static const int kFlag = cux::TypeFlag::kInt8;
+  static const int kFlag = cux::TypeFlag::INT8;
 };
 template<>
 struct DataType<uint8_t> {
-  static const int kFlag = cux::TypeFlag::kInt8;
+  static const int kFlag = cux::TypeFlag::INT8;
 };
 
 // TODO: 2. 升级Array4D：静态动态内存、异步拷贝、对齐。。
@@ -196,7 +196,7 @@ struct DataType<uint8_t> {
 //       9. cmake添加新筛选器？
 //       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
 //       11. Array4D添加半精度；- Finish
-//       11. gemm cublas半精度;
+//       11. gemm cublas半精度; - Finish
 ////
 // TODO: 1. 算法与cublas对应；命名统一、功能统一 - Finish
 //       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。

@@ -131,7 +131,7 @@ void VectorDotProduct::GpuKernelsSetup() {
     };
 
     DotProductGpuKernel *kernel = new DotProductGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
     kernel->func = func;
@@ -157,7 +157,7 @@ void VectorDotProduct::GpuKernelsSetup() {
     };
 
     DotProductGpuKernel *kernel = new DotProductGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
     kernel->func = func;
@@ -183,7 +183,7 @@ void VectorDotProduct::GpuKernelsSetup() {
     };
 
     DotProductGpuKernel *kernel = new DotProductGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;  
+    kernel->type_flag = TypeFlag::FLOAT32;  
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
     kernel->func = func;
@@ -206,7 +206,7 @@ void VectorDotProduct::GpuKernelsSetup() {
     };
 
     DotProductGpuKernel *kernel = new DotProductGpuKernel();
-    kernel->type_flag = TypeFlag::kFloat32;
+    kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;
     kernel->func = func;

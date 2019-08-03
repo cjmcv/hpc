@@ -54,9 +54,9 @@ struct GemmGpuKernel :OpKernel {
 
 class Gemm : public Operator {
 public:
-  Gemm(OpAssistor *assistor, GemmKernelParam &params) :kernel_params_(params), Operator(assistor) {
-    CpuKernelsSetup();
-    GpuKernelsSetup();
+  Gemm(OpAssistor *assistor, GemmKernelParam &params) :Operator(assistor) {
+    CpuKernelsSetup(params);
+    GpuKernelsSetup(params);
     gpu_kernel_occupancys_.resize(gpu_kernels_.size());
     gpu_kernel_active_blocks_.resize(gpu_kernels_.size());
   }
@@ -77,8 +77,8 @@ public:
   void RunOnDevice();
 
 private:
-  void CpuKernelsSetup();
-  void GpuKernelsSetup();
+  void CpuKernelsSetup(GemmKernelParam &params);
+  void GpuKernelsSetup(GemmKernelParam &params);
 
 private:
   Array4D *A_;
@@ -87,8 +87,6 @@ private:
 
   std::vector<GemmCpuKernel *> cpu_kernels_;
   std::vector<GemmGpuKernel *> gpu_kernels_;
-
-  GemmKernelParam kernel_params_;
 };
 } // cux.
 
