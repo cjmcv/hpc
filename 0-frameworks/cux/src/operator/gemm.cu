@@ -180,6 +180,39 @@ void Gemm::GpuKernelsSetup() {
 
     gpu_kernels_.push_back(kernel);
   }
+  // Kernel v3.
+  {
+    auto get_config = [&](int M, int N) -> Config2D {
+      Config2D config;
+      return config;
+    };
+    auto func = [&](Config2D config,
+                    const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
+      // Note: Column first in cublas.
+      //CUBLAS_CHECK(cublasSgemm(assistor_->cublas_handle(), CUBLAS_OP_N, CUBLAS_OP_N,
+      //  N, M, K, &alpha, (float *)B, ldb, (float *)A, lda, &beta, (float *)C, ldc));
+      CUBLAS_CHECK(cublasSgemmEx(assistor_->cublas_handle(), CUBLAS_OP_N, CUBLAS_OP_N,
+                                 N, M, K, &alpha, (half *)B, CUDA_R_16F, ldb,
+                                 (half *)A, CUDA_R_16F, lda, &beta,
+                                 (half *)C, CUDA_R_16F, ldc));
+    }; 
+
+    GemmGpuKernel *kernel = new GemmGpuKernel();
+    kernel->type_flag = TypeFlag::kFloat16;
+    kernel->describe_info = "Cublas / Half";
+    kernel->get_config = get_config;
+    kernel->func = func;
+    kernel->kernel_address = nullptr;
+    kernel->params.alpha = 1.0;
+    kernel->params.beta = 0.0;
+
+    gpu_kernels_.push_back(kernel);
+  }
 }
 
 } // namespace cux

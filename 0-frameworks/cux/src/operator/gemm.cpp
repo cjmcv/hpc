@@ -241,7 +241,6 @@ void Gemm::RunOnDevice() {
   const int ldb = N;
   const int ldc = N;
 
-  // TODO: 记录第一个kernel的类型，切换到其他类型的核时，需要拷贝数据;还是在准备数据时，先完成拷贝？
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
     GemmGpuKernel *kernel = gpu_kernels_[ki];
     Config2D config = kernel->get_config(M, N);
@@ -250,6 +249,13 @@ void Gemm::RunOnDevice() {
     QueryPotentialOccupancy(kernel->kernel_address, ki,
                             config.threads_per_block.x * config.threads_per_block.y,
                             config.shared_memory_size);
+    // Check and convert precision.
+    TYPE_SWITCH(kernel->type_flag, T, { 
+      A_->CheckPrecsCpuCvt<T>();
+      B_->CheckPrecsCpuCvt<T>();
+      C_->CheckPrecsCpuCvt<T>();
+    });
+    
     // Input.
     const void *A, *B;
     void *C;
@@ -258,12 +264,10 @@ void Gemm::RunOnDevice() {
         A = A_->GetGpuData<T>(PUSH_IF_EMPTY);
         B = B_->GetGpuData<T>(PUSH_IF_EMPTY);
         C = C_->GetGpuData<T>(PUSH_IF_EMPTY);
-      };);
+      });
     ); 
-    // Save original data.
-    if (ki == 0) {
-      C_->Save(kernel->type_flag, ON_DEVICE);
-    }
+    // Save original data if backup is empty.
+    C_->Save(kernel->type_flag, ON_DEVICE);
     // Warm up.
     kernel->time_record.warnup = GET_TIME_DIFF(gpu_timer_,
       kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);

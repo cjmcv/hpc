@@ -40,8 +40,8 @@ enum Code {
 
 enum TypeFlag {
   kFloat32 = 0,
-  kFloat16 = 1, 
-  kInt32 = 2,
+  kInt32 = 1,
+  kFloat16 = 2, 
   kInt8 = 3,
 };
 

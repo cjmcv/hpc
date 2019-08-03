@@ -30,6 +30,8 @@ public:
     }
   }
   inline int type_flag() { return type_flag_; }
+  inline bool is_cpu_data_empty() { return cpu_data_ == nullptr ? true : false; }
+  inline bool is_gpu_data_empty() { return gpu_data_ == nullptr ? true : false; }
 
   void SaveCpuData(const void *cpu_data, const int num_element) {
     if (cpu_data_ == nullptr) {
@@ -110,14 +112,20 @@ public:
   inline void* gpu_data(int type_flag) { return gpu_data_[type_flag]; }
 
   // Save data to Array4DBackup.
-  void Save(int type_flag, OpRunMode mode) {
-    if (backup_[type_flag] == nullptr)
+  void Save(int type_flag, OpRunMode mode, bool is_clear_org = false) {
+    if(backup_[type_flag] == nullptr)
       backup_[type_flag] = new Array4DBackup(type_flag);
 
-    if (mode == ON_HOST)
+    if (mode == ON_HOST) {
+      if (!is_clear_org && !(backup_[type_flag]->is_cpu_data_empty()))
+        return;
       backup_[type_flag]->SaveCpuData(cpu_data_[type_flag], num_element_);
-    else // 0N_DEVICE
+    }
+    else { // 0N_DEVICE
+      if (!is_clear_org && !(backup_[type_flag]->is_gpu_data_empty()))
+        return;
       backup_[type_flag]->SaveGpuData(gpu_data_[type_flag], num_element_);
+    }
   }
   // Restore data from Array4DBackup.
   void Restore(int type_flag, OpRunMode mode) {
@@ -180,6 +188,20 @@ public:
     SrcType *src = (SrcType *)cpu_data_[src_data_type];
     for (int i = 0; i < num_element_; i++) {
       dst[i] = src[i];
+    }
+  }
+
+  template<typename DstType>
+  void CheckPrecsCpuCvt() {
+    int dst_type_flag = DataType<DstType>::kFlag;
+    if (cpu_data_[dst_type_flag] != nullptr)
+      return;
+
+    for (int type_flag = 0; type_flag < backup_.size(); type_flag++) {
+      if (cpu_data_[type_flag] != nullptr) {
+        TYPE_SWITCH(type_flag, SrcType, { PrecsCpuCvt<SrcType, DstType>(); });
+        return;
+      }
     }
   }
 
