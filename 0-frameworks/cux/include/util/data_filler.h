@@ -14,26 +14,26 @@ class DataFiller {
 
 public:
   template <typename DType>
-  void ZeroFill(int len, DType *arr) {
+  static void ZeroFill(int len, DType *arr) {
     memset(arr, 0, sizeof(DType) * len);
   }
 
   template <typename DType>
-  void ConstantFill(float value, int len, DType *arr) {
+  static void ConstantFill(float value, int len, DType *arr) {
     for (int i = 0; i < len; i++) {
       arr[i] = value;
     }
   }
 
   template <typename DType>
-  void StepFill(int step, int len, DType *arr) {
+  static void StepFill(int step, int len, DType *arr) {
     for (int i = 0; i < len; i++) {
       arr[i] = i % step;
     }
   }
 
   template <typename DType>
-  void RandomFill(int min, int max, int decimal_pose, int len, DType *arr) {
+  static void RandomFill(int min, int max, int decimal_pose, int len, DType *arr) {
     srand(time(0));
     if (decimal_pose > 0) { max--; }
 

@@ -241,7 +241,6 @@ void Gemm::RunOnDevice() {
   const int ldb = N;
   const int ldc = N;
 
-  int last_type_flag = -1;
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
     GemmGpuKernel *kernel = gpu_kernels_[ki];
     Config2D config = kernel->get_config(M, N);
@@ -268,7 +267,8 @@ void Gemm::RunOnDevice() {
       });
     ); 
     // Save original data if backup is empty.
-    C_->Save(kernel->type_flag, ON_DEVICE);
+    bool is_save_if_empty = true;
+    C_->Save(kernel->type_flag, ON_DEVICE, is_save_if_empty);
     // Warm up.
     kernel->time_record.warnup = GET_TIME_DIFF(gpu_timer_,
       kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);

@@ -7,6 +7,7 @@
 
 #include <vector>
 #include "util/util.h"
+#include "util/data_filler.h"
 
 namespace cux {
 
@@ -68,42 +69,8 @@ public:
 
 class Array4D {
 public:
-  explicit Array4D(int num, int channels, int height, int width) {
-    shape_.clear();
-    shape_.push_back(num);
-    shape_.push_back(channels);
-    shape_.push_back(height);
-    shape_.push_back(width);
-    num_element_ = num * channels * height * width;
-
-    const int type_sum = DataTypeSum::kNum;
-    cpu_data_.resize(type_sum);
-    gpu_data_.resize(type_sum);
-    backup_.resize(type_sum);
-
-    for (int i = 0; i < type_sum; i++) {
-      cpu_data_[i] = nullptr;
-      gpu_data_[i] = nullptr;
-      backup_[i] = nullptr;
-    }
-  }
-
-  ~Array4D() {
-    for (int i = 0; i < DataTypeSum::kNum; i++) {
-      if (cpu_data_[i] != nullptr) {
-        delete[]cpu_data_[i];
-        cpu_data_[i] = nullptr;
-      }
-      if (gpu_data_[i] != nullptr) {
-        cudaFree(gpu_data_[i]);
-        gpu_data_[i] = nullptr;
-      }
-      if (backup_[i] != nullptr) {
-        delete backup_[i];
-        backup_[i] = nullptr;
-      }
-    }
-  }
+  explicit Array4D(int num, int channels, int height, int width);
+  ~Array4D();
 
   inline const std::vector<int> shape() const { return shape_; }
   inline int num_element() { return num_element_; }
@@ -112,31 +79,9 @@ public:
   inline void* gpu_data(int type_flag) { return gpu_data_[type_flag]; }
 
   // Save data to Array4DBackup.
-  void Save(int type_flag, OpRunMode mode, bool is_clear_org = false) {
-    if(backup_[type_flag] == nullptr)
-      backup_[type_flag] = new Array4DBackup(type_flag);
-
-    if (mode == ON_HOST) {
-      if (!is_clear_org && !(backup_[type_flag]->is_cpu_data_empty()))
-        return;
-      backup_[type_flag]->SaveCpuData(cpu_data_[type_flag], num_element_);
-    }
-    else { // 0N_DEVICE
-      if (!is_clear_org && !(backup_[type_flag]->is_gpu_data_empty()))
-        return;
-      backup_[type_flag]->SaveGpuData(gpu_data_[type_flag], num_element_);
-    }
-  }
+  void Save(int type_flag, OpRunMode mode, bool is_save_if_empty = true);
   // Restore data from Array4DBackup.
-  void Restore(int type_flag, OpRunMode mode) {
-    if (backup_[type_flag] == nullptr) {
-      CUXLOG_ERR("Restore -> backup_[%d] does not exist.", type_flag);
-    }
-    if (mode == ON_HOST)
-      backup_[type_flag]->RestoreCpuData(cpu_data_[type_flag], num_element_);
-    else // 0N_DEVICE
-      backup_[type_flag]->RestoreGpuData(gpu_data_[type_flag], num_element_);
-  }
+  void Restore(int type_flag, OpRunMode mode);
 
   template<typename DType>
   DType* GetCpuData(DataFetchMode mode = NO_PUSH) {
@@ -153,6 +98,7 @@ public:
     }
     return static_cast<DType*>(cpu_data_[type_flag]);
   }
+
   template<typename DType>
   DType* GetGpuData(DataFetchMode mode = NO_PUSH) {
     int type_flag = cux::DataType<DType>::kFlag;
@@ -168,6 +114,7 @@ public:
     }
     return static_cast<DType*>(gpu_data_[type_flag]);
   }
+
 
   template<typename SrcType, typename DstType>
   void PrecsCpuCvt() {
