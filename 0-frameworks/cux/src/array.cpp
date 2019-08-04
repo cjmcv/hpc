@@ -43,6 +43,22 @@ Array4D::~Array4D() {
   }
 }
 
+void Array4D::Fill(int min_value, int max_value, int decimal_pose, int type_flag, OpRunMode mode) {
+  if (mode == OpRunMode::ON_DEVICE) {
+    CUXLOG_ERR("Fill -> Fill Array ON_DEVICE does not supported for now.");
+  }
+  if (min_value == max_value) {
+    TYPE_SWITCH(type_flag, T,
+      DataFiller::ConstantFill(max_value, num_element_, GetCpuData<T>());
+    );
+  }
+  else {
+    TYPE_SWITCH(type_flag, T,
+      DataFiller::RandomFill(min_value, max_value, decimal_pose, num_element_, GetCpuData<T>());
+    );
+  }
+}
+
 // Save data to Array4DBackup.
 void Array4D::Save(int type_flag, OpRunMode mode, bool is_save_if_empty) {
   if (backup_[type_flag] == nullptr)

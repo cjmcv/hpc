@@ -20,6 +20,10 @@ public:
 
   template <typename DType>
   static void ConstantFill(float value, int len, DType *arr) {
+    if (value == 0) {
+      ZeroFill(len, arr);
+      return;
+    }
     for (int i = 0; i < len; i++) {
       arr[i] = value;
     }

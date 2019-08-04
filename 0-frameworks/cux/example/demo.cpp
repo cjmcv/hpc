@@ -20,9 +20,8 @@ void DotProductTest(const bool is_show_info) {
   cux::Array4D *out = new cux::Array4D(1, 1, 1, 1);
 
   // Initialize 
-  srand(0);
-  GenArray(data_len, in_a->GetCpuData<float>());
-  GenArray(data_len, in_b->GetCpuData<float>());
+  in_a->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  in_b->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
 
   std::vector<cux::Array4D*> inputs;
   inputs.push_back(in_a);
@@ -57,10 +56,9 @@ void GEMMTest(const bool is_show_info) {
   cux::Array4D *out_c = new cux::Array4D(1, 1, shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
 
   // Initialize 
-  srand(0);
-  GenArray(shape_a[cux::HEIGHT] * shape_a[cux::WIDTH], in_a->GetCpuData<float>());
-  GenArray(shape_b[cux::HEIGHT] * shape_b[cux::WIDTH], in_b->GetCpuData<float>());
-  GenArray(shape_a[cux::HEIGHT] * shape_b[cux::WIDTH], out_c->GetCpuData<float>());
+  in_a->Fill(-2, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  in_b->Fill(-2, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  out_c->Fill(0, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
 
   std::vector<cux::Array4D*> inputs;
   inputs.push_back(in_a);

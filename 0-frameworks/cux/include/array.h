@@ -78,11 +78,6 @@ public:
   inline void* cpu_data(int type_flag) { return cpu_data_[type_flag]; }
   inline void* gpu_data(int type_flag) { return gpu_data_[type_flag]; }
 
-  // Save data to Array4DBackup.
-  void Save(int type_flag, OpRunMode mode, bool is_save_if_empty = true);
-  // Restore data from Array4DBackup.
-  void Restore(int type_flag, OpRunMode mode);
-
   template<typename DType>
   DType* GetCpuData(DataFetchMode mode = NO_PUSH) {
     int type_flag = cux::DataType<DType>::kFlag;
@@ -115,6 +110,12 @@ public:
     return static_cast<DType*>(gpu_data_[type_flag]);
   }
 
+  // decimal_pose: 0 for generating integers. 1 for x.x, 2 for x.xx, and etc.
+  void Fill(int min_value, int max_value, int decimal_pose, int type_flag, OpRunMode mode = OpRunMode::ON_HOST);
+  // Save data to Array4DBackup.
+  void Save(int type_flag, OpRunMode mode, bool is_save_if_empty = true);
+  // Restore data from Array4DBackup.
+  void Restore(int type_flag, OpRunMode mode);
 
   template<typename SrcType, typename DstType>
   void PrecsCpuCvt() {
