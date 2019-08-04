@@ -10,6 +10,7 @@
 #include "util/timer.h"
 #include "util/launch_config.h"
 #include "operator/op_assistor.h"
+#include "operator/kernel_interface.h"
 #include "array.h"
 
 namespace cux {
@@ -22,12 +23,6 @@ struct KernelTimeRecord {
   float output = 0.0;
 };
 
-struct OpKernel {
-  TypeFlag type_flag;
-  std::string describe_info;
-  KernelTimeRecord time_record;
-};
-
 class Operator {
 public:
   Operator(OpAssistor *assistor) : assistor_(assistor) {}
@@ -35,7 +30,7 @@ public:
   void QueryPotentialOccupancy(const void *kernel_address, int kernel_id, 
                                int threads_per_block, int shared_memory_size);
 
-  void PrintRecordedInfo(const OpRunMode &mode, int kernel_id, const OpKernel *kernel_info);
+  void PrintRecordedInfo(const OpRunMode &mode, int kernel_id, const KernelInterface *kernel_info);
   
   // Show relevant prompts.
   virtual void Help() const = 0;
@@ -50,6 +45,8 @@ public:
   
   GpuTimer gpu_timer_;
   CpuTimer cpu_timer_;
+  std::vector<KernelTimeRecord> cpu_timer_record_;
+  std::vector<KernelTimeRecord> gpu_timer_record_;
 
   // occupancys for each kernel.
   // An element corresponds to a kernel.

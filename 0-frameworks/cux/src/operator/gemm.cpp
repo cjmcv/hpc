@@ -106,7 +106,7 @@ void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
       GemmHostV0(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
-    GemmCpuKernel *kernel = new GemmCpuKernel();
+    GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Normal";
@@ -126,7 +126,7 @@ void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
       GemmHostV1(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
-    GemmCpuKernel *kernel = new GemmCpuKernel();
+    GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Adjust iteration order";
@@ -146,7 +146,7 @@ void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
       GemmHostV2(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
-    GemmCpuKernel *kernel = new GemmCpuKernel();
+    GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Block-based";
@@ -200,11 +200,11 @@ void Gemm::RunOnHost() {
   const int ldc = N;
 
   for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
-    GemmCpuKernel *kernel = cpu_kernels_[ki];
+    GemmCpuKernelIF *kernel = cpu_kernels_[ki];
 
     const void *A, *B;
     void *C;
-    kernel->time_record.input = GET_TIME_DIFF(cpu_timer_,
+    cpu_timer_record_[ki].input = GET_TIME_DIFF(cpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, {
         A = A_->GetCpuData<T>(PUSH_IF_EMPTY);
         B = B_->GetCpuData<T>(PUSH_IF_EMPTY);
@@ -217,7 +217,7 @@ void Gemm::RunOnHost() {
     }
     // Run.
     C_->Restore(kernel->type_flag, ON_HOST);
-    kernel->time_record.run = GET_TIME_DIFF(cpu_timer_,
+    cpu_timer_record_[ki].run = GET_TIME_DIFF(cpu_timer_,
       kernel->func(M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
     );
     TYPE_SWITCH(kernel->type_flag, T,
@@ -242,7 +242,7 @@ void Gemm::RunOnDevice() {
   const int ldc = N;
 
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
-    GemmGpuKernel *kernel = gpu_kernels_[ki];
+    GemmGpuKernelIF *kernel = gpu_kernels_[ki];
     Config2D config = kernel->get_config(M, N);
 
     // Record the occupancy for profiling.
@@ -259,7 +259,7 @@ void Gemm::RunOnDevice() {
     // Input.
     const void *A, *B;
     void *C;
-    kernel->time_record.input = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].input = GET_TIME_DIFF(gpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, {
         A = A_->GetGpuData<T>(PUSH_IF_EMPTY);
         B = B_->GetGpuData<T>(PUSH_IF_EMPTY);
@@ -270,16 +270,16 @@ void Gemm::RunOnDevice() {
     bool is_save_if_empty = true;
     C_->Save(kernel->type_flag, ON_DEVICE, is_save_if_empty);
     // Warm up.
-    kernel->time_record.warnup = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].warnup = GET_TIME_DIFF(gpu_timer_,
       kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
     );
     // Run.
     C_->Restore(kernel->type_flag, ON_DEVICE);
-    kernel->time_record.run = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].run = GET_TIME_DIFF(gpu_timer_,
       kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
     );
     // Output.
-    kernel->time_record.output = GET_TIME_DIFF(gpu_timer_, 
+    gpu_timer_record_[ki].output = GET_TIME_DIFF(gpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, { C_->GetCpuData<T>(PUSH); });
     );
     // Check.

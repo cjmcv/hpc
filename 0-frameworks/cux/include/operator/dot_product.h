@@ -12,18 +12,6 @@
 
 namespace cux {
 
-struct DotProductCpuKernel :OpKernel {
-  std::function<void(int len, const void *vec_a, const void *vec_b, void *res)> func;
-};
-
-struct DotProductGpuKernel :OpKernel { 
-  std::function<Config1D(int len)> get_config;
-  std::function<void(Config1D, int len, const void *vec_a, const void *vec_b, void *res)> func;
-  
-  void *kernel_address;
-};
-
-
 class VectorDotProduct : public Operator {
 public:
   VectorDotProduct(OpAssistor *assistor) :Operator(assistor) {
@@ -31,6 +19,8 @@ public:
     GpuKernelsSetup();
     gpu_kernel_occupancys_.resize(gpu_kernels_.size());
     gpu_kernel_active_blocks_.resize(gpu_kernels_.size());
+    cpu_timer_record_.resize(cpu_kernels_.size());
+    gpu_timer_record_.resize(gpu_kernels_.size());
   }
   ~VectorDotProduct() {
     for (int i = 0; i < cpu_kernels_.size(); i++) {
@@ -57,8 +47,8 @@ private:
   Array4D *in_b_;
   Array4D *out_;
 
-  std::vector<DotProductCpuKernel *> cpu_kernels_;
-  std::vector<DotProductGpuKernel *> gpu_kernels_;
+  std::vector<DotProductCpuKernelIF *> cpu_kernels_;
+  std::vector<DotProductGpuKernelIF *> gpu_kernels_;
 };
 } // cux.
 

@@ -108,7 +108,7 @@ void Gemm::GpuKernelsSetup(GemmKernelParam &params) {
         (M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
-    GemmGpuKernel *kernel = new GemmGpuKernel();
+    GemmGpuKernelIF *kernel = new GemmGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;   
     kernel->describe_info = "Normal(Block-based)";
     kernel->get_config = get_config;
@@ -140,7 +140,7 @@ void Gemm::GpuKernelsSetup(GemmKernelParam &params) {
         (M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
-    GemmGpuKernel *kernel = new GemmGpuKernel();
+    GemmGpuKernelIF *kernel = new GemmGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;  
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
@@ -169,7 +169,7 @@ void Gemm::GpuKernelsSetup(GemmKernelParam &params) {
         N, M, K, &alpha, (float *)B, ldb, (float *)A, lda, &beta, (float *)C, ldc));
     };
 
-    GemmGpuKernel *kernel = new GemmGpuKernel();
+    GemmGpuKernelIF *kernel = new GemmGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;   
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;
@@ -202,7 +202,7 @@ void Gemm::GpuKernelsSetup(GemmKernelParam &params) {
                                  (half *)C, CUDA_R_16F, ldc));
     }; 
 
-    GemmGpuKernel *kernel = new GemmGpuKernel();
+    GemmGpuKernelIF *kernel = new GemmGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT16;
     kernel->describe_info = "Cublas / Half";
     kernel->get_config = get_config;

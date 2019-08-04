@@ -47,7 +47,7 @@ void VectorDotProduct::CpuKernelsSetup() {
       VectorDotProductHostV0(len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductCpuKernel *kernel = new DotProductCpuKernel();
+    DotProductCpuKernelIF *kernel = new DotProductCpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Normal";
@@ -60,7 +60,7 @@ void VectorDotProduct::CpuKernelsSetup() {
       VectorDotProductHostV1(len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductCpuKernel *kernel = new DotProductCpuKernel();
+    DotProductCpuKernelIF *kernel = new DotProductCpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "SIMD";
@@ -104,12 +104,12 @@ void VectorDotProduct::RunOnHost() {
   const int len = in_a_->num_element();
 
   for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
-    DotProductCpuKernel *kernel = cpu_kernels_[ki];
+    DotProductCpuKernelIF *kernel = cpu_kernels_[ki];
 
     // Input.
     const void *vec_a, *vec_b;
     void *result;
-    kernel->time_record.input = GET_TIME_DIFF(cpu_timer_,
+    cpu_timer_record_[ki].input = GET_TIME_DIFF(cpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, {
         vec_a = in_a_->GetCpuData<T>(PUSH_IF_EMPTY);
         vec_b = in_b_->GetCpuData<T>(PUSH_IF_EMPTY);
@@ -117,7 +117,7 @@ void VectorDotProduct::RunOnHost() {
       };);
     );
     // Run.
-    kernel->time_record.run = GET_TIME_DIFF(cpu_timer_,
+    cpu_timer_record_[ki].run = GET_TIME_DIFF(cpu_timer_,
       kernel->func(len, vec_a, vec_b, result);
     );
     // Output.
@@ -138,7 +138,7 @@ void VectorDotProduct::RunOnDevice() {
   const int len = in_a_->num_element();
 
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
-    DotProductGpuKernel *kernel = gpu_kernels_[ki];
+    DotProductGpuKernelIF *kernel = gpu_kernels_[ki];
     Config1D config = kernel->get_config(len);
 
     // Record the occupancy for profiling.
@@ -148,7 +148,7 @@ void VectorDotProduct::RunOnDevice() {
     // Input.
     const void *vec_a, *vec_b;
     void *result;
-    kernel->time_record.input = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].input = GET_TIME_DIFF(gpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, {
         vec_a = in_a_->GetGpuData<T>(PUSH_IF_EMPTY);
         vec_b = in_b_->GetGpuData<T>(PUSH_IF_EMPTY);
@@ -156,16 +156,16 @@ void VectorDotProduct::RunOnDevice() {
       };);
     );
     // Warm up.
-    kernel->time_record.warnup = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].warnup = GET_TIME_DIFF(gpu_timer_,
       kernel->func(config, len, vec_a, vec_b, result);
     );
     // Run.
     TYPE_SWITCH(kernel->type_flag, T, cudaMemset(result, 0, sizeof(T)););
-    kernel->time_record.run = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].run = GET_TIME_DIFF(gpu_timer_,
       kernel->func(config, len, vec_a, vec_b, result);
     );
     // Output.
-    kernel->time_record.output = GET_TIME_DIFF(gpu_timer_,
+    gpu_timer_record_[ki].output = GET_TIME_DIFF(gpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, { out_->GetCpuData<T>(PUSH); });
     );
     // Check.

@@ -130,7 +130,7 @@ void VectorDotProduct::GpuKernelsSetup() {
         (len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
@@ -156,7 +156,7 @@ void VectorDotProduct::GpuKernelsSetup() {
         (len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
@@ -182,7 +182,7 @@ void VectorDotProduct::GpuKernelsSetup() {
         (len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;  
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
@@ -205,7 +205,7 @@ void VectorDotProduct::GpuKernelsSetup() {
       CUBLAS_CHECK(cublasSdot(assistor_->cublas_handle(), len, (float *)vec_a, 1, (float *)vec_b, 1, (float *)res));
     };
 
-    DotProductGpuKernel *kernel = new DotProductGpuKernel();
+    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;

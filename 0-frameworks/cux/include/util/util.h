@@ -211,7 +211,7 @@ struct DataType<uint8_t> {
 //       9. DataType根据模板的类型获得类型的变量，从而切换该调用的kernel - Finish
 //       10. OpAssist: 用于辅助Operator，在executor上定义变量，引入到每个Op上，保存op中只需要一个备份的变量.
 //                     如cublas的句柄，现在在Operator上，创建两个Op时，也将创建两个句柄 - Finish
-//       1. 用一个头文件将所有的OpKernel存放到一起，供内外一同使用。
+//       1. 用一个头文件将所有的KernelInterface存放到一起，供内外一同使用。
 //       2. 将半精度的数据准备步骤拉到外面做，所有精度的数据一起准备，以简化逻辑。
 //       3. 用filler来填充数据。
 // 
