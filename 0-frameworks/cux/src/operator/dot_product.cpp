@@ -39,6 +39,7 @@ void VectorDotProductHostV1(int len, const float *vec_a, const float *vec_b, flo
   *res = result;
 }
 
+//////////////////////
 void VectorDotProduct::CpuKernelsSetup() {
   cpu_kernels_.clear();
   // Kernel v0.
@@ -69,6 +70,11 @@ void VectorDotProduct::CpuKernelsSetup() {
   }
 }
 
+//////////////////////
+Operator *VectorDotProduct::Creator(OpAssistor *op_assistor, std::string &params_str) {
+  return new VectorDotProduct(op_assistor);
+}
+
 void VectorDotProduct::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
   CUXLOG_COUT("* Name: Vector Dot Product.");
@@ -77,10 +83,6 @@ void VectorDotProduct::Help() const {
   CUXLOG_COUT("* Outputs: [One] Array4D with one element.");
   CUXLOG_COUT("* Params:  [None].");
   CUXLOG_COUT("**************************************************");
-}
-
-Operator *VectorDotProduct::Creator(OpAssistor *op_assistor, std::string &params_str) {
-  return new VectorDotProduct(op_assistor);
 }
 
 int VectorDotProduct::SetIoData(const std::vector< Array4D* > &input,
@@ -97,6 +99,16 @@ int VectorDotProduct::SetIoData(const std::vector< Array4D* > &input,
 
   return 0;
 }
+
+void VectorDotProduct::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
+  if (mode == OpRunMode::ON_HOST)
+    cpu_kernels_.push_back((DotProductCpuKernelIF*)kernel_if);
+  else
+    gpu_kernels_.push_back((DotProductGpuKernelIF*)kernel_if);
+
+  ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
+}
+
 ////////////////////////////////////////////////
 // cpu version.
 void VectorDotProduct::RunOnHost() {

@@ -193,7 +193,6 @@ void VectorDotProduct::GpuKernelsSetup() {
   }
   // Kernel v3.
   {
-
     auto get_config = [&](int len) -> Config1D {
       Config1D config;
       return config;

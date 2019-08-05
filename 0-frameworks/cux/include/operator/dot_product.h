@@ -17,10 +17,7 @@ public:
   VectorDotProduct(OpAssistor *assistor) :Operator(assistor) {
     CpuKernelsSetup();
     GpuKernelsSetup();
-    gpu_kernel_occupancys_.resize(gpu_kernels_.size());
-    gpu_kernel_active_blocks_.resize(gpu_kernels_.size());
-    cpu_timer_record_.resize(cpu_kernels_.size());
-    gpu_timer_record_.resize(gpu_kernels_.size());
+    ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
   }
   ~VectorDotProduct() {
     for (int i = 0; i < cpu_kernels_.size(); i++) {
@@ -35,6 +32,8 @@ public:
   void Help() const;
   int SetIoData(const std::vector< Array4D* > &input,
                 const std::vector< Array4D* > &output);
+  void AddPlugin(KernelInterface *kernel_if, OpRunMode mode);
+
   void RunOnHost();
   void RunOnDevice();
 

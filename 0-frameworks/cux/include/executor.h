@@ -21,6 +21,7 @@ static int InitEnvironment() {
   OpFactory::GetInstance().RegisterOpClass("gemm", Gemm::Creator);
 
   CUXLOG_COUT("* Registered Op: %s.", OpFactory::GetInstance().PrintList().c_str());
+  CUXLOG_COUT("");
   return 0;
 }
 
@@ -100,6 +101,10 @@ public:
 
   void SelectOp(std::string op_name, std::string params) {
     op_ = OpFactory::GetInstance().CreateOpByType(op_name, op_assistor_, params);
+  }
+
+  void AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
+    op_->AddPlugin(kernel_if, mode);
   }
 
   int SetOpIoData(const std::vector< Array4D* > &input, 

@@ -41,4 +41,12 @@ void Operator::PrintRecordedInfo(const OpRunMode &mode, int kernel_id, const Ker
   }
 }
 
+void Operator::ResetKernelNum(int cpu_kernel_num, int gpu_kernel_num) {  
+  cpu_timer_record_.resize(cpu_kernel_num);
+
+  gpu_kernel_occupancys_.resize(gpu_kernel_num);
+  gpu_kernel_active_blocks_.resize(gpu_kernel_num);
+  gpu_timer_record_.resize(gpu_kernel_num);
+}
+
 } // cux.

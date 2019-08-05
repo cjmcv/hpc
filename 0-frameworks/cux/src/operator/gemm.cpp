@@ -93,7 +93,7 @@ void GemmHostV2(const int M, const int N,
 }
 
 //////////
-void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
+void Gemm::CpuKernelsSetup() {
   cpu_kernels_.clear();
   // Kernel v0.
   {
@@ -110,8 +110,6 @@ void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Normal";
-    kernel->params.alpha = params.alpha;
-    kernel->params.beta = params.beta;
 
     cpu_kernels_.push_back(kernel);
   }
@@ -130,8 +128,6 @@ void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Adjust iteration order";
-    kernel->params.alpha = params.alpha;
-    kernel->params.beta = params.beta;
 
     cpu_kernels_.push_back(kernel);
   }
@@ -150,11 +146,17 @@ void Gemm::CpuKernelsSetup(GemmKernelParam &params) {
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Block-based";
-    kernel->params.alpha = params.alpha;
-    kernel->params.beta = params.beta;
 
     cpu_kernels_.push_back(kernel);
   }
+}
+
+//////////////////////
+Operator *Gemm::Creator(OpAssistor *assistor, std::string &params_str) {
+  GemmKernelParam params;
+  params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
+  params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
+  return new Gemm(assistor, params);
 }
 
 void Gemm::Help() const {
@@ -165,13 +167,6 @@ void Gemm::Help() const {
   CUXLOG_COUT("* Outputs: [One] Array4D with one matrix.");
   CUXLOG_COUT("* Params:  [Two] alpha / beta -> alpha: 1.0, beta: 0.0");
   CUXLOG_COUT("**************************************************");
-}
-
-Operator *Gemm::Creator(OpAssistor *assistor, std::string &params_str) {
-  GemmKernelParam params;
-  params.alpha = atoi(StrProcessor::FetchSubStr(params_str, "alpha:", ",").c_str());
-  params.beta = atoi(StrProcessor::FetchSubStr(params_str, "beta:", ",").c_str());
-  return new Gemm(assistor, params);
 }
 
 int Gemm::SetIoData(const std::vector< Array4D* > &input,
@@ -186,6 +181,15 @@ int Gemm::SetIoData(const std::vector< Array4D* > &input,
   B_ = input[1];
   C_ = output[0];
   return 0;
+}
+
+void Gemm::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
+  if (mode == OpRunMode::ON_HOST)
+    cpu_kernels_.push_back((GemmCpuKernelIF*)kernel_if);
+  else
+    gpu_kernels_.push_back((GemmGpuKernelIF*)kernel_if);
+
+  ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
 }
 
 ////////////////////////////////////////////////
@@ -218,7 +222,7 @@ void Gemm::RunOnHost() {
     // Run.
     C_->Restore(kernel->type_flag, ON_HOST);
     cpu_timer_record_[ki].run = GET_TIME_DIFF(cpu_timer_,
-      kernel->func(M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
+      kernel->func(M, N, K, params_.alpha, A, lda, B, ldb, params_.beta, C, ldc);
     );
     TYPE_SWITCH(kernel->type_flag, T,
       assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
@@ -271,12 +275,12 @@ void Gemm::RunOnDevice() {
     C_->Save(kernel->type_flag, ON_DEVICE, is_save_if_empty);
     // Warm up.
     gpu_timer_record_[ki].warnup = GET_TIME_DIFF(gpu_timer_,
-      kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
+      kernel->func(config, M, N, K, params_.alpha, A, lda, B, ldb, params_.beta, C, ldc);
     );
     // Run.
     C_->Restore(kernel->type_flag, ON_DEVICE);
     gpu_timer_record_[ki].run = GET_TIME_DIFF(gpu_timer_,
-      kernel->func(config, M, N, K, kernel->params.alpha, A, lda, B, ldb, kernel->params.beta, C, ldc);
+      kernel->func(config, M, N, K, params_.alpha, A, lda, B, ldb, params_.beta, C, ldc);
     );
     // Output.
     gpu_timer_record_[ki].output = GET_TIME_DIFF(gpu_timer_,

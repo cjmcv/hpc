@@ -1,17 +1,15 @@
-#include "operator/operator.h"
 #include "executor.h"
 
-// Initialize the input data.
-void GenArray(const int len, float *arr) {
-  for (int i = 0; i < len; i++) {
-    arr[i] = i % 5; // (float)rand() / RAND_MAX + (float)rand() / (RAND_MAX*RAND_MAX);
-  }
-}
+////////////
+// Plugins.
+extern cux::KernelInterface *DotProductGPUPlugin();
+extern cux::KernelInterface *GemmGPUPlugin();
 
-void DotProductTest(const bool is_show_info) {
+void DotProductTest() {
   cux::Executor *executor = new cux::Executor();
   executor->Initialize(0);
   executor->SelectOp("dot_product", "");
+  executor->AddPlugin(DotProductGPUPlugin(), cux::OpRunMode::ON_DEVICE);
 
   // Too large a value may cause overflow.
   const int data_len = 4096000; // data_len % threads_per_block == 0.
@@ -19,7 +17,6 @@ void DotProductTest(const bool is_show_info) {
   cux::Array4D *in_b = new cux::Array4D(1, 1, 1, data_len);
   cux::Array4D *out = new cux::Array4D(1, 1, 1, 1);
 
-  // Initialize 
   in_a->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
   in_b->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
 
@@ -43,10 +40,11 @@ void DotProductTest(const bool is_show_info) {
   delete executor;
 }
 
-void GEMMTest(const bool is_show_info) {
+void GEMMTest() {
   cux::Executor *executor = new cux::Executor();
   executor->Initialize(0);
   executor->SelectOp("gemm", "alpha: 1.0, beta: 3.0");
+  executor->AddPlugin(GemmGPUPlugin(), cux::OpRunMode::ON_DEVICE);
 
   int block_size = 32;
   cux::Array4D *in_a = new cux::Array4D(1, 1, block_size * 6, block_size * 5);
@@ -81,7 +79,7 @@ void GEMMTest(const bool is_show_info) {
   delete executor;
 }
 
-int main() {  
+int main() {
   int ret = cux::InitEnvironment();
   if (ret != 0) {
     CUXLOG_ERR("Failed to initialize the environment for cuda.");
@@ -91,10 +89,10 @@ int main() {
   cux::QueryDevices();
   ////////
   printf("DotProductTest.\n");
-  DotProductTest(true);
+  DotProductTest();
 
   printf("\n\nGEMMTest.\n");
-  GEMMTest(false);
+  GEMMTest();
   //////////
 
   cux::CleanUpEnvironment();

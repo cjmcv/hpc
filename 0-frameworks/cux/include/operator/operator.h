@@ -31,12 +31,14 @@ public:
                                int threads_per_block, int shared_memory_size);
 
   void PrintRecordedInfo(const OpRunMode &mode, int kernel_id, const KernelInterface *kernel_info);
-  
+  void ResetKernelNum(int cpu_kernel_num, int gpu_kernel_num);
+
   // Show relevant prompts.
   virtual void Help() const = 0;
   // Set the input and output data.
   virtual int SetIoData(const std::vector< Array4D* > &input,
                         const std::vector< Array4D* > &output) = 0;
+  virtual void AddPlugin(KernelInterface *kernel_if, OpRunMode mode) = 0;
   virtual void RunOnHost() = 0;
   virtual void RunOnDevice() = 0;
 

@@ -12,6 +12,7 @@ include_directories(${INCLUDE_LIST})
 # Source
 file(GLOB_RECURSE EXAMPLE_SRC_LIST 
     "${PROJECT_SOURCE_DIR}/*.cpp"
+    "${PROJECT_SOURCE_DIR}/*.cu"
 )
 message(STATUS "test src: ${EXAMPLE_SRC_LIST}")
 

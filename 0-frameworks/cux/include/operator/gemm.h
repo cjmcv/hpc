@@ -12,15 +12,24 @@
 
 namespace cux {
 
+struct GemmKernelParam {
+  float alpha = 1.0;
+  float beta = 0.0;
+
+  GemmKernelParam& operator=(const GemmKernelParam& in) {
+    alpha = in.alpha;
+    beta = in.beta;
+    return *this;
+  }
+};
+
 class Gemm : public Operator {
 public:
   Gemm(OpAssistor *assistor, GemmKernelParam &params) :Operator(assistor) {
-    CpuKernelsSetup(params);
-    GpuKernelsSetup(params);
-    gpu_kernel_occupancys_.resize(gpu_kernels_.size());
-    gpu_kernel_active_blocks_.resize(gpu_kernels_.size());
-    cpu_timer_record_.resize(cpu_kernels_.size());
-    gpu_timer_record_.resize(gpu_kernels_.size());
+    params_ = params;
+    CpuKernelsSetup();
+    GpuKernelsSetup();
+    ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
   }
   ~Gemm() {
     for (int i = 0; i < cpu_kernels_.size(); i++) {
@@ -35,17 +44,21 @@ public:
   void Help() const;
   int SetIoData(const std::vector< Array4D* > &input,
                 const std::vector< Array4D* > &output);
+  void AddPlugin(KernelInterface *kernel_if, OpRunMode mode);
+
   void RunOnHost();
   void RunOnDevice();
 
 private:
-  void CpuKernelsSetup(GemmKernelParam &params);
-  void GpuKernelsSetup(GemmKernelParam &params);
+  void CpuKernelsSetup();
+  void GpuKernelsSetup();
 
 private:
   Array4D *A_;
   Array4D *B_;
   Array4D *C_;
+
+  GemmKernelParam params_;
 
   std::vector<GemmCpuKernelIF *> cpu_kernels_;
   std::vector<GemmGpuKernelIF *> gpu_kernels_;
