@@ -139,20 +139,6 @@ public:
     }
   }
 
-  template<typename DstType>
-  void CheckPrecsCpuCvt() {
-    int dst_type_flag = DataType<DstType>::kFlag;
-    if (cpu_data_[dst_type_flag] != nullptr)
-      return;
-
-    for (int type_flag = 0; type_flag < backup_.size(); type_flag++) {
-      if (cpu_data_[type_flag] != nullptr) {
-        TYPE_SWITCH(type_flag, SrcType, { PrecsCpuCvt<SrcType, DstType>(); });
-        return;
-      }
-    }
-  }
-
 private:  
   // 4d: num, channels, height, width
   std::vector<int> shape_;

@@ -85,19 +85,22 @@ void VectorDotProduct::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-int VectorDotProduct::SetIoData(const std::vector< Array4D* > &input,
-                                const std::vector< Array4D* > &output) {
+void VectorDotProduct::IoCheckAndSet(const std::vector< Array4D* > &input,
+                                     const std::vector< Array4D* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     Help();
-    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
+    CUXLOG_ERR("The dimensions of the data do not match.");
+  }
+  if (input[0]->shape()[Shape::WIDTH] != input[1]->shape()[Shape::WIDTH] ||
+    output[0]->shape()[Shape::WIDTH] != 1) {
+    Help();
+    CUXLOG_ERR("The dimensions of the data do not match.");
   }
 
   in_a_ = input[0];
   in_b_ = input[1];
   out_ = output[0];
-
-  return 0;
 }
 
 void VectorDotProduct::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
@@ -106,15 +109,30 @@ void VectorDotProduct::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
   else
     gpu_kernels_.push_back((DotProductGpuKernelIF*)kernel_if);
 
-  ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
+  ResetByKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
 }
 
+void VectorDotProduct::ExtractDataTypes(std::vector<int>& type_flags) {
+  type_flags.clear();
+  type_flags.resize(TYPE_NUM);
+  for (int i = 0; i < type_flags.size(); i++) {
+    type_flags[i] = 0;
+  }
+  for (int i = 0; i < cpu_kernels_.size(); i++) {
+    type_flags[cpu_kernels_[i]->type_flag] = 1;
+  }
+  for (int i = 0; i < gpu_kernels_.size(); i++) {
+    type_flags[gpu_kernels_[i]->type_flag] = 1;
+  }
+}
 ////////////////////////////////////////////////
 // cpu version.
-void VectorDotProduct::RunOnHost() {
+void VectorDotProduct::RunOnHost(const std::vector< Array4D* > &input,
+                                 const std::vector< Array4D* > &output) {
   CUXLOG_COUT("VectorDotProduct -> CPU: ");
-  const int len = in_a_->num_element();
+  IoCheckAndSet(input, output);
 
+  const int len = in_a_->num_element();
   for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
     DotProductCpuKernelIF *kernel = cpu_kernels_[ki];
 
@@ -145,10 +163,12 @@ void VectorDotProduct::RunOnHost() {
 
 //////////////////
 // cuda version.
-void VectorDotProduct::RunOnDevice() {
+void VectorDotProduct::RunOnDevice(const std::vector< Array4D* > &input,
+                                   const std::vector< Array4D* > &output) {
   CUXLOG_COUT("VectorDotProduct -> GPU:");
-  const int len = in_a_->num_element();
+  IoCheckAndSet(input, output);
 
+  const int len = in_a_->num_element();
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
     DotProductGpuKernelIF *kernel = gpu_kernels_[ki];
     Config1D config = kernel->get_config(len);

@@ -169,18 +169,23 @@ void Gemm::Help() const {
   CUXLOG_COUT("**************************************************");
 }
 
-int Gemm::SetIoData(const std::vector< Array4D* > &input,
-                    const std::vector< Array4D* > &output) {
+void Gemm::IoCheckAndSet(const std::vector< Array4D* > &input,
+                         const std::vector< Array4D* > &output) {
   // Check the dimensions.
   if (input.size() != 2 || output.size() != 1) {
     Help();
-    CUXLOG_ERR("Error: The dimensions of the input parameters do not match.");
+    CUXLOG_ERR("The dimensions of the data do not match.");
+  }
+  if (input[0]->shape()[Shape::WIDTH] != input[1]->shape()[Shape::HEIGHT] ||
+    input[0]->shape()[Shape::HEIGHT] != output[0]->shape()[Shape::HEIGHT] ||
+    input[1]->shape()[Shape::WIDTH] != output[0]->shape()[Shape::WIDTH]) {
+    Help();
+    CUXLOG_ERR("The dimensions of the data do not match.");
   }
 
   A_ = input[0];
   B_ = input[1];
   C_ = output[0];
-  return 0;
 }
 
 void Gemm::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
@@ -189,13 +194,29 @@ void Gemm::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
   else
     gpu_kernels_.push_back((GemmGpuKernelIF*)kernel_if);
 
-  ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
+  ResetByKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
 }
 
+void Gemm::ExtractDataTypes(std::vector<int>& type_flags) {
+  type_flags.clear();
+  type_flags.resize(TYPE_NUM);
+  for (int i = 0; i < type_flags.size(); i++) {
+    type_flags[i] = 0;
+  }
+  for (int i = 0; i < cpu_kernels_.size(); i++) {
+    type_flags[cpu_kernels_[i]->type_flag] = 1;
+  }
+  for (int i = 0; i < gpu_kernels_.size(); i++) {
+    type_flags[gpu_kernels_[i]->type_flag] = 1;
+  }
+}
 ////////////////////////////////////////////////
 // cpp version
-void Gemm::RunOnHost() {
+void Gemm::RunOnHost(const std::vector< Array4D* > &input,
+                     const std::vector< Array4D* > &output) {
   CUXLOG_COUT("Gemm -> CPU: ");
+  IoCheckAndSet(input, output);
+
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
@@ -236,8 +257,11 @@ void Gemm::RunOnHost() {
 
 //////////////////
 // cuda version.
-void Gemm::RunOnDevice() {
+void Gemm::RunOnDevice(const std::vector< Array4D* > &input,
+                       const std::vector< Array4D* > &output) {
   CUXLOG_COUT("Gemm -> GPU: ");
+  IoCheckAndSet(input, output);
+
   const int M = A_->shape()[Shape::HEIGHT];
   const int N = B_->shape()[Shape::WIDTH];
   const int K = B_->shape()[Shape::HEIGHT]; // A_->shape()[Shape::WIDTH];
@@ -253,13 +277,7 @@ void Gemm::RunOnDevice() {
     QueryPotentialOccupancy(kernel->kernel_address, ki,
                             config.threads_per_block.x * config.threads_per_block.y,
                             config.shared_memory_size);
-    // Check and convert precision.
-    TYPE_SWITCH(kernel->type_flag, T, { 
-      A_->CheckPrecsCpuCvt<T>();
-      B_->CheckPrecsCpuCvt<T>();
-      C_->CheckPrecsCpuCvt<T>();
-    });
-    
+
     // Input.
     const void *A, *B;
     void *C;

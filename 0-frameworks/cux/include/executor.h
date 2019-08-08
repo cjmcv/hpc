@@ -107,24 +107,55 @@ public:
     op_->AddPlugin(kernel_if, mode);
   }
 
-  int SetOpIoData(const std::vector< Array4D* > &input, 
-                  const std::vector< Array4D* > &output) {
-    return op_->SetIoData(input, output);
+  void BindAndFill(const std::vector< Array4D* > &inputs,
+                   const std::vector< Array4D* > &outputs,
+                   int min_value, int max_value, int decimal_pose) {
+    // Bind Array.
+    inputs_.assign(inputs.begin(), inputs.end());
+    outputs_.assign(outputs.begin(), outputs.end());
+    
+    // Fill.
+    for (int i = 0; i < inputs_.size(); i++)
+      inputs_[i]->Fill(min_value, max_value, decimal_pose, TypeFlag::FLOAT32, OpRunMode::ON_HOST);
+    for (int i = 0; i < outputs_.size(); i++)
+      outputs_[i]->Fill(min_value, max_value, decimal_pose, TypeFlag::FLOAT32, OpRunMode::ON_HOST);
+    
+    // Data synchronization across types.
+    std::vector<int> type_flags;
+    op_->ExtractDataTypes(type_flags);
+
+    TYPE_SWITCH(TypeFlag::FLOAT32, FP32, {
+      for (int type = 0; type < type_flags.size(); type++) {
+        if (type == TypeFlag::FLOAT32 || type_flags[type] == 0) {
+          continue;
+        }
+        TYPE_SWITCH(type, DstType, {
+          for (int i = 0; i < inputs_.size(); i++)
+            inputs_[i]->PrecsCpuCvt<FP32, DstType>();
+          for (int i = 0; i < outputs_.size(); i++)
+            outputs_[i]->PrecsCpuCvt<FP32, DstType>();
+        });
+      }
+    });
   }
 
+  // Run with the binding arrays.
   void Run(const OpRunMode mode) {
     if (mode == OpRunMode::ON_HOST) {
-      op_->RunOnHost();
+      op_->RunOnHost(inputs_, outputs_);
     }
     else {
-      op_->RunOnDevice();
-    }  
+      op_->RunOnDevice(inputs_, outputs_);
+    }
   }
 
 private:
   Device device_;
   OpAssistor *op_assistor_;
   Operator *op_;
+
+  std::vector< Array4D* > inputs_;
+  std::vector< Array4D* > outputs_;
 };
 
 } // cux.

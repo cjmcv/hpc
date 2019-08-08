@@ -29,7 +29,7 @@ public:
     params_ = params;
     CpuKernelsSetup();
     GpuKernelsSetup();
-    ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
+    ResetByKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
   }
   ~Gemm() {
     for (int i = 0; i < cpu_kernels_.size(); i++) {
@@ -42,14 +42,17 @@ public:
   static Operator *Gemm::Creator(OpAssistor *assistor, std::string &params_str);
 
   void Help() const;
-  int SetIoData(const std::vector< Array4D* > &input,
-                const std::vector< Array4D* > &output);
   void AddPlugin(KernelInterface *kernel_if, OpRunMode mode);
+  void ExtractDataTypes(std::vector<int>& type_flags);
 
-  void RunOnHost();
-  void RunOnDevice();
+  void RunOnHost(const std::vector< Array4D* > &input,
+                 const std::vector< Array4D* > &output);
+  void RunOnDevice(const std::vector< Array4D* > &input,
+                   const std::vector< Array4D* > &output);
 
 private:
+  void IoCheckAndSet(const std::vector< Array4D* > &input,
+                     const std::vector< Array4D* > &output);
   void CpuKernelsSetup();
   void GpuKernelsSetup();
 

@@ -17,7 +17,7 @@ public:
   VectorDotProduct(OpAssistor *assistor) :Operator(assistor) {
     CpuKernelsSetup();
     GpuKernelsSetup();
-    ResetKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
+    ResetByKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
   }
   ~VectorDotProduct() {
     for (int i = 0; i < cpu_kernels_.size(); i++) {
@@ -30,19 +30,22 @@ public:
   static Operator *VectorDotProduct::Creator(OpAssistor *op_assistor, std::string &params_str);
   
   void Help() const;
-  int SetIoData(const std::vector< Array4D* > &input,
-                const std::vector< Array4D* > &output);
   void AddPlugin(KernelInterface *kernel_if, OpRunMode mode);
+  void ExtractDataTypes(std::vector<int>& type_flags);
 
-  void RunOnHost();
-  void RunOnDevice();
+  void RunOnHost(const std::vector< Array4D* > &input,
+                 const std::vector< Array4D* > &output);
+  void RunOnDevice(const std::vector< Array4D* > &input,
+                   const std::vector< Array4D* > &output);
 
 private:
+  void IoCheckAndSet(const std::vector< Array4D* > &input,
+                     const std::vector< Array4D* > &output);
   void CpuKernelsSetup();
   void GpuKernelsSetup();
 
 private:
-  Array4D *in_a_; // Don not hold, needn't be released here.
+  Array4D *in_a_;
   Array4D *in_b_;
   Array4D *out_;
 

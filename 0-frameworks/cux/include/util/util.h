@@ -42,7 +42,8 @@ enum TypeFlag {
   FLOAT32 = 0,
   INT32 = 1,
   FLOAT16 = 2, 
-  INT8 = 3
+  INT8 = 3,
+  TYPE_NUM = 4  // Used to mark the number of elements in the enumeration TypeFlag.
 };
 
 enum OpRunMode {
@@ -111,14 +112,10 @@ public:
 #define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_COUT(format, ...) fprintf(stdout,"> "##format"\n", ##__VA_ARGS__);
 
-//#define INSTANTIATE_CLASS(classname) \
-//  char gInstantiationGuard##classname; \
-//  template class classname<float>; \
-//  template class classname<half>
-
 #define INSTANTIATE_CLASS(classname) \
   char gInstantiationGuard##classname; \
-  template class classname<float>
+  template class classname<float>; \
+  template class classname<half>
 
 #define TYPE_SWITCH(type, DType, ...)               \
   switch (type) {                                   \
@@ -192,30 +189,7 @@ struct DataType<uint8_t> {
 //       4. 内存池（低优先级）
 //       5. CPU端异常处理/告警机制/错误码
 //       7. Layout渐变的效率分析？
-//       8. 检索查看所有gpu设备。deviceQuery - finish
-//       9. cmake添加新筛选器？
 //       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
-//       11. Array4D添加半精度；- Finish
-//       11. gemm cublas半精度; - Finish
-////
-// TODO: 1. 算法与cublas对应；命名统一、功能统一 - Finish
-//       2. 运算子分成有输入和输出的，以及单一输入即输出（如转置，在自己的内存操作）的两种。
-//
-//       3. demo：1）多组数据连续处理（预取），2）多操作混搭组合成公式做运算
-//       4. Prefetcher, 预取器，预取数据到GPU，隐藏IO延时
-//       5. BlockingQueue, 堵塞缓冲队列，用于服务预取器Prefetcher，缓存预取的数据
-//       6. InnerThread, 内部线程，为堵塞队列替换数据，共同服务于预取器Prefetcher
-//
-//       7. 在demo中，由用户自定义OP. - Finish
-//       8. 使用模板控制Op的数据类型（可能需要针对每一种类型重写kernel）- Finish
-//       9. DataType根据模板的类型获得类型的变量，从而切换该调用的kernel - Finish
-//       10. OpAssist: 用于辅助Operator，在executor上定义变量，引入到每个Op上，保存op中只需要一个备份的变量.
-//                     如cublas的句柄，现在在Operator上，创建两个Op时，也将创建两个句柄 - Finish
-//       1. 用一个头文件将所有的KernelInterface存放到一起，供内外一同使用。 - Finish
-//       2. 将半精度的数据准备步骤拉到外面做，所有精度的数据一起准备，以简化逻辑。
-//       3. 用filler来填充数据。- Finish
-// 
-//       10. other: 图任务自动调度框架。自己定义op，及其依赖关系。
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
 //                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断 - Finish
@@ -225,6 +199,7 @@ struct DataType<uint8_t> {
 //                 3.使用cub，封装显存管理模块.
 //                 4.使用数据库，做参数查询，性能数据备份.
 //                 5.python接口封装，前置任务->生成dll，导出多个必须的接口，才由python对这些接口做封装。
+//          other: 图任务自动调度框架。自己定义op，及其依赖关系。
 //
 } // cux.
 #endif //CUX_UTIL_H_

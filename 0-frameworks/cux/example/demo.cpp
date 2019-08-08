@@ -17,8 +17,8 @@ void DotProductTest() {
   cux::Array4D *in_b = new cux::Array4D(1, 1, 1, data_len);
   cux::Array4D *out = new cux::Array4D(1, 1, 1, 1);
 
-  in_a->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
-  in_b->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  //in_a->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  //in_b->Fill(-2, 3, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
 
   std::vector<cux::Array4D*> inputs;
   inputs.push_back(in_a);
@@ -26,9 +26,9 @@ void DotProductTest() {
   std::vector<cux::Array4D*> outputs;
   outputs.push_back(out);
 
-  executor->SetOpIoData(inputs, outputs);
-
   // Run.
+  // TODO: Data prepare.
+  executor->BindAndFill(inputs, outputs, -2, 3, 0);
   executor->Run(cux::OpRunMode::ON_HOST);
   executor->Run(cux::OpRunMode::ON_DEVICE);
 
@@ -53,10 +53,10 @@ void GEMMTest() {
   std::vector<int> shape_b = in_b->shape();
   cux::Array4D *out_c = new cux::Array4D(1, 1, shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
 
-  // Initialize 
-  in_a->Fill(-2, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
-  in_b->Fill(-2, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
-  out_c->Fill(0, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  //// Initialize 
+  //in_a->Fill(-2, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  //in_b->Fill(-2, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
+  //out_c->Fill(0, 5, 0, cux::TypeFlag::FLOAT32, cux::OpRunMode::ON_HOST);
 
   std::vector<cux::Array4D*> inputs;
   inputs.push_back(in_a);
@@ -64,9 +64,8 @@ void GEMMTest() {
   std::vector<cux::Array4D*> outputs;
   outputs.push_back(out_c);
 
-  executor->SetOpIoData(inputs, outputs);
-
   // Run.
+  executor->BindAndFill(inputs, outputs, -2, 5, 0);
   executor->Run(cux::OpRunMode::ON_HOST);
   out_c->Restore(cux::TypeFlag::FLOAT32, cux::ON_HOST); // For beta in gemm.
   executor->Run(cux::OpRunMode::ON_DEVICE);
