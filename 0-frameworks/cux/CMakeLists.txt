@@ -1,12 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 
 # Options
-#option(USE_OP_TEST  "Build with operator test"  ON) # Should be the same with option in libdlex_cnn.so
+option(UNIT_TESTS  "Build with unit tests."  ON)
 
-# Add definitions by some options
-#if(USE_OP_TEST)
-#    add_definitions(-DUSE_OP_TEST)
-#endif()
+# Version.
 set(CUDA_VERSION "9.0" CACHE STRING "CUDA version to build against")
 
 # Define project name
@@ -53,13 +50,15 @@ set(OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
 ############################################
 # 3rdparty
-set(GOOGLETEST_VERSION 1.9.0)
-set(GTEST_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/googletest/googletest")
-set(GTEST_INCLUDE_DIR ${GTEST_ROOT}/include)
-set(GTEST_LIBRARIES gtest gtest_main)
-set(GTEST_MAIN_LIBRARY gtest_main)
-set(GTEST_LIBRARY gtest)
-add_subdirectory(${GTEST_ROOT})
+if(UNIT_TESTS)
+  set(GOOGLETEST_VERSION 1.9.0)
+  set(GTEST_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/googletest/googletest")
+  set(GTEST_INCLUDE_DIR ${GTEST_ROOT}/include)
+  set(GTEST_LIBRARIES gtest gtest_main)
+  set(GTEST_MAIN_LIBRARY gtest_main)
+  set(GTEST_LIBRARY gtest)
+  add_subdirectory(${GTEST_ROOT})
+endif()
 
 ############################################
 # cux source
@@ -72,4 +71,6 @@ add_subdirectory(example)
 
 ############################################
 # unit test
-add_subdirectory(tests)
+if(UNIT_TESTS)
+  add_subdirectory(tests)
+endif()

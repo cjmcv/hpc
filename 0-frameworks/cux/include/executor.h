@@ -14,7 +14,7 @@
 
 namespace cux {
 
-static int InitEnvironment() {
+static void InitEnvironment() {
   CUXLOG_INFO("Initialize Environment.");
 
   OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
@@ -22,7 +22,6 @@ static int InitEnvironment() {
 
   CUXLOG_COUT("* Registered Op: %s.", OpFactory::GetInstance().PrintList().c_str());
   CUXLOG_COUT("");
-  return 0;
 }
 
 static void CleanUpEnvironment() {
@@ -74,18 +73,18 @@ class Executor {
 public:
   Executor() :op_(nullptr), op_assistor_(nullptr) {}
 
-  int Initialize(const int dev_id) {
+  void Initialize(const int dev_id) {
     device_.id = dev_id;
 
     CUDA_CHECK(cudaSetDevice(device_.id));
     CUDA_CHECK(cudaGetDeviceProperties(&device_.prop, device_.id));
     if (device_.prop.computeMode == cudaComputeModeProhibited) {
-      CUXLOG_ERR("Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().");
-      return -1;
+      CUXLOG_ERR("Device (%d) is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().", dev_id);
     }
 
     op_assistor_ = new OpAssistor(&device_);
-    return 0;
+    if (op_assistor_ == nullptr)
+      CUXLOG_ERR("Failed to new an OpAssistor.");
   }
 
   void Clear() {
@@ -104,6 +103,9 @@ public:
   }
 
   void AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
+    if (op_ == nullptr) {
+      CUXLOG_ERR("The operator has not been selected yet. Please select an operator first.");
+    }
     op_->AddPlugin(kernel_if, mode);
   }
 

@@ -13,6 +13,8 @@ void Operator::QueryPotentialOccupancy(const void *kernel_address, int kernel_id
   if (kernel_address == nullptr 
     || kernel_id < 0 
     || kernel_id > gpu_kernel_occupancys_.size()) {
+    gpu_kernel_active_blocks_[kernel_id] = 0.0;
+    gpu_kernel_occupancys_[kernel_id] = 0.0;
     return;
   }
   assistor_->launch_config()->QueryPotentialOccupancy(

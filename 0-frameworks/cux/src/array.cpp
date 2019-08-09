@@ -14,7 +14,7 @@ Array4D::Array4D(int num, int channels, int height, int width) {
   shape_.push_back(width);
   num_element_ = num * channels * height * width;
 
-  const int type_sum = DataTypeSum::kNum;
+  const int type_sum = TypeFlag::TYPES_NUM;
   cpu_data_.resize(type_sum);
   gpu_data_.resize(type_sum);
   backup_.resize(type_sum);
@@ -27,7 +27,7 @@ Array4D::Array4D(int num, int channels, int height, int width) {
 }
 
 Array4D::~Array4D() {
-  for (int i = 0; i < DataTypeSum::kNum; i++) {
+  for (int i = 0; i < TypeFlag::TYPES_NUM; i++) {
     if (cpu_data_[i] != nullptr) {
       delete[]cpu_data_[i];
       cpu_data_[i] = nullptr;
@@ -45,7 +45,7 @@ Array4D::~Array4D() {
 
 void Array4D::Fill(int min_value, int max_value, int decimal_pose, int type_flag, OpRunMode mode) {
   if (mode == OpRunMode::ON_DEVICE) {
-    CUXLOG_ERR("Fill -> Fill Array ON_DEVICE does not supported for now.");
+    CUXLOG_ERR("Fill Array ON_DEVICE does not supported for now.");
   }
   if (min_value == max_value) {
     TYPE_SWITCH(type_flag, T,

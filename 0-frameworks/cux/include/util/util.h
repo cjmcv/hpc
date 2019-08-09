@@ -19,31 +19,12 @@ namespace cux {
 ////////////////
 // Enumeration.
 ////////////////
-enum Code {
-  OK = 0,
-  CANCELLED = 1,
-  UNKNOWN = 2,
-  INVALID_ARGUMENT = 3,
-  DEADLINE_EXCEEDED = 4,
-  NOT_FOUND = 5,
-  ALREADY_EXISTS = 6,
-  PERMISSION_DENIED = 7,
-  UNAUTHENTICATED = 16,
-  RESOURCE_EXHAUSTED = 8,
-  FAILED_PRECONDITION = 9,
-  ABORTED = 10,
-  OUT_OF_RANGE = 11,
-  UNIMPLEMENTED = 12,
-  INTERNAL = 13,
-  UNAVAILABLE = 14,
-};
-
 enum TypeFlag {
   FLOAT32 = 0,
   INT32 = 1,
   FLOAT16 = 2, 
   INT8 = 3,
-  TYPE_NUM = 4  // Used to mark the number of elements in the enumeration TypeFlag.
+  TYPES_NUM = 4  // Used to mark the number of elements in the enumeration TypeFlag.
 };
 
 enum OpRunMode {
@@ -107,7 +88,11 @@ public:
   } while (0)
 
 // Log
-#define CUXLOG_ERR(format, ...) fprintf(stderr,"[ERROR]: "##format"\n", ##__VA_ARGS__); std::abort();
+#define CUXLOG_ERR(format, ...) \
+  do { \
+    fprintf(stderr,"[ERROR]: (%s: %d)"##format"\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+    std::abort(); \
+  } while(0)
 #define CUXLOG_WARN(format, ...) fprintf(stdout,"[WARN]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_INFO(format, ...) fprintf(stdout,"[INFO]: "##format"\n", ##__VA_ARGS__);
 #define CUXLOG_COUT(format, ...) fprintf(stdout,"> "##format"\n", ##__VA_ARGS__);
@@ -115,7 +100,7 @@ public:
 #define INSTANTIATE_CLASS(classname) \
   char gInstantiationGuard##classname; \
   template class classname<float>; \
-  template class classname<half>
+  template class classname<cux::half>
 
 #define TYPE_SWITCH(type, DType, ...)               \
   switch (type) {                                   \
@@ -154,10 +139,6 @@ struct Device {
   cudaDeviceProp prop;
 };
 
-struct DataTypeSum {
-  static const int kNum = 4;
-};
-
 template<typename DType>
 struct DataType;
 template<>
@@ -185,21 +166,9 @@ struct DataType<uint8_t> {
   static const int kFlag = cux::TypeFlag::INT8;
 };
 
-// TODO: 2. 升级Array4D：静态动态内存、异步拷贝、对齐。。
-//       4. 内存池（低优先级）
-//       5. CPU端异常处理/告警机制/错误码
-//       7. Layout渐变的效率分析？
-//       10. 分析cmake出来的debug和cuda的demo工程的debug的耗时差异。
 ////
 // TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
-//                 1.使用gtest，添加单元测试模块: 性能测试/多版本核函数结果验证/异常出入判断 - Finish
-//                 2.使用cublas，添加到Op中作为测试基准.-Finish
-//                 https://nvlabs.github.io/cub/structcub_1_1_caching_device_allocator.html
-//                 https://github.com/mratsim/Arraymancer/issues/112
-//                 3.使用cub，封装显存管理模块.
 //                 4.使用数据库，做参数查询，性能数据备份.
-//                 5.python接口封装，前置任务->生成dll，导出多个必须的接口，才由python对这些接口做封装。
-//          other: 图任务自动调度框架。自己定义op，及其依赖关系。
 //
 } // cux.
 #endif //CUX_UTIL_H_

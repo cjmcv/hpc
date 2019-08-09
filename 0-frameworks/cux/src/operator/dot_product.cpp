@@ -114,7 +114,7 @@ void VectorDotProduct::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
 
 void VectorDotProduct::ExtractDataTypes(std::vector<int>& type_flags) {
   type_flags.clear();
-  type_flags.resize(TYPE_NUM);
+  type_flags.resize(TYPES_NUM);
   for (int i = 0; i < type_flags.size(); i++) {
     type_flags[i] = 0;
   }
