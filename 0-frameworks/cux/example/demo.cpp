@@ -51,8 +51,8 @@ void GEMMTest() {
 
   // Data preparation.
   int block_size = 32;
-  cux::Array4D *in_a = new cux::Array4D(1, 1, block_size * 6, block_size * 5);
-  cux::Array4D *in_b = new cux::Array4D(1, 1, block_size * 5, block_size * 8);
+  cux::Array4D *in_a = new cux::Array4D(1, 1, block_size * 16, block_size * 15);
+  cux::Array4D *in_b = new cux::Array4D(1, 1, block_size * 15, block_size * 8);
   std::vector<int> shape_a = in_a->shape();
   std::vector<int> shape_b = in_b->shape();
   cux::Array4D *out_c = new cux::Array4D(1, 1, shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
@@ -81,11 +81,11 @@ void GEMMTest() {
 
 int main() {
   cux::InitEnvironment();
-  cux::QueryDevices();
+  //cux::QueryDevices();
 
   ////////
-  printf("DotProductTest.\n");
-  DotProductTest();
+  //printf("DotProductTest.\n");
+  //DotProductTest();
 
   printf("\n\nGEMMTest.\n");
   GEMMTest();

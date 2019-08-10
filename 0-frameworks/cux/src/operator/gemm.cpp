@@ -2,10 +2,13 @@
 * \brief gemm: C = A * B.
 */
 #include "operator/gemm.h"
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 namespace cux {
   
-// CPU version 0: 3718 ms
+// Kernel V0
 // Normal version in cpu as a reference
 void GemmHostV0(const int M, const int N,
                 const int K, const float alpha,
@@ -30,8 +33,8 @@ void GemmHostV0(const int M, const int N,
   }
 }
 
-// CPU version 1: 383 ms
-// Normal version in cpu as a reference
+// Kernel V1
+// Adjust iteration order based on V0.
 void GemmHostV1(const int M, const int N, 
                 const int K, const float alpha,
                 const float *A, const int lda,
@@ -46,17 +49,177 @@ void GemmHostV1(const int M, const int N,
   }
   for (i = 0; i < M; ++i) {
     for (k = 0; k < K; ++k) {
-      register float A_PART = alpha*A[i*lda + k];
+      register float aA = alpha*A[i*lda + k];
       for (j = 0; j < N; ++j) {
-        C[i*ldc + j] += A_PART*B[k*ldb + j];
+        C[i*ldc + j] += aA*B[k*ldb + j];
       }
     }
   }
 }
 
-// CPU version 2: 1400 ms
+// Kernel V2
+// A simple version using simd based on V1.
+void GemmHostV2(const int M, const int N,
+                const int K, const float alpha,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                const float beta,
+                float *C, const int ldc) {
+  int i, j, k;
+  __m256 beta8 = _mm256_set1_ps(beta);
+  for (i = 0; i < M*N - 7; i += 8) {
+    __m256 c = _mm256_loadu_ps(C + i);
+    c = _mm256_mul_ps(c, beta8);
+    _mm256_storeu_ps(C + i, c);
+  }
+  for (; i < N; i++) {
+    C[i] *= beta;
+  }
+
+  for (i = 0; i < M; ++i) {
+    for (k = 0; k < K; ++k) {
+      const float aA0 = alpha*A[i*lda + k];
+      __m256 aA8 = _mm256_set1_ps(aA0);
+      for (j = 0; j < N - 7; j += 8) {
+        __m256 b = _mm256_loadu_ps(B + k*ldb + j); // load
+        __m256 c = _mm256_loadu_ps(C + i*ldc + j);
+        c = _mm256_fmadd_ps(aA8, b, c);            // run: aA8 * b + c
+        _mm256_storeu_ps(C + i*ldc + j, c);        // store
+      }
+      for (; j < N; j++) {
+        C[i*ldc + j] += aA0 * B[k*ldb + j];
+      }
+    }
+  }
+}
+
+// Kernel V3
+// 1. Expand the loop based on V2.
+//    Reduce the use of  __m256 c8 = _mm256_loadu_ps(C + i*ldc + j);
+//                  and  _mm256_storeu_ps(C + i*ldc + j, c8);
+// 2. Use openmp.
+void GemmHostV3(const int M, const int N,
+                const int K, const float alpha,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                const float beta,
+                float *C, const int ldc) {
+  int i, j, k;
+
+  __m256 beta8 = _mm256_set1_ps(beta);
+  for (i = 0; i < M*N - 7; i += 8) {
+    __m256 c = _mm256_loadu_ps(C + i);
+    c = _mm256_mul_ps(c, beta8);
+    _mm256_storeu_ps(C + i, c);
+  }
+  for (; i < M*N; i++) {
+    C[i] *= beta;
+  }
+
+  for (i = 0; i < M; ++i) {
+    for (k = 0; k < K - 3; k += 4) {
+      const float aA0 = alpha*A[i*lda + k];
+      const float aA1 = alpha*A[i*lda + k + 1];
+      const float aA2 = alpha*A[i*lda + k + 2];
+      const float aA3 = alpha*A[i*lda + k + 3];
+      __m256 aA08 = _mm256_set1_ps(aA0);
+      __m256 aA18 = _mm256_set1_ps(aA1);
+      __m256 aA28 = _mm256_set1_ps(aA2);
+      __m256 aA38 = _mm256_set1_ps(aA3);
+      for (j = 0; j < N - 7; j += 8) {
+        __m256 b08 = _mm256_loadu_ps(B + k*ldb + j);    // load
+        __m256 b18 = _mm256_loadu_ps(B + (k + 1)*ldb + j);
+        __m256 b28 = _mm256_loadu_ps(B + (k + 2)*ldb + j);
+        __m256 b38 = _mm256_loadu_ps(B + (k + 3)*ldb + j);
+
+        __m256 c8 = _mm256_loadu_ps(C + i*ldc + j);
+
+        c8 = _mm256_fmadd_ps(aA08, b08, c8);            // run: aA8 * b + c
+        c8 = _mm256_fmadd_ps(aA18, b18, c8);
+        c8 = _mm256_fmadd_ps(aA28, b28, c8);
+        c8 = _mm256_fmadd_ps(aA38, b38, c8);
+
+        _mm256_storeu_ps(C + i*ldc + j, c8);            // store
+      }
+      // Rest j.
+      for (int jr = j; jr < N; jr++) { C[i*ldc + jr] += aA0 * B[k*ldb + jr]; }
+      for (int jr = j, k1 = k + 1; jr < N; jr++) { C[i*ldc + jr] += aA1 * B[k1*ldb + jr]; }
+      for (int jr = j, k2 = k + 2; jr < N; jr++) { C[i*ldc + jr] += aA2 * B[k2*ldb + jr]; }
+      for (int jr = j, k3 = k + 3; jr < N; jr++) { C[i*ldc + jr] += aA3 * B[k3*ldb + jr]; }
+    }
+    // Rest k.
+    for (; k < K; k++) {
+      register float aA = alpha*A[i*lda + k];
+      for (j = 0; j < N; ++j) {
+        C[i*ldc + j] += aA*B[k*ldb + j];
+      }
+    }
+  }
+}
+
+// Kernel V4
+void GemmHostV4(const int M, const int N,
+                const int K, const float alpha,
+                const float *A, const int lda,
+                const float *B, const int ldb,
+                const float beta,
+                float *C, const int ldc) {
+  __m256 beta8 = _mm256_set1_ps(beta);
+  for (int i = 0; i < M*N - 7; i += 8) {
+    _mm256_storeu_ps(C + i, _mm256_mul_ps(_mm256_loadu_ps(C + i), beta8));
+  }
+  for (int i = (M*N) - (M*N%4); i < M*N; i++) {
+    C[i] *= beta;
+  }
+
+#ifdef _OPENMP
+#include <omp.h>
+#pragma omp parallel for num_threads(6)
+#endif
+  for (int i = 0; i < M; ++i) {
+    for (int k = 0; k < K - 3; k += 4) {
+      const float aA0 = alpha*A[i*lda + k];
+      const float aA1 = alpha*A[i*lda + k + 1];
+      const float aA2 = alpha*A[i*lda + k + 2];
+      const float aA3 = alpha*A[i*lda + k + 3];
+      __m256 aA08 = _mm256_set1_ps(aA0);
+      __m256 aA18 = _mm256_set1_ps(aA1);
+      __m256 aA28 = _mm256_set1_ps(aA2);
+      __m256 aA38 = _mm256_set1_ps(aA3);
+      for (int j = 0; j < N - 7; j += 8) {
+        __m256 b08 = _mm256_loadu_ps(B + k*ldb + j);    // load
+        __m256 b18 = _mm256_loadu_ps(B + (k + 1)*ldb + j);
+        __m256 b28 = _mm256_loadu_ps(B + (k + 2)*ldb + j);
+        __m256 b38 = _mm256_loadu_ps(B + (k + 3)*ldb + j);
+
+        __m256 c8 = _mm256_loadu_ps(C + i*ldc + j);
+
+        c8 = _mm256_fmadd_ps(aA08, b08, c8);            // run: aA8 * b + c
+        c8 = _mm256_fmadd_ps(aA18, b18, c8);
+        c8 = _mm256_fmadd_ps(aA28, b28, c8);
+        c8 = _mm256_fmadd_ps(aA38, b38, c8);
+
+        _mm256_storeu_ps(C + i*ldc + j, c8);            // store
+      }
+      // Rest j.
+      for (int jr = N - (N % 8); jr < N; jr++) { C[i*ldc + jr] += aA0 * B[k*ldb + jr]; }
+      for (int jr = N - (N % 8), k1 = k + 1; jr < N; jr++) { C[i*ldc + jr] += aA1 * B[k1*ldb + jr]; }
+      for (int jr = N - (N % 8), k2 = k + 2; jr < N; jr++) { C[i*ldc + jr] += aA2 * B[k2*ldb + jr]; }
+      for (int jr = N - (N % 8), k3 = k + 3; jr < N; jr++) { C[i*ldc + jr] += aA3 * B[k3*ldb + jr]; }
+    }
+    // Rest k.
+    for (int k = K - K%4; k < K; k++) {
+      register float aA = alpha*A[i*lda + k];
+      for (int j = 0; j < N; ++j) {
+        C[i*ldc + j] += aA*B[k*ldb + j];
+      }
+    }
+  }
+}
+
+// Kernel V5
 // Block-based matrix multiplication in cpu.
-void GemmHostV2(const int M, const int N, 
+void GemmHostV5(const int M, const int N, 
                 const int K, const float alpha,
                 const float *A, const int lda,
                 const float *B, const int ldb,
@@ -116,22 +279,60 @@ void Gemm::CpuKernelsSetup() {
   // Kernel v1.
   {
     auto func = [&](const int M, const int N,
-      const int K, const float alpha,
-      const void *A, const int lda,
-      const void *B, const int ldb,
-      const float beta,
-      void *C, const int ldc) -> void {
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
       GemmHostV1(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
     GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
-    kernel->describe_info = "Adjust iteration order";
+    kernel->describe_info = "V0 + Adjust iteration order";
 
     cpu_kernels_.push_back(kernel);
   }
   // Kernel v2.
+  {
+    auto func = [&](const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
+      GemmHostV2(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+      //CUXLOG_WARN("V2> SSE/AVX acceleration is not enabled.");
+    };
+
+    GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
+    kernel->type_flag = TypeFlag::FLOAT32;
+    kernel->func = func;
+    kernel->describe_info = "V1 + SIMD";
+
+    cpu_kernels_.push_back(kernel);
+  }
+  // Kernel v3.
+  {
+    auto func = [&](const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
+      GemmHostV3(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+      //CUXLOG_WARN("V2> SSE/AVX acceleration is not enabled.");
+    };
+
+    GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
+    kernel->type_flag = TypeFlag::FLOAT32;
+    kernel->func = func;
+    kernel->describe_info = "V2 + Loop unrolling";
+
+    cpu_kernels_.push_back(kernel);
+  }
+  // Kernel v4.
   {
     auto func = [&](const int M, const int N,
       const int K, const float alpha,
@@ -139,7 +340,25 @@ void Gemm::CpuKernelsSetup() {
       const void *B, const int ldb,
       const float beta,
       void *C, const int ldc) -> void {
-      GemmHostV2(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+      GemmHostV4(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
+    };
+
+    GemmCpuKernelIF *kernel = new GemmCpuKernelIF();
+    kernel->type_flag = TypeFlag::FLOAT32;
+    kernel->func = func;
+    kernel->describe_info = "V3 + OpenMP with 6 threads.";
+
+    cpu_kernels_.push_back(kernel);
+  }
+  // Kernel v5.
+  {
+    auto func = [&](const int M, const int N,
+                    const int K, const float alpha,
+                    const void *A, const int lda,
+                    const void *B, const int ldb,
+                    const float beta,
+                    void *C, const int ldc) -> void {
+      GemmHostV5(M, N, K, alpha, (float *)A, lda, (float *)B, ldb, beta, (float *)C, ldc);
     };
 
     GemmCpuKernelIF *kernel = new GemmCpuKernelIF();

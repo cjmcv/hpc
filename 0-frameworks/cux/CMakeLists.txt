@@ -1,7 +1,15 @@
 cmake_minimum_required(VERSION 2.8)
 
+# Note: This cmakelists have only been verified on the Windows platform.
+
 # Options
-option(UNIT_TESTS  "Build with unit tests."  ON)
+option(CUX_UNIT_TESTS  "Build with unit tests."  ON)
+option(CUX_WIN_CPU_SIMD_OPTIONS  "Enables CPU SIMD instructions."  ON)
+
+# Add definitions by some options
+#if(CUX_WIN_CPU_SIMD_OPTIONS)
+#  add_definitions(-DCUX_X86_SIMD)
+#endif()
 
 # Version.
 set(CUDA_VERSION "9.0" CACHE STRING "CUDA version to build against")
@@ -25,19 +33,33 @@ endif()
 set(CMAKE_BUILD_TYPE "Release")  # Debug
 
 if(WIN32)
-  # MSVC
+  # MSVC  
+  if(CUX_WIN_CPU_SIMD_OPTIONS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+  endif()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   set(CMAKE_CXX_FLAGS_DEBUG "/D_DEBUG /MTd /Ob2 /Od /ZI")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /D_ITERATOR_DEBUG_LEVEL=0")
   set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /D_ITERATOR_DEBUG_LEVEL=0")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /D_ITERATOR_DEBUG_LEVEL=0")
-else(WIN32)
+else(WIN32) # TODO
   # GNU
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC") # Set for .so
   set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g") 
   set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall") 
 endif(WIN32)
 
+# OpenMP Support
+CHECK_CXX_COMPILER_FLAG("/openmp" MSVC_OPENMP_SUPPORT)
+if (MSVC_OPENMP_SUPPORT)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
+endif()  
+CHECK_CXX_COMPILER_FLAG("-fopenmp" GCC_OPENMP_SUPPORT)
+if (GCC_OPENMP_SUPPORT)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+endif()
+
+  
 # Set cuda.
 find_package(CUDA ${CUDA_VERSION} REQUIRED EXACT)
 set(CUDA_NVCC_FLAG_DEBUG "-O0 -g -G")
@@ -50,7 +72,7 @@ set(OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
 ############################################
 # 3rdparty
-if(UNIT_TESTS)
+if(CUX_UNIT_TESTS)
   set(GOOGLETEST_VERSION 1.9.0)
   set(GTEST_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/googletest/googletest")
   set(GTEST_INCLUDE_DIR ${GTEST_ROOT}/include)
@@ -71,6 +93,6 @@ add_subdirectory(example)
 
 ############################################
 # unit test
-if(UNIT_TESTS)
+if(CUX_UNIT_TESTS)
   add_subdirectory(tests)
 endif()

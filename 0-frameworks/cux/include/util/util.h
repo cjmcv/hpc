@@ -167,8 +167,7 @@ struct DataType<uint8_t> {
 };
 
 ////
-// TODO: 3rdparty: 均以宏定义覆盖，可手动选择不使用
-//                 4.使用数据库，做参数查询，性能数据备份.
+// TODO: 3rdparty: 1.使用数据库，做参数查询，性能数据备份.
 //
 } // cux.
 #endif //CUX_UTIL_H_
