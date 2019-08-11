@@ -24,7 +24,7 @@ enum TypeFlag {
   INT32 = 1,
   FLOAT16 = 2, 
   INT8 = 3,
-  TYPES_NUM = 4  // Used to mark the number of elements in the enumeration TypeFlag.
+  TYPES_NUM = 4  // Used to mark the total number of elements in TypeFlag.
 };
 
 enum OpRunMode {
@@ -166,8 +166,5 @@ struct DataType<uint8_t> {
   static const int kFlag = cux::TypeFlag::INT8;
 };
 
-////
-// TODO: 3rdparty: 1.使用数据库，做参数查询，性能数据备份.
-//
 } // cux.
 #endif //CUX_UTIL_H_

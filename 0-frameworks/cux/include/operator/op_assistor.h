@@ -30,7 +30,9 @@ public:
       float t = prev_data_[i] - (float)in[i];
       diff += (t >= 0 ? t : -t);
     }
-    if (diff < DBL_MIN) {
+    diff /= len;
+
+    if (diff < DBL_MIN || (DataType<DType>::kFlag == TypeFlag::FLOAT16 && diff <= 1.0)) {
       CUXLOG_COUT("Pass: V0 vs V%d -> (diff: %f, first number: %f, %f)",
         id, diff, (float)prev_data_[0], (float)in[0]);
       return true;
