@@ -8,7 +8,7 @@ extern cux::KernelInterface *GemmGPUPlugin();
 void DotProductTest() {
   cux::Executor *executor = new cux::Executor();
   executor->Initialize(0);
-  executor->SelectOp("dot_product", "");
+  executor->SelectOp("dot", "");
 
   // Add a user-defined kernel to the selected op.
   executor->AddPlugin(DotProductGPUPlugin(), cux::OpRunMode::ON_DEVICE);
@@ -27,7 +27,7 @@ void DotProductTest() {
   outputs.push_back(out);
 
   // Bind And Fill.
-  executor->BindAndFill(inputs, outputs, -2, 3, 0);
+  executor->BindAndFill(inputs, outputs, -2, 2, 0);
 
   // Run.
   executor->Run(cux::OpRunMode::ON_HOST);
@@ -35,6 +35,36 @@ void DotProductTest() {
 
   delete in_a;
   delete in_b;
+  delete out;
+
+  executor->Clear();
+  delete executor;
+}
+
+void Nrm2Test() {
+  cux::Executor *executor = new cux::Executor();
+  executor->Initialize(0);
+  executor->SelectOp("nrm2", "");
+
+  // Data preparation.
+  // Too large a value may cause overflow.
+  const int data_len = 4096000; // data_len % threads_per_block == 0.
+  cux::Array4D *in = new cux::Array4D(1, 1, 1, data_len);
+  cux::Array4D *out = new cux::Array4D(1, 1, 1, 1);
+
+  std::vector<cux::Array4D*> inputs;
+  inputs.push_back(in);
+  std::vector<cux::Array4D*> outputs;
+  outputs.push_back(out);
+
+  // Bind And Fill.
+  executor->BindAndFill(inputs, outputs, -1, 1, 0);
+
+  // Run.
+  executor->Run(cux::OpRunMode::ON_HOST);
+  executor->Run(cux::OpRunMode::ON_DEVICE);
+
+  delete in;
   delete out;
 
   executor->Clear();
@@ -52,7 +82,7 @@ void GEMMTest() {
   // Data preparation.
   int block_size = 32;
   cux::Array4D *in_a = new cux::Array4D(1, 1, block_size * 16, block_size * 15);
-  cux::Array4D *in_b = new cux::Array4D(1, 1, block_size * 15, block_size * 8);
+  cux::Array4D *in_b = new cux::Array4D(1, 1, block_size * 15, block_size * 18);
   std::vector<int> shape_a = in_a->shape();
   std::vector<int> shape_b = in_b->shape();
   cux::Array4D *out_c = new cux::Array4D(1, 1, shape_a[cux::HEIGHT], shape_b[cux::WIDTH]);
@@ -84,10 +114,17 @@ int main() {
   //cux::QueryDevices();
 
   ////////
-  //printf("DotProductTest.\n");
-  //DotProductTest();
+  printf("DotProductTest.\n");
+  DotProductTest();
 
-  printf("\n\nGEMMTest.\n");
+  printf("\n\n");
+
+  printf("Norm2Test.\n");
+  Nrm2Test();
+
+  printf("\n\n");
+
+  printf("GEMMTest.\n");
   GEMMTest();
   ////////
 

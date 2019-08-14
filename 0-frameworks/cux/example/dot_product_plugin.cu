@@ -1,7 +1,7 @@
 #include "operator/kernel_interface.h"
 #include "executor.h"
 
-__global__ void VectorDotProductKernel(const int len, const float *vec_a, const float *vec_b, float *res) {
+__global__ void DotKernel(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len;
@@ -41,18 +41,18 @@ cux::KernelInterface *DotProductGPUPlugin() {
   };
 
   auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
-    VectorDotProductKernel << <config.blocks_per_grid,
+    DotKernel << <config.blocks_per_grid,
       config.threads_per_block,
       config.shared_memory_size >> >
       (len, (float *)vec_a, (float *)vec_b, (float *)res);
   };
 
-  DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
+  DotGpuKernelIF *kernel = new DotGpuKernelIF();
   kernel->type_flag = TypeFlag::FLOAT32;
   kernel->describe_info = "Plugin example: It's the same as kernel V0";
   kernel->get_config = get_config;
   kernel->func = func;
-  kernel->kernel_address = VectorDotProductKernel;
+  kernel->kernel_address = DotKernel;
 
   return kernel;
 }

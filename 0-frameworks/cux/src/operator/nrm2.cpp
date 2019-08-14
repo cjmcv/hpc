@@ -1,54 +1,58 @@
-#include "operator/dot_product.h"
+#include "operator/nrm2.h"
 
 namespace cux {
-  
+
 // Kernel V0
 // Normal version in cpu as a reference
-void DotHostV0(int len, const float *vec_a, const float *vec_b, float *res) {
-  float temp = 0;
-  for (int i = 0; i < len; i++) {
-    temp += vec_a[i] * vec_b[i];
+void Nrm2HostV0(int n, float *x, float *result) {
+  if (n <= 0) { *result = 0.0; return; };
+  if (n == 1) { *result = std::abs(x[0]); return; };
+
+  float s = 0.0;
+  for (int i = 0; i < n; i++) {
+    float v = std::abs(x[i]);
+    s += v * v;
   }
-  *res = temp;
+  *result = std::sqrt(s);
 }
 
-// Kernel V1
-// SIMD.
-void DotHostV1(int len, const float *vec_a, const float *vec_b, float *res) {
-  float result = 0;
+void Nrm2HostV1(int n, float *x, float *result) {
+  if (n <= 0) { *result = 0.0; return; };
+  if (n == 1) { *result = std::abs(x[0]); return; };
+  
+  float acc = 0.0;
+  float absx[8] = {0};
+  __m256 acc8 = _mm256_setzero_ps();
+  for (int i = 0; i < n - 7; i += 8) {
+    absx[0] = std::abs(x[i]);
+    absx[1] = std::abs(x[i + 1]);
+    absx[2] = std::abs(x[i + 2]);
+    absx[3] = std::abs(x[i + 3]);
+    absx[4] = std::abs(x[i + 4]);
+    absx[5] = std::abs(x[i + 5]);
+    absx[6] = std::abs(x[i + 6]);
+    absx[7] = std::abs(x[i + 7]);
 
-  // Using 8 as the base number to call simd.
-  if (len > 8) {
-    __m128 sum = _mm_setzero_ps();
-    for (int i = 0; i < len - 7; i += 8) {
-      __m128 a0 = _mm_loadu_ps(vec_a + i);
-      __m128 a1 = _mm_loadu_ps(vec_a + i + 4);
-
-      __m128 b0 = _mm_loadu_ps(vec_b + i);
-      __m128 b1 = _mm_loadu_ps(vec_b + i + 4);
-
-      sum = _mm_add_ps(sum, _mm_add_ps(_mm_mul_ps(a0, b0), _mm_mul_ps(a1, b1)));
-    }
-    result = sum.m128_f32[0] + sum.m128_f32[1] + sum.m128_f32[2] + sum.m128_f32[3];
+    __m256 absx8 = _mm256_loadu_ps(absx);
+    acc8 = _mm256_fmadd_ps(absx8, absx8, acc8);
   }
-
-  // Calculate the remaining part.
-  for (int i = len / 8 * 8; i < len; i++) {
-    result += vec_a[i] * vec_b[i];
+  _mm256_storeu_ps(absx, acc8);
+  for (int i = 0; i < 8; i++) {
+    acc += absx[i];
   }
-  *res = result;
+  *result = std::sqrt(acc);
 }
 
 //////////////////////
-void Dot::CpuKernelsSetup() {
+void Nrm2::CpuKernelsSetup() {
   cpu_kernels_.clear();
   // Kernel v0.
   {
-    auto func = [&](int len, const void *vec_a, const void *vec_b, void *res) -> void {
-      DotHostV0(len, (float *)vec_a, (float *)vec_b, (float *)res);
+    auto func = [&](int n, const void *x, void *result) -> void {
+      Nrm2HostV0(n, (float *)x, (float *)result);
     };
 
-    DotCpuKernelIF *kernel = new DotCpuKernelIF();
+    Nrm2CpuKernelIF *kernel = new Nrm2CpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "Normal";
@@ -57,11 +61,11 @@ void Dot::CpuKernelsSetup() {
   }
   // Kernel v1.
   {
-    auto func = [&](int len, const void *vec_a, const void *vec_b, void *res) -> void {
-      DotHostV1(len, (float *)vec_a, (float *)vec_b, (float *)res);
+    auto func = [&](int n, const void *x, void *result) -> void {
+      Nrm2HostV1(n, (float *)x, (float *)result);
     };
 
-    DotCpuKernelIF *kernel = new DotCpuKernelIF();
+    Nrm2CpuKernelIF *kernel = new Nrm2CpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->func = func;
     kernel->describe_info = "SIMD";
@@ -71,48 +75,46 @@ void Dot::CpuKernelsSetup() {
 }
 
 //////////////////////
-Operator *Dot::Creator(OpAssistor *op_assistor, std::string &params_str) {
-  return new Dot(op_assistor);
+Operator *Nrm2::Creator(OpAssistor *op_assistor, std::string &params_str) {
+  return new Nrm2(op_assistor);
 }
 
-void Dot::Help() const {
+void Nrm2::Help() const {
   CUXLOG_COUT("***************** Op Helper ********************");
-  CUXLOG_COUT("* Name: Vector Dot Product.");
-  CUXLOG_COUT("* Function: sum += a[i] * b[i]");
-  CUXLOG_COUT("* Inputs:  [Two] Array4D with one vector each. ");
+  CUXLOG_COUT("* Name: Euclidean Norm.");
+  CUXLOG_COUT("* Function: ");
+  CUXLOG_COUT("* Inputs:  [One] Array4D with one vector. ");
   CUXLOG_COUT("* Outputs: [One] Array4D with one element.");
   CUXLOG_COUT("* Params:  [None].");
   CUXLOG_COUT("**************************************************");
 }
 
-void Dot::IoCheckAndSet(const std::vector< Array4D* > &input,
-                        const std::vector< Array4D* > &output) {
+void Nrm2::IoCheckAndSet(const std::vector< Array4D* > &input,
+                         const std::vector< Array4D* > &output) {
   // Check the dimensions.
-  if (input.size() != 2 || output.size() != 1) {
+  if (input.size() != 1 || output.size() != 1) {
     Help();
     CUXLOG_ERR("The dimensions of the data do not match.");
   }
-  if (input[0]->shape()[Shape::WIDTH] != input[1]->shape()[Shape::WIDTH] ||
-    output[0]->shape()[Shape::WIDTH] != 1) {
+  if (output[0]->shape()[Shape::WIDTH] != 1) {
     Help();
     CUXLOG_ERR("The dimensions of the data do not match.");
   }
 
-  in_a_ = input[0];
-  in_b_ = input[1];
+  in_ = input[0];
   out_ = output[0];
 }
 
-void Dot::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
+void Nrm2::AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
   if (mode == OpRunMode::ON_HOST)
-    cpu_kernels_.push_back((DotCpuKernelIF*)kernel_if);
+    cpu_kernels_.push_back((Nrm2CpuKernelIF*)kernel_if);
   else
-    gpu_kernels_.push_back((DotGpuKernelIF*)kernel_if);
+    gpu_kernels_.push_back((Nrm2GpuKernelIF*)kernel_if);
 
   ResetByKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
 }
 
-void Dot::ExtractDataTypes(std::vector<int>& type_flags) {
+void Nrm2::ExtractDataTypes(std::vector<int>& type_flags) {
   type_flags.clear();
   type_flags.resize(TYPES_NUM);
   for (int i = 0; i < type_flags.size(); i++) {
@@ -127,33 +129,32 @@ void Dot::ExtractDataTypes(std::vector<int>& type_flags) {
 }
 ////////////////////////////////////////////////
 // cpu version.
-void Dot::RunOnHost(const std::vector< Array4D* > &input,
-                    const std::vector< Array4D* > &output) {
-  CUXLOG_COUT("Dot -> CPU: ");
+void Nrm2::RunOnHost(const std::vector< Array4D* > &input,
+                     const std::vector< Array4D* > &output) {
+  CUXLOG_COUT("Nrm2 -> CPU: ");
   IoCheckAndSet(input, output);
 
-  const int len = in_a_->num_element();
+  const int len = in_->num_element();
   for (int ki = 0; ki < cpu_kernels_.size(); ki++) {
-    DotCpuKernelIF *kernel = cpu_kernels_[ki];
+    Nrm2CpuKernelIF *kernel = cpu_kernels_[ki];
 
     // Input.
-    const void *vec_a, *vec_b;
+    const void *x;
     void *result;
     cpu_timer_record_[ki].input = GET_TIME_DIFF(cpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, {
-        vec_a = in_a_->GetCpuData<T>(PUSH_IF_EMPTY);
-        vec_b = in_b_->GetCpuData<T>(PUSH_IF_EMPTY);
+        x = in_->GetCpuData<T>(PUSH_IF_EMPTY);
         result = out_->GetCpuData<T>(NO_PUSH);
       };);
     );
     // Run.
     cpu_timer_record_[ki].run = GET_TIME_DIFF(cpu_timer_,
-      kernel->func(len, vec_a, vec_b, result);
+      kernel->func(len, x, result);
     );
     // Output.
     TYPE_SWITCH(kernel->type_flag, T,
       assistor_->checker()->CheckArray(out_->GetCpuData<T>(PUSH), 
-        out_->num_element(), 1.0 / in_a_->num_element(), ki);
+        out_->num_element(), 1.0 / in_->num_element(), ki);
     );
   }
   // Show.
@@ -164,14 +165,14 @@ void Dot::RunOnHost(const std::vector< Array4D* > &input,
 
 //////////////////
 // cuda version.
-void Dot::RunOnDevice(const std::vector< Array4D* > &input,
-                      const std::vector< Array4D* > &output) {
-  CUXLOG_COUT("Dot -> GPU:");
+void Nrm2::RunOnDevice(const std::vector< Array4D* > &input,
+                       const std::vector< Array4D* > &output) {
+  CUXLOG_COUT("Nrm2 -> GPU:");
   IoCheckAndSet(input, output);
 
-  const int len = in_a_->num_element();
+  const int len = in_->num_element();
   for (int ki = 0; ki < gpu_kernels_.size(); ki++) {
-    DotGpuKernelIF *kernel = gpu_kernels_[ki];
+    Nrm2GpuKernelIF *kernel = gpu_kernels_[ki];
     Config1D config = kernel->get_config(len);
 
     // Record the occupancy for profiling.
@@ -179,23 +180,22 @@ void Dot::RunOnDevice(const std::vector< Array4D* > &input,
                             config.threads_per_block, 
                             config.shared_memory_size);
     // Input.
-    const void *vec_a, *vec_b;
+    const void *x;
     void *result;
     gpu_timer_record_[ki].input = GET_TIME_DIFF(gpu_timer_,
       TYPE_SWITCH(kernel->type_flag, T, {
-        vec_a = in_a_->GetGpuData<T>(PUSH_IF_EMPTY);
-        vec_b = in_b_->GetGpuData<T>(PUSH_IF_EMPTY);
+        x = in_->GetGpuData<T>(PUSH_IF_EMPTY);
         result = out_->GetGpuData<T>(NO_PUSH); 
       };);
     );
     // Warm up.
     gpu_timer_record_[ki].warnup = GET_TIME_DIFF(gpu_timer_,
-      kernel->func(config, len, vec_a, vec_b, result);
+      kernel->func(config, len, x, result);
     );
     // Run.
     TYPE_SWITCH(kernel->type_flag, T, cudaMemset(result, 0, sizeof(T)););
     gpu_timer_record_[ki].run = GET_TIME_DIFF(gpu_timer_,
-      kernel->func(config, len, vec_a, vec_b, result);
+      kernel->func(config, len, x, result);
     );
     // Output.
     gpu_timer_record_[ki].output = GET_TIME_DIFF(gpu_timer_,
@@ -204,7 +204,7 @@ void Dot::RunOnDevice(const std::vector< Array4D* > &input,
     // Check.
     TYPE_SWITCH(kernel->type_flag, T,
       assistor_->checker()->CheckArray(out_->GetCpuData<T>(PUSH), 
-        out_->num_element(), 1.0 / in_a_->num_element(), ki);
+        out_->num_element(), 1.0 / in_->num_element(), ki);
     );
   }
   // Show.

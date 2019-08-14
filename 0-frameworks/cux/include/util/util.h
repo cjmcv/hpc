@@ -102,27 +102,28 @@ public:
   template class classname<float>; \
   template class classname<cux::half>
 
+// Get type from type flag.
 #define TYPE_SWITCH(type, DType, ...)               \
   switch (type) {                                   \
-  case cux::TypeFlag::FLOAT32:                     \
+  case cux::TypeFlag::FLOAT32:                      \
     {                                               \
       typedef float DType;                          \
       {__VA_ARGS__}                                 \
     }                                               \
     break;                                          \
-  case cux::TypeFlag::FLOAT16:                     \
+  case cux::TypeFlag::FLOAT16:                      \
     {                                               \
       typedef cux::half DType;                      \
       {__VA_ARGS__}                                 \
     }                                               \
     break;                                          \
-  case cux::TypeFlag::INT32:                       \
+  case cux::TypeFlag::INT32:                        \
     {                                               \
       typedef int32_t DType;                        \
       {__VA_ARGS__}                                 \
     }                                               \
     break;                                          \
-  case cux::TypeFlag::INT8:                        \
+  case cux::TypeFlag::INT8:                         \
     {                                               \
       typedef int8_t DType;                         \
       {__VA_ARGS__}                                 \
@@ -131,6 +132,10 @@ public:
   default:                                          \
     CUXLOG_ERR("Unknown type enum %d", type);       \
   }
+
+// For checker.
+#define FLT_PRECISION_ERR_THRESH (0.001)
+
 ////////////////
 // Struct.
 ////////////////
@@ -139,6 +144,7 @@ struct Device {
   cudaDeviceProp prop;
 };
 
+// Get type flag from type.
 template<typename DType>
 struct DataType;
 template<>

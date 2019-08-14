@@ -465,7 +465,8 @@ void Gemm::RunOnHost(const std::vector< Array4D* > &input,
       kernel->func(M, N, K, params_.alpha, A, lda, B, ldb, params_.beta, C, ldc);
     );
     TYPE_SWITCH(kernel->type_flag, T,
-      assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
+      assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), 
+        C_->num_element(), 1.0 / C_->num_element(), ki);
     );
   }
   // Show.
@@ -525,7 +526,8 @@ void Gemm::RunOnDevice(const std::vector< Array4D* > &input,
     );
     // Check.
     TYPE_SWITCH(kernel->type_flag, T, 
-      assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), C_->num_element(), ki);
+      assistor_->checker()->CheckArray(C_->GetCpuData<T>(PUSH), 
+        C_->num_element(), 1.0 / C_->num_element(), ki);
     );
   }
   // Show.

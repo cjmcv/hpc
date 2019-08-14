@@ -2,11 +2,11 @@
 
 namespace cux {
   
-// CUDA version 0: 1.09 ms
+// Kernel V0W
 // Multiply and save to shared memory.
 // Accumulate data from all of the shared memory to fewer blocks.
 //template <int BLOCK_SIZE>
-__global__ void VectorDotProductDeviceV0(const int len, const float *vec_a, const float *vec_b, float *res) {
+__global__ void DotDeviceV0(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len;
@@ -34,8 +34,8 @@ __global__ void VectorDotProductDeviceV0(const int len, const float *vec_a, cons
   }
 }
 
-// CUDA version 1: 0.46 ms
-__global__ void VectorDotProductDeviceV1(const int len, const float *vec_a, const float *vec_b, float *res) {
+// Kernel V1
+__global__ void DotDeviceV1(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 8;
@@ -67,8 +67,8 @@ __global__ void VectorDotProductDeviceV1(const int len, const float *vec_a, cons
   }
 }
 
-// CUDA version 2: 0.45 ms
-__global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, const float *vec_b, float *res) {
+// Kernel V2.
+__global__ void DotDeviceV2(const int len, const float *vec_a, const float *vec_b, float *res) {
   // Prevents memory access across the border.
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 8;
@@ -111,7 +111,7 @@ __global__ void VectorDotProductDeviceV2(const int len, const float *vec_a, cons
   }
 }
 
-void VectorDotProduct::GpuKernelsSetup() {
+void Dot::GpuKernelsSetup() {
   gpu_kernels_.clear();
   // Kernel v0
   {
@@ -119,23 +119,23 @@ void VectorDotProduct::GpuKernelsSetup() {
       Config1D config;
       config.threads_per_block = 1024;
       config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;
-      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV0, 0, len);
+      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, DotDeviceV0, 0, len);
       config.shared_memory_size = config.threads_per_block * sizeof(float);
       return config;
     };
     auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
-      VectorDotProductDeviceV0 << <config.blocks_per_grid,
+      DotDeviceV0 << <config.blocks_per_grid,
         config.threads_per_block,
         config.shared_memory_size >> >
         (len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
+    DotGpuKernelIF *kernel = new DotGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = VectorDotProductDeviceV0;
+    kernel->kernel_address = DotDeviceV0;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -145,23 +145,23 @@ void VectorDotProduct::GpuKernelsSetup() {
       Config1D config;
       config.threads_per_block = 1024;
       config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;
-      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV1, 0, len);
+      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, DotDeviceV1, 0, len);
       config.shared_memory_size = config.threads_per_block * sizeof(float);
       return config;
     };
     auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
-      VectorDotProductDeviceV1 << <config.blocks_per_grid,
+      DotDeviceV1 << <config.blocks_per_grid,
         config.threads_per_block,
         config.shared_memory_size >> >
         (len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
+    DotGpuKernelIF *kernel = new DotGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = VectorDotProductDeviceV1;
+    kernel->kernel_address = DotDeviceV1;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -171,23 +171,23 @@ void VectorDotProduct::GpuKernelsSetup() {
       Config1D config;
       config.threads_per_block = 1024;
       config.blocks_per_grid = (len + config.threads_per_block - 1) / config.threads_per_block;
-      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, VectorDotProductDeviceV2, 0, len);
+      //config = op_params_.launch_config->CalGetOccupancyConfig<Config1D>(&len, DotDeviceV2, 0, len);
       config.shared_memory_size = config.threads_per_block * sizeof(float);
       return config;
     };
     auto func = [&](Config1D config, int len, const void *vec_a, const void *vec_b, void *res) -> void {
-      VectorDotProductDeviceV2 << <config.blocks_per_grid,
+      DotDeviceV2 << <config.blocks_per_grid,
         config.threads_per_block,
         config.shared_memory_size >> >
         (len, (float *)vec_a, (float *)vec_b, (float *)res);
     };
 
-    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
+    DotGpuKernelIF *kernel = new DotGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;  
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = VectorDotProductDeviceV2;
+    kernel->kernel_address = DotDeviceV2;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -204,7 +204,7 @@ void VectorDotProduct::GpuKernelsSetup() {
       CUBLAS_CHECK(cublasSdot(assistor_->cublas_handle(), len, (float *)vec_a, 1, (float *)vec_b, 1, (float *)res));
     };
 
-    DotProductGpuKernelIF *kernel = new DotProductGpuKernelIF();
+    DotGpuKernelIF *kernel = new DotGpuKernelIF();
     kernel->type_flag = TypeFlag::FLOAT32;
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;

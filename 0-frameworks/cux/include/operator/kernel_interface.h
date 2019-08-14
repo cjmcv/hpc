@@ -19,17 +19,30 @@ struct KernelInterface {
 };
 
 ////////////////////////
-// VectorDotProduct
+// Dot
 //   Lambda functions cannot be assigned in this case.
 // So use std::function instead.
 // typedef void (*KernelFuncPtr)();
-struct DotProductCpuKernelIF :KernelInterface {
+struct DotCpuKernelIF :KernelInterface {
   std::function<void(int len, const void *vec_a, const void *vec_b, void *res)> func;
 };
 
-struct DotProductGpuKernelIF :KernelInterface {
+struct DotGpuKernelIF :KernelInterface {
   std::function<Config1D(int len)> get_config;
   std::function<void(Config1D, int len, const void *vec_a, const void *vec_b, void *res)> func;
+
+  void *kernel_address;
+};
+
+////////////////////////
+// Nrm2
+struct Nrm2CpuKernelIF :KernelInterface {
+  std::function<void(int n, const void *x, void *result)> func;
+};
+
+struct Nrm2GpuKernelIF :KernelInterface {
+  std::function<Config1D(int len)> get_config;
+  std::function<void(Config1D, int n, const void *x, void *result)> func;
 
   void *kernel_address;
 };

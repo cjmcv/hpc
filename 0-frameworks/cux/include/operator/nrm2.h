@@ -1,9 +1,9 @@
 /*!
-* \brief Dot Product.
+* \brief Computes the Euclidean norm of the vector x.
 */
 
-#ifndef CUX_DOT_H_
-#define CUX_DOT_H_
+#ifndef CUX_NRM2_H_
+#define CUX_NRM2_H_
 
 #include <functional>
 
@@ -12,14 +12,14 @@
 
 namespace cux {
 
-class Dot : public Operator {
+class Nrm2 : public Operator {
 public:
-  Dot(OpAssistor *assistor) :Operator(assistor) {
+  Nrm2(OpAssistor *assistor) :Operator(assistor) {
     CpuKernelsSetup();
     GpuKernelsSetup();
     ResetByKernelNum(cpu_kernels_.size(), gpu_kernels_.size());
   }
-  ~Dot() {
+  ~Nrm2() {
     for (int i = 0; i < cpu_kernels_.size(); i++) {
       delete cpu_kernels_[i];
     }
@@ -27,7 +27,7 @@ public:
       delete gpu_kernels_[i];
     }
   }
-  static Operator *Dot::Creator(OpAssistor *op_assistor, std::string &params_str);
+  static Operator *Nrm2::Creator(OpAssistor *op_assistor, std::string &params_str);
   
   void Help() const;
   void AddPlugin(KernelInterface *kernel_if, OpRunMode mode);
@@ -45,13 +45,12 @@ private:
   void GpuKernelsSetup();
 
 private:
-  Array4D *in_a_;
-  Array4D *in_b_;
+  Array4D *in_;
   Array4D *out_;
 
-  std::vector<DotCpuKernelIF *> cpu_kernels_;
-  std::vector<DotGpuKernelIF *> gpu_kernels_;
+  std::vector<Nrm2CpuKernelIF *> cpu_kernels_;
+  std::vector<Nrm2GpuKernelIF *> gpu_kernels_;
 };
 } // cux.
 
-#endif //CUX_DOT_H_
+#endif //CUX_NRM2_H_

@@ -9,6 +9,7 @@
 #include "util/launch_config.h"
 #include "operator/operator.h"
 #include "operator/op_factory.h"
+#include "operator/nrm2.h"
 #include "operator/dot_product.h"
 #include "operator/gemm.h"
 
@@ -17,7 +18,8 @@ namespace cux {
 static void InitEnvironment() {
   CUXLOG_INFO("Initialize Environment.");
 
-  OpFactory::GetInstance().RegisterOpClass("dot_product", VectorDotProduct::Creator);
+  OpFactory::GetInstance().RegisterOpClass("dot", Dot::Creator);
+  OpFactory::GetInstance().RegisterOpClass("nrm2", Nrm2::Creator);
   OpFactory::GetInstance().RegisterOpClass("gemm", Gemm::Creator);
 
   CUXLOG_COUT("* Registered Op: %s.", OpFactory::GetInstance().PrintList().c_str());

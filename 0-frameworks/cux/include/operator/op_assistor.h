@@ -7,12 +7,20 @@
 
 #include "util/util.h"
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 namespace cux {
 
 // Used to check the correctness of the output of those functions.
 class ResultChecker {
 public:
-  ResultChecker() :prev_data_(nullptr), len_(0) {}
+  ResultChecker() :prev_data_(nullptr), len_(0) {
+#ifdef WIN32
+    handle_std_ = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
+  }
   ~ResultChecker() {
     if (prev_data_ != nullptr) {
       delete[]prev_data_;
@@ -20,7 +28,7 @@ public:
     }
   }
   template <typename DType>
-  bool CheckArray(DType *in, int len, int id) {
+  bool CheckArray(DType *in, int len, float scale, int id) {
     if (id == 0) {
       SetBenchmarkData(in, len);
       return true;
@@ -30,16 +38,31 @@ public:
       float t = prev_data_[i] - (float)in[i];
       diff += (t >= 0 ? t : -t);
     }
-    diff /= len;
+    diff *= scale;
 
-    if (diff < DBL_MIN || (DataType<DType>::kFlag == TypeFlag::FLOAT16 && diff <= 1.0)) {
-      CUXLOG_COUT("Pass: V0 vs V%d -> (diff: %f, first number: %f, %f)",
-        id, diff, (float)prev_data_[0], (float)in[0]);
+    float thresh = FLT_PRECISION_ERR_THRESH;// FLT_MIN;
+    if (diff < thresh) {
+#ifdef WIN32 // Green 10, white 7, red 4, black 0
+      SetConsoleTextAttribute(handle_std_, MAKEWORD(10, 0));
+      CUXLOG_COUT("Pass: V0 vs V%d -> (diff_each: %f, thresh: %f, out[0]: %f, %f)",
+        id, diff, thresh, (float)prev_data_[0], (float)in[0]);
+      SetConsoleTextAttribute(handle_std_, MAKEWORD(7, 0));
+#else
+      CUXLOG_COUT("Pass: V0 vs V%d -> (diff_each: %f, thresh: %f, out[0]: %f, %f)",
+        id, diff, thresh, (float)prev_data_[0], (float)in[0]);
+#endif
       return true;
     }
     else {
-      CUXLOG_COUT("Fail: V0 vs V%d -> (diff: %f, first number: %f, %f)",
-        id, diff, (float)prev_data_[0], (float)in[0]);
+#ifdef WIN32
+      SetConsoleTextAttribute(handle_std_, MAKEWORD(4, 0));
+      CUXLOG_COUT("Fail: V0 vs V%d -> (diff_each: %f, thresh: %f, out[0]: %f, %f)",
+        id, diff, thresh, (float)prev_data_[0], (float)in[0]);
+      SetConsoleTextAttribute(handle_std_, MAKEWORD(7, 0));
+#else
+      CUXLOG_COUT("Fail: V0 vs V%d -> (diff_each: %f, thresh: %f, out[0]: %f, %f)",
+        id, diff, thresh, (float)prev_data_[0], (float)in[0]);
+#endif
       return false;
     }
   }
@@ -63,6 +86,9 @@ private:
   }
 
 private:
+#ifdef WIN32
+  HANDLE handle_std_;
+#endif
   float *prev_data_;
   int len_;
 };
