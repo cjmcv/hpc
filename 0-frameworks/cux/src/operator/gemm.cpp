@@ -494,7 +494,7 @@ void Gemm::RunOnDevice(const std::vector< Array4D* > &input,
     Config2D config = kernel->get_config(M, N);
 
     // Record the occupancy for profiling.
-    QueryPotentialOccupancy(kernel->kernel_address, ki,
+    QueryPotentialOccupancy(kernel->config_kernel, ki,
                             config.threads_per_block.x * config.threads_per_block.y,
                             config.shared_memory_size);
 

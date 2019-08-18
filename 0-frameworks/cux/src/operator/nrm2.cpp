@@ -10,8 +10,7 @@ void Nrm2HostV0(int n, float *x, float *result) {
 
   float s = 0.0;
   for (int i = 0; i < n; i++) {
-    float v = std::abs(x[i]);
-    s += v * v;
+    s += x[i] * x[i];
   }
   *result = std::sqrt(s);
 }
@@ -20,25 +19,19 @@ void Nrm2HostV1(int n, float *x, float *result) {
   if (n <= 0) { *result = 0.0; return; };
   if (n == 1) { *result = std::abs(x[0]); return; };
   
+  int i, j;
   float acc = 0.0;
-  float absx[8] = {0};
   __m256 acc8 = _mm256_setzero_ps();
-  for (int i = 0; i < n - 7; i += 8) {
-    absx[0] = std::abs(x[i]);
-    absx[1] = std::abs(x[i + 1]);
-    absx[2] = std::abs(x[i + 2]);
-    absx[3] = std::abs(x[i + 3]);
-    absx[4] = std::abs(x[i + 4]);
-    absx[5] = std::abs(x[i + 5]);
-    absx[6] = std::abs(x[i + 6]);
-    absx[7] = std::abs(x[i + 7]);
 
-    __m256 absx8 = _mm256_loadu_ps(absx);
+  for (i = 0; i < n - 7; i += 8) {
+    __m256 absx8 = _mm256_loadu_ps(x + i);
     acc8 = _mm256_fmadd_ps(absx8, absx8, acc8);
   }
-  _mm256_storeu_ps(absx, acc8);
-  for (int i = 0; i < 8; i++) {
-    acc += absx[i];
+  for (; i < n; i++) {
+    acc += x[i] * x[i];
+  }
+  for (j = 0; j < 8; j++) {
+    acc += acc8.m256_f32[j];
   }
   *result = std::sqrt(acc);
 }
@@ -176,7 +169,7 @@ void Nrm2::RunOnDevice(const std::vector< Array4D* > &input,
     Config1D config = kernel->get_config(len);
 
     // Record the occupancy for profiling.
-    QueryPotentialOccupancy(kernel->kernel_address, ki,
+    QueryPotentialOccupancy(kernel->config_kernel, ki,
                             config.threads_per_block, 
                             config.shared_memory_size);
     // Input.

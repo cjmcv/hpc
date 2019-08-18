@@ -135,7 +135,7 @@ void Dot::GpuKernelsSetup() {
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = DotDeviceV0;
+    kernel->config_kernel = DotDeviceV0;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -161,7 +161,7 @@ void Dot::GpuKernelsSetup() {
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = DotDeviceV1;
+    kernel->config_kernel = DotDeviceV1;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -187,7 +187,7 @@ void Dot::GpuKernelsSetup() {
     kernel->describe_info = "Shared memory / Loop unrolling";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = DotDeviceV2;
+    kernel->config_kernel = DotDeviceV2;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -209,7 +209,7 @@ void Dot::GpuKernelsSetup() {
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = nullptr;
+    kernel->config_kernel = nullptr;
 
     gpu_kernels_.push_back(kernel);
   }

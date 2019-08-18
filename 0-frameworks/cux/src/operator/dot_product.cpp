@@ -175,7 +175,7 @@ void Dot::RunOnDevice(const std::vector< Array4D* > &input,
     Config1D config = kernel->get_config(len);
 
     // Record the occupancy for profiling.
-    QueryPotentialOccupancy(kernel->kernel_address, ki,
+    QueryPotentialOccupancy(kernel->config_kernel, ki,
                             config.threads_per_block, 
                             config.shared_memory_size);
     // Input.

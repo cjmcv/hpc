@@ -52,7 +52,7 @@ cux::KernelInterface *DotProductGPUPlugin() {
   kernel->describe_info = "Plugin example: It's the same as kernel V0";
   kernel->get_config = get_config;
   kernel->func = func;
-  kernel->kernel_address = DotKernel;
+  kernel->config_kernel = DotKernel;
 
   return kernel;
 }

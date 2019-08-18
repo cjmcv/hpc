@@ -54,7 +54,7 @@ cux::KernelInterface *GemmGPUPlugin() {
   kernel->describe_info = "Plugin example: It's the same as kernel V0";
   kernel->get_config = get_config;
   kernel->func = func;
-  kernel->kernel_address = GemmKernel;
+  kernel->config_kernel = GemmKernel;
 
   return kernel;
 }

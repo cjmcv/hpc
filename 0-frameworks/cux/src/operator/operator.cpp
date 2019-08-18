@@ -8,9 +8,9 @@ namespace cux {
 
 ///////////////
 // Operator
-void Operator::QueryPotentialOccupancy(const void *kernel_address, int kernel_id, 
+void Operator::QueryPotentialOccupancy(const void *config_kernel, int kernel_id, 
                                        int threads_per_block, int shared_memory_size) {
-  if (kernel_address == nullptr 
+  if (config_kernel == nullptr 
     || kernel_id < 0 
     || kernel_id > gpu_kernel_occupancys_.size()) {
     gpu_kernel_active_blocks_[kernel_id] = 0.0;
@@ -18,7 +18,7 @@ void Operator::QueryPotentialOccupancy(const void *kernel_address, int kernel_id
     return;
   }
   assistor_->launch_config()->QueryPotentialOccupancy(
-    kernel_address, threads_per_block, shared_memory_size,
+    config_kernel, threads_per_block, shared_memory_size,
     gpu_kernel_active_blocks_[kernel_id], gpu_kernel_occupancys_[kernel_id]);
 }
 

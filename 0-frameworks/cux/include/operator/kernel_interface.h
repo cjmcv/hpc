@@ -30,8 +30,8 @@ struct DotCpuKernelIF :KernelInterface {
 struct DotGpuKernelIF :KernelInterface {
   std::function<Config1D(int len)> get_config;
   std::function<void(Config1D, int len, const void *vec_a, const void *vec_b, void *res)> func;
-
-  void *kernel_address;
+  // The kernel to be configured.
+  void *config_kernel;
 };
 
 ////////////////////////
@@ -44,7 +44,7 @@ struct Nrm2GpuKernelIF :KernelInterface {
   std::function<Config1D(int len)> get_config;
   std::function<void(Config1D, int n, const void *x, void *result)> func;
 
-  void *kernel_address;
+  void *config_kernel;
 };
 
 ////////////////////////
@@ -68,7 +68,7 @@ struct GemmGpuKernelIF :KernelInterface {
     const float beta,
     void *C, const int ldc)> func;
 
-  void *kernel_address;
+  void *config_kernel;
 };
 
 } // cux.

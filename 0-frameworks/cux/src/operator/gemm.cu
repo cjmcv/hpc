@@ -113,7 +113,7 @@ void Gemm::GpuKernelsSetup() {
     kernel->describe_info = "Normal(Block-based)";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = GemmDeviceV0;
+    kernel->config_kernel = GemmDeviceV0;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -143,7 +143,7 @@ void Gemm::GpuKernelsSetup() {
     kernel->describe_info = "Shared memory";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = GemmDeviceV1;
+    kernel->config_kernel = GemmDeviceV1;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -170,7 +170,7 @@ void Gemm::GpuKernelsSetup() {
     kernel->describe_info = "Cublas";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = nullptr;
+    kernel->config_kernel = nullptr;
 
     gpu_kernels_.push_back(kernel);
   }
@@ -201,7 +201,7 @@ void Gemm::GpuKernelsSetup() {
     kernel->describe_info = "Cublas / Half";
     kernel->get_config = get_config;
     kernel->func = func;
-    kernel->kernel_address = nullptr;
+    kernel->config_kernel = nullptr;
 
     gpu_kernels_.push_back(kernel);
   }

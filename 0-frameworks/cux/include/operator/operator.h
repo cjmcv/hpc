@@ -27,7 +27,7 @@ class Operator {
 public:
   Operator(OpAssistor *assistor) : assistor_(assistor) {}
 
-  void QueryPotentialOccupancy(const void *kernel_address, int kernel_id, 
+  void QueryPotentialOccupancy(const void *config_kernel, int kernel_id, 
                                int threads_per_block, int shared_memory_size);
 
   void PrintRecordedInfo(const OpRunMode &mode, int kernel_id, const KernelInterface *kernel_info);
