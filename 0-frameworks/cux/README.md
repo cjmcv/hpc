@@ -1,5 +1,6 @@
 # cux
-An experimental framework for performance analysis and optimization of CUDA kernel functions.
+An eXperimental framework for performance analysis and optimization of CUDA kernel functions.
 
-![](./images/cux.png "Framework")
+This framework is designed to help you intuitively know the optimizable space of your own kernel functions, making it easier for you to make further optimizations.
+
 ---
