@@ -1,9 +1,9 @@
 #ifndef HCS_PARAMS_H_
 #define HCS_PARAMS_H_
 
-#include "graph.hpp"
-
 namespace hcs {
+
+struct IOParams;
 
 enum ParamsMode {
   PARAMS_IF,
@@ -14,43 +14,43 @@ struct ParamsIF : IOParams {
   ParamsIF() :IOParams(PARAMS_IF) {}
 
   int i;
-  float j;
+  float f;
 };
 
 struct ParamsCxII : IOParams {
   ParamsCxII() :IOParams(PARAMS_CXII) {}
 
-  char *data;
-  int height;
-  int width;
+  char *cx;
+  int i1;
+  int i2;
 };
 
 class Assistor {
 public:
-  static int GetInput(hcs::Node &node, hcs::IOParams *input) {
-    if (node.out_ == nullptr || input == nullptr) {
+  static int GetInput(hcs::IOParams *former_output, hcs::IOParams *input) {
+    if (former_output == nullptr || input == nullptr) {
       std::cout << "GetInput -> node.out_ == nullptr || input == nullptr." << std::endl;
       return 0;
     }
-    if (node.out_->struct_id != input->struct_id) {
+    if (former_output->struct_id != input->struct_id) {
       std::cout << "GetInput -> The struct_id of input is not the same as output's." << std::endl;
       return 0;
     }
 
-    switch (node.out_->struct_id) {
+    switch (former_output->struct_id) {
     case hcs::PARAMS_IF:
-      ((hcs::ParamsIF *)input)->i = ((hcs::ParamsIF *)(node.out_))->i;
-      ((hcs::ParamsIF *)input)->j = ((hcs::ParamsIF *)(node.out_))->j;
-      ((hcs::ParamsIF *)input)->obj_id = ((hcs::ParamsIF *)(node.out_))->obj_id;
+      ((hcs::ParamsIF *)input)->i = ((hcs::ParamsIF *)(former_output))->i;
+      ((hcs::ParamsIF *)input)->f = ((hcs::ParamsIF *)(former_output))->f;
+      ((hcs::ParamsIF *)input)->obj_id = ((hcs::ParamsIF *)(former_output))->obj_id;
       return 1;
     case hcs::PARAMS_CXII:
-      ((hcs::ParamsCxII *)input)->data = ((hcs::ParamsCxII *)(node.out_))->data;
-      ((hcs::ParamsCxII *)input)->height = ((hcs::ParamsCxII *)(node.out_))->height;
-      ((hcs::ParamsCxII *)input)->width = ((hcs::ParamsCxII *)(node.out_))->width;
-      ((hcs::ParamsCxII *)input)->obj_id = ((hcs::ParamsCxII *)(node.out_))->obj_id;
+      ((hcs::ParamsCxII *)input)->cx = ((hcs::ParamsCxII *)(former_output))->cx;
+      ((hcs::ParamsCxII *)input)->i1 = ((hcs::ParamsCxII *)(former_output))->i1;
+      ((hcs::ParamsCxII *)input)->i2 = ((hcs::ParamsCxII *)(former_output))->i2;
+      ((hcs::ParamsCxII *)input)->obj_id = ((hcs::ParamsCxII *)(former_output))->obj_id;
       return 1;
     default:
-      std::cout << "GetInput -> Do not support mode " << node.out_->struct_id << std::endl;
+      std::cout << "GetInput -> Do not support mode " << former_output->struct_id << std::endl;
       return 0;
     }
   }
@@ -71,16 +71,16 @@ public:
         *output = new hcs::ParamsIF();
       }
       ((hcs::ParamsIF *)(*output))->i = ((hcs::ParamsIF *)(input))->i;
-      ((hcs::ParamsIF *)(*output))->j = ((hcs::ParamsIF *)(input))->j;
+      ((hcs::ParamsIF *)(*output))->f = ((hcs::ParamsIF *)(input))->f;
       ((hcs::ParamsIF *)(*output))->obj_id = ((hcs::ParamsIF *)(input))->obj_id;
       return 1;
     case hcs::PARAMS_CXII:
       if (*output == nullptr) {
         *output = new hcs::ParamsCxII();
       }
-      ((hcs::ParamsCxII *)(*output))->data = ((hcs::ParamsCxII *)(input))->data;
-      ((hcs::ParamsCxII *)(*output))->height = ((hcs::ParamsCxII *)(input))->height;
-      ((hcs::ParamsCxII *)(*output))->width = ((hcs::ParamsCxII *)(input))->width;
+      ((hcs::ParamsCxII *)(*output))->cx = ((hcs::ParamsCxII *)(input))->cx;
+      ((hcs::ParamsCxII *)(*output))->i1 = ((hcs::ParamsCxII *)(input))->i1;
+      ((hcs::ParamsCxII *)(*output))->i2 = ((hcs::ParamsCxII *)(input))->i2;
       ((hcs::ParamsCxII *)(*output))->obj_id = ((hcs::ParamsCxII *)(input))->obj_id;
       return 1;
     default:
@@ -88,9 +88,8 @@ public:
       return 0;
     }
   }
-
 };
 
-}  // end of namespace hcs.
+}  // namespace hcs.
 
-#endif //HCS_PARAMS_H_
+#endif // HCS_PARAMS_H_

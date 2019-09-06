@@ -27,7 +27,12 @@ public:
   Node() = default;
   Node(StaticWork &&c) : work_(c) {}
 
-  ~Node() {}
+  ~Node() {
+    if (out_ != nullptr) {
+      delete out_;
+      out_ = nullptr;
+    }
+  }
 
   void precede(Node &v) {
     successors_.push_back(&v);

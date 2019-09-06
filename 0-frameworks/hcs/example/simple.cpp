@@ -3,8 +3,8 @@
 
 #include <thread>
 
-#include "executor.hpp"
-#include "params.hpp"
+#include "hcs/executor.hpp"
+#include "hcs/params.hpp"
 
 template <typename... Args>
 auto PrintArgs(Args&&... args) {
@@ -12,7 +12,7 @@ auto PrintArgs(Args&&... args) {
   tup_data = std::make_tuple(args...);
 
   int size = std::tuple_size<decltype(tup_data)>::value;
-  std::string str = new std::string[size_];
+  std::string str = new std::string[size];
 
   const char *argc[] = { typeid(Args).name()... };
   for (int i = 0; i < size; i++) {
@@ -28,10 +28,10 @@ void Work1(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(*dependents[0], &in);
+  hcs::Assistor::GetInput(dependents[0]->out_, &in);
 
   in.i++;
-  in.j++;
+  in.f++;
 
   // Set output.
   hcs::Assistor::SetOutput(&in, output);
@@ -46,10 +46,10 @@ void Work2(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(*dependents[0], &in);
+  hcs::Assistor::GetInput(dependents[0]->out_, &in);
 
   in.i++;
-  in.j++;
+  in.f++;
 
   // Set output.
   hcs::Assistor::SetOutput(&in, output);
@@ -64,14 +64,14 @@ void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(*dependents[0], &in);
+  hcs::Assistor::GetInput(dependents[0]->out_, &in);
 
   in.i++;
-  in.j++;
+  in.f++;
 
   hcs::ParamsCxII out_temp;
-  out_temp.height = in.i;
-  out_temp.width = in.j;
+  out_temp.i1 = in.i;
+  out_temp.i2 = in.f;
   
   out_temp.obj_id = in.obj_id;
 
@@ -88,16 +88,16 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(*dependents[0], &in);
+  hcs::Assistor::GetInput(dependents[0]->out_, &in);
   hcs::ParamsCxII in2;
-  hcs::Assistor::GetInput(*dependents[1], &in2);
+  hcs::Assistor::GetInput(dependents[1]->out_, &in2);
 
-  in.i += in2.height;
-  in.j += in2.width;
+  in.i += in2.i1;
+  in.f += in2.i2;
 
   hcs::ParamsCxII out_temp;
-  out_temp.height = in.i;
-  out_temp.width = in.j;
+  out_temp.i1 = in.i;
+  out_temp.i2 = in.f;
 
   out_temp.obj_id = in.obj_id;
 
@@ -108,7 +108,7 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 void Add() {
   hcs::ParamsIF input;
   input.i = 10;
-  input.j = 12.5;
+  input.f = 12.5;
   input.obj_id = 1;
   input.struct_id = hcs::ParamsMode::PARAMS_IF;
 
@@ -121,7 +121,7 @@ void Add() {
   hcs::Node *D = graph.emplace(Work3);
   hcs::Node *E = graph.emplace(Work4);
 
-  A->set_output(&input);
+  hcs::Assistor::SetOutput(&input, &(A->out_));
 
   A->precede(B);
   B->precede(C);
@@ -133,7 +133,7 @@ void Add() {
 
   hcs::IOParams *out;  
   E->get_output(&out);
-  std::cout << ((hcs::ParamsCxII *)out)->height << ", " << ((hcs::ParamsCxII *)out)->width << ", " << ((hcs::ParamsIF *)out)->obj_id << std::endl;
+  std::cout << ((hcs::ParamsCxII *)out)->i1 << ", " << ((hcs::ParamsCxII *)out)->i2 << ", " << ((hcs::ParamsIF *)out)->obj_id << std::endl;
 }
 
 int main() {
