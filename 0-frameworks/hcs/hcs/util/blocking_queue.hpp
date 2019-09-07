@@ -1,6 +1,7 @@
 #ifndef HCS_BLOCKING_QUEUE_H_
 #define HCS_BLOCKING_QUEUE_H_
 
+#include <queue>
 namespace hcs {
 
 template <typename T>
@@ -15,6 +16,7 @@ public:
     lock.unlock();
     cond_var_.notify_one();
   }
+
   bool try_pop(T* t) {
     std::unique_lock <std::mutex> lock(mutex_);
     if (queue_.empty())
@@ -24,6 +26,7 @@ public:
     queue_.pop();
     return true;
   }
+
   void wait_and_pop(T* t) {
     std::unique_lock <std::mutex> lock(mutex_);
     while (queue_.empty())

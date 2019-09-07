@@ -5,6 +5,8 @@
 #include <atomic>
 #include <functional>
 
+#include "util/blocking_queue.hpp"
+
 namespace hcs {
 
 // Forward declaration
@@ -21,6 +23,7 @@ struct IOParams {
 class Node {
 
   using StaticWork = std::function<void(std::vector<Node*> &dependents, IOParams **output)>;
+  static const int kMaxBatchSize = 10;
 
 public:
 
@@ -51,8 +54,11 @@ public:
   const std::string &name() const { return name_; }
 
   Node *name(const std::string& name) { name_ = name; return this; }
-  void set_output(IOParams *out) { out_ = out; }
+
   void get_output(IOParams **out) { *out = out_; }
+
+  void push_out(IOParams *out) { outs_free_.push(out); }
+  void pop_out(IOParams **out) { outs_full_.try_pop(out); }
 
 public:
   StaticWork work_;
@@ -61,9 +67,12 @@ public:
   std::vector<Node*> dependents_;
   IOParams *out_{ nullptr };
 
+  IOParams *outs_[kMaxBatchSize];
+  BlockingQueue<IOParams *> outs_full_;
+  BlockingQueue<IOParams *> outs_free_;
+
 private:
   std::string name_;
-
 };
 // ----------------------------------------------------------------------------
 

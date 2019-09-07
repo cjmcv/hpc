@@ -39,15 +39,10 @@ public:
 
     switch (former_output->struct_id) {
     case hcs::PARAMS_IF:
-      ((hcs::ParamsIF *)input)->i = ((hcs::ParamsIF *)(former_output))->i;
-      ((hcs::ParamsIF *)input)->f = ((hcs::ParamsIF *)(former_output))->f;
-      ((hcs::ParamsIF *)input)->obj_id = ((hcs::ParamsIF *)(former_output))->obj_id;
+      *(hcs::ParamsIF *)input = *(hcs::ParamsIF *)former_output;
       return 1;
     case hcs::PARAMS_CXII:
-      ((hcs::ParamsCxII *)input)->cx = ((hcs::ParamsCxII *)(former_output))->cx;
-      ((hcs::ParamsCxII *)input)->i1 = ((hcs::ParamsCxII *)(former_output))->i1;
-      ((hcs::ParamsCxII *)input)->i2 = ((hcs::ParamsCxII *)(former_output))->i2;
-      ((hcs::ParamsCxII *)input)->obj_id = ((hcs::ParamsCxII *)(former_output))->obj_id;
+      *(hcs::ParamsCxII *)input = *(hcs::ParamsCxII *)former_output;
       return 1;
     default:
       std::cout << "GetInput -> Do not support mode " << former_output->struct_id << std::endl;
@@ -70,18 +65,13 @@ public:
       if (*output == nullptr) {
         *output = new hcs::ParamsIF();
       }
-      ((hcs::ParamsIF *)(*output))->i = ((hcs::ParamsIF *)(input))->i;
-      ((hcs::ParamsIF *)(*output))->f = ((hcs::ParamsIF *)(input))->f;
-      ((hcs::ParamsIF *)(*output))->obj_id = ((hcs::ParamsIF *)(input))->obj_id;
+      *(hcs::ParamsIF *)(*output) = *(hcs::ParamsIF *)input;
       return 1;
     case hcs::PARAMS_CXII:
       if (*output == nullptr) {
         *output = new hcs::ParamsCxII();
       }
-      ((hcs::ParamsCxII *)(*output))->cx = ((hcs::ParamsCxII *)(input))->cx;
-      ((hcs::ParamsCxII *)(*output))->i1 = ((hcs::ParamsCxII *)(input))->i1;
-      ((hcs::ParamsCxII *)(*output))->i2 = ((hcs::ParamsCxII *)(input))->i2;
-      ((hcs::ParamsCxII *)(*output))->obj_id = ((hcs::ParamsCxII *)(input))->obj_id;
+      *(hcs::ParamsCxII *)(*output) = *(hcs::ParamsCxII *)(input);
       return 1;
     default:
       std::cout << "SetOutput -> Do not support mode " << input->struct_id << std::endl;

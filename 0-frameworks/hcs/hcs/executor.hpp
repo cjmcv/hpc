@@ -185,8 +185,16 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
 
     do {
       auto &f = (*t)->work_;
-      if (f != nullptr)
-        std::invoke(f, (*t)->dependents_, &((*t)->out_));
+      if (f != nullptr) {
+        f((*t)->dependents_, &((*t)->out_));
+
+        // TODO: 1、在node的构造中添加ParamsMode，在构造时分配IOParams数组的内容并初始化out_free;
+        //       2、写一个函数用于查看当前任务的状态，包括outs_full_，任务id等。
+        //IOParams *p;
+        //(*t)->outs_free_.try_pop(&p);
+        //f((*t)->dependents_, &p);
+        //(*t)->outs_full_.push(p);
+      }
 
       PushSuccessors(*t);
 
