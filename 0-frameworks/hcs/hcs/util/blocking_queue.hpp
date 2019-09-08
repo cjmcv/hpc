@@ -17,6 +17,15 @@ public:
     cond_var_.notify_one();
   }
 
+  bool try_front(T* t) {
+    std::unique_lock <std::mutex> lock(mutex_);
+    if (queue_.empty())
+      return false;
+
+    *t = queue_.front();
+    return true;
+  }
+
   bool try_pop(T* t) {
     std::unique_lock <std::mutex> lock(mutex_);
     if (queue_.empty())

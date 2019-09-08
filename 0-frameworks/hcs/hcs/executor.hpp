@@ -186,14 +186,27 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
     do {
       auto &f = (*t)->work_;
       if (f != nullptr) {
-        f((*t)->dependents_, &((*t)->out_));
+        if ((*t)->num_successors() <= 1) {
+          IOParams *p;
+          (*t)->outs_free_.try_pop(&p);
+          f((*t)->dependents_, &p);
+          (*t)->outs_full_.push(p);
+        }
+        else {
+          if ((*t)->outs_branch_full_ == nullptr) {
+            (*t)->outs_branch_full_ = new BlockingQueue<IOParams *>[(*t)->num_successors()];
+          }
+          IOParams *p, *p2;
+          (*t)->outs_free_.try_pop(&p);
+          f((*t)->dependents_, &p);
 
-        // TODO: 1、在node的构造中添加ParamsMode，在构造时分配IOParams数组的内容并初始化out_free;
-        //       2、写一个函数用于查看当前任务的状态，包括outs_full_，任务id等。
-        //IOParams *p;
-        //(*t)->outs_free_.try_pop(&p);
-        //f((*t)->dependents_, &p);
-        //(*t)->outs_full_.push(p);
+          for (int i = 1; i < (*t)->num_successors(); i++) {
+            (*t)->outs_free_.try_pop(&p2);
+            Assistor::CopyParams(p, p2);
+            (*t)->outs_branch_full_[i].push(p2);
+          }
+          (*t)->outs_branch_full_[0].push(p);
+        }
       }
 
       PushSuccessors(*t);
@@ -297,8 +310,8 @@ std::future<void> Executor::Run(Graph& g) {
     auto node = queue_.pop();
     while (node) {
       auto &f = (*node)->work_;
-      if (f != nullptr)
-        std::invoke(f, (*node)->dependents_, &((*node)->out_));
+      //if (f != nullptr)
+      //  std::invoke(f, (*node)->dependents_, &((*node)->out_));
 
       PushSuccessors(*node);
       node = queue_.unsync_pop();

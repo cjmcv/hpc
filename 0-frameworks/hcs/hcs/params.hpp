@@ -3,11 +3,16 @@
 
 namespace hcs {
 
-struct IOParams;
-
 enum ParamsMode {
   PARAMS_IF,
   PARAMS_CXII
+};
+
+struct IOParams {
+  IOParams(int mode_id) :struct_id(mode_id) {}
+
+  int struct_id;
+  int obj_id;
 };
 
 struct ParamsIF : IOParams {
@@ -27,6 +32,36 @@ struct ParamsCxII : IOParams {
 
 class Assistor {
 public:
+  static IOParams *CreateParams(ParamsMode mode) {
+    switch (mode) {
+    case PARAMS_IF:
+      return new ParamsIF();
+    case PARAMS_CXII:
+      return new ParamsCxII();
+    default:
+      std::cout << "GetInput -> Do not support mode " << mode << std::endl;
+      return 0;
+    }
+  }
+
+  static int CopyParams(hcs::IOParams *from, hcs::IOParams *to) {
+    if (from->struct_id != to->struct_id) {
+      std::cout << "CopyParams -> from->struct_id != to->struct_id." << std::endl;
+      return 0;
+    }
+    switch (from->struct_id) {
+    case hcs::PARAMS_IF:
+      *(hcs::ParamsIF *)to = *(hcs::ParamsIF *)from;
+      return 1;
+    case hcs::PARAMS_CXII:
+      *(hcs::ParamsCxII *)to = *(hcs::ParamsCxII *)from;
+      return 1;
+    default:
+      std::cout << "GetInput -> Do not support mode " << from->struct_id << std::endl;
+      return 0;
+    }
+  }
+
   static int GetInput(hcs::IOParams *former_output, hcs::IOParams *input) {
     if (former_output == nullptr || input == nullptr) {
       std::cout << "GetInput -> node.out_ == nullptr || input == nullptr." << std::endl;

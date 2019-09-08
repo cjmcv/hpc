@@ -28,10 +28,12 @@ void Work1(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(dependents[0]->out_, &in);
+  dependents[0]->PopOutput(&in);
 
+  printf("1>before: %d, %f.\n", in.i, in.f);
   in.i++;
   in.f++;
+  printf("1>after: %d, %f.\n", in.i, in.f);
 
   // Set output.
   hcs::Assistor::SetOutput(&in, output);
@@ -46,10 +48,12 @@ void Work2(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(dependents[0]->out_, &in);
+  dependents[0]->PopOutput(&in, 0);
 
+  printf("2>before: %d, %f.\n", in.i, in.f);
   in.i++;
   in.f++;
+  printf("2>after: %d, %f.\n", in.i, in.f);
 
   // Set output.
   hcs::Assistor::SetOutput(&in, output);
@@ -64,10 +68,12 @@ void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(dependents[0]->out_, &in);
+  dependents[0]->PopOutput(&in, 1);
 
+  printf("3>before: %d, %f.\n", in.i, in.f);
   in.i++;
   in.f++;
+  printf("3>after: %d, %f.\n", in.i, in.f);
 
   hcs::ParamsCxII out_temp;
   out_temp.i1 = in.i;
@@ -88,12 +94,14 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
-  hcs::Assistor::GetInput(dependents[0]->out_, &in);
+  dependents[0]->PopOutput(&in);
   hcs::ParamsCxII in2;
-  hcs::Assistor::GetInput(dependents[1]->out_, &in2);
+  dependents[1]->PopOutput(&in2);
 
+  printf("4>before: %d, %f.\n", in.i, in.f);
   in.i += in2.i1;
   in.f += in2.i2;
+  printf("4>after: %d, %f.\n", in.i, in.f);
 
   hcs::ParamsCxII out_temp;
   out_temp.i1 = in.i;
@@ -115,14 +123,18 @@ void Add() {
   hcs::Executor executor;
   hcs::Graph graph;
 
-  hcs::Node *A = graph.emplace();
-  hcs::Node *B = graph.emplace(Work1);
-  hcs::Node *C = graph.emplace(Work2);
-  hcs::Node *D = graph.emplace(Work3);
-  hcs::Node *E = graph.emplace(Work4);
+  hcs::Node *A = graph.emplace(hcs::PARAMS_IF);
+  hcs::Node *B = graph.emplace(Work1, hcs::PARAMS_IF);
+  hcs::Node *C = graph.emplace(Work2, hcs::PARAMS_IF);
+  hcs::Node *D = graph.emplace(Work3, hcs::PARAMS_CXII);
+  hcs::Node *E = graph.emplace(Work4, hcs::PARAMS_CXII);
 
-  hcs::Assistor::SetOutput(&input, &(A->out_));
+  A->PushOutput(&input);
+  //hcs::Assistor::SetOutput(&input, &(A->out_));
 
+  //      | -- C |
+  // A -- B       -- E   
+  //      | -- D |
   A->precede(B);
   B->precede(C);
   B->precede(D);
@@ -131,9 +143,9 @@ void Add() {
 
   executor.Run(graph).wait(); 
 
-  hcs::IOParams *out;  
-  E->get_output(&out);
-  std::cout << ((hcs::ParamsCxII *)out)->i1 << ", " << ((hcs::ParamsCxII *)out)->i2 << ", " << ((hcs::ParamsIF *)out)->obj_id << std::endl;
+  hcs::ParamsCxII out;
+  E->PopOutput(&out);
+  std::cout << out.i1 << ", " << out.i2 << ", " << out.obj_id << std::endl;
 }
 
 int main() {

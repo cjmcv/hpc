@@ -5,19 +5,13 @@
 #include <atomic>
 #include <functional>
 
+#include "params.hpp"
 #include "util/blocking_queue.hpp"
 
 namespace hcs {
 
 // Forward declaration
 class Graph;
-
-struct IOParams {
-  IOParams(int id) :struct_id(id) {}
-
-  int struct_id;
-  int obj_id;
-};
 
 // Class: Node
 class Node {
@@ -26,15 +20,16 @@ class Node {
   static const int kMaxBatchSize = 10;
 
 public:
-
-  Node() = default;
-  Node(StaticWork &&c) : work_(c) {}
+  Node() = delete;
+  Node(ParamsMode output_mode) {
+    Init(output_mode);
+  }
+  Node(StaticWork &&c, ParamsMode output_mode) : work_(c) {
+    Init(output_mode);
+  }
 
   ~Node() {
-    if (out_ != nullptr) {
-      delete out_;
-      out_ = nullptr;
-    }
+    Clean();
   }
 
   void precede(Node &v) {
@@ -55,22 +50,70 @@ public:
 
   Node *name(const std::string& name) { name_ = name; return this; }
 
-  void get_output(IOParams **out) { *out = out_; }
+  bool FrontOutput(IOParams *out) {
+    IOParams *inside_out;
+    if (false == outs_full_.try_front(&inside_out)) {
+      std::cout << "FrontOutput: No element can be pop." << std::endl;
+      return false;
+    }
+    Assistor::CopyParams(inside_out, out);
+  }
 
-  void push_out(IOParams *out) { outs_free_.push(out); }
-  void pop_out(IOParams **out) { outs_full_.try_pop(out); }
+  bool PopOutput(IOParams *out, int branch_id = -1) {
+    IOParams *inside_out;
+    if (branch_id == -1) {
+      if (false == outs_full_.try_pop(&inside_out)) {
+        std::cout << "PopOutput: No element can be pop." << std::endl;
+        return false;
+      }
+    }
+    else {
+      if (false == outs_branch_full_[branch_id].try_pop(&inside_out)) {
+        std::cout << "PopOutput: No element can be pop." << std::endl;
+        return false;
+      }
+    }
+    Assistor::CopyParams(inside_out, out);
+    outs_free_.push(inside_out);
+  }
+
+  bool PushOutput(IOParams *out) {
+    IOParams *inside_out;
+    if (false == outs_free_.try_pop(&inside_out)) {
+      std::cout << "PushOutput: failed." << std::endl;
+      return false;
+    }
+    Assistor::CopyParams(out, inside_out);
+    outs_full_.push(inside_out);
+  }
 
 public:
   StaticWork work_;
   std::atomic<int> atomic_num_depends_{ 0 };
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
-  IOParams *out_{ nullptr };
 
-  IOParams *outs_[kMaxBatchSize];
-  BlockingQueue<IOParams *> outs_full_;
+  IOParams *outs_[kMaxBatchSize];  
   BlockingQueue<IOParams *> outs_free_;
+  BlockingQueue<IOParams *> outs_full_;
+  BlockingQueue<IOParams *> *outs_branch_full_{ nullptr };
 
+private:
+  void Init(ParamsMode output_mode) {
+    for (int i = 0; i < kMaxBatchSize; i++) {
+      outs_[i] = Assistor::CreateParams(output_mode);
+      if (outs_[i] != nullptr) {
+        outs_free_.push(outs_[i]);
+      }
+    }
+  }
+  void Clean() {
+    for (int i = 0; i < kMaxBatchSize; i++) {
+      if (outs_[i] != nullptr) {
+        delete outs_[i];
+      }
+    }
+  }
 private:
   std::string name_;
 };
@@ -113,12 +156,12 @@ public:
   }
   // create a node from a give argument; constructor is called if necessary
   template <typename C>
-  Node *emplace(C &&c) {
-    nodes_.push_back(std::make_unique<Node>(std::forward<C>(c)));
+  Node *emplace(C &&c, ParamsMode mode) {
+    nodes_.push_back(std::make_unique<Node>(std::forward<C>(c), mode));
     return &(*(nodes_.back()));
   }
-  Node *emplace() {
-    nodes_.push_back(std::make_unique<Node>());
+  Node *emplace(ParamsMode mode) {
+    nodes_.push_back(std::make_unique<Node>(mode));
     return &(*(nodes_.back()));
   }
 
