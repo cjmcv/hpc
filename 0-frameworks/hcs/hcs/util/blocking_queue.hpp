@@ -49,6 +49,10 @@ public:
     std::unique_lock <std::mutex> lock(mutex_);
     return queue_.empty();
   }
+  int size() const {
+    std::unique_lock <std::mutex> lock(mutex_);
+    return queue_.size();
+  }
 
 private:
   mutable std::mutex mutex_;

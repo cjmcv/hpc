@@ -75,6 +75,7 @@ public:
     }
     Assistor::CopyParams(inside_out, out);
     outs_free_.push(inside_out);
+    return true;
   }
 
   bool PushOutput(IOParams *out) {
@@ -85,6 +86,7 @@ public:
     }
     Assistor::CopyParams(out, inside_out);
     outs_full_.push(inside_out);
+    return true;
   }
 
 public:

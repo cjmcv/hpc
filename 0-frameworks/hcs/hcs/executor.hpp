@@ -26,9 +26,9 @@ class Executor {
     bool is_worker = false;
     int worker_id = -1;
   };
-  struct Status {
-    int num_incomplete_out_nodes;
+  struct Status { 
     std::promise<void> promise;
+    int num_incomplete_out_nodes;
   };
 
 public:
@@ -38,6 +38,10 @@ public:
     workers_{ N },
     waiters_{ N },
     notifier_{ waiters_ } {
+
+    status_ = new Status();
+    status_->num_incomplete_out_nodes = 0;
+
     Spawn(N);
   }
   ~Executor() {
@@ -53,6 +57,7 @@ public:
   // return a std::future to access the execution status.
   std::future<void> Run(Graph& g);
 
+  void StatusView(Graph& g);
   // queries the number of worker threads (can be zero)
   inline size_t num_workers() const { return workers_.size(); }
 
@@ -69,11 +74,11 @@ private:
   void ExploreTask(unsigned, std::optional<Node*>&);
   void Schedule(Node*);
 
-  void PushSuccessors(Node*);
+  void PushSuccessors(Node *node);
   void Stop();
 
 private:
-  Status *status_;
+  Status* status_;
 
   std::vector<Worker> workers_;
   std::vector<Notifier::Waiter> waiters_;
@@ -184,10 +189,10 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
     }
 
     do {
+      IOParams *p = nullptr;
       auto &f = (*t)->work_;
       if (f != nullptr) {
         if ((*t)->num_successors() <= 1) {
-          IOParams *p;
           (*t)->outs_free_.try_pop(&p);
           f((*t)->dependents_, &p);
           (*t)->outs_full_.push(p);
@@ -196,7 +201,7 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
           if ((*t)->outs_branch_full_ == nullptr) {
             (*t)->outs_branch_full_ = new BlockingQueue<IOParams *>[(*t)->num_successors()];
           }
-          IOParams *p, *p2;
+          IOParams *p2;
           (*t)->outs_free_.try_pop(&p);
           f((*t)->dependents_, &p);
 
@@ -210,7 +215,6 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
       }
 
       PushSuccessors(*t);
-
       t = worker.queue.pop();
     } while (t);
 
@@ -296,37 +300,25 @@ inline void Executor::Stop() {
   p.set_value();
 }
 
+void Executor::StatusView(Graph& g) {
+  for (int i = 0; i < g.nodes().size(); i++) {
+    printf("(%s: %d)", g.nodes()[i]->name().c_str(), g.nodes()[i]->outs_full_.size());
+  }
+  printf("\n");
+}
+
 std::future<void> Executor::Run(Graph& g) {
 
-  status_ = new Status();
   status_->num_incomplete_out_nodes = g.GetOutputNodes().size();
   std::vector<Node*> input_nodes = g.GetInputNodes();
 
-  if (workers_.size() == 0) {
-    // Speical case of zero workers needs.
-    for (auto node : input_nodes)
-      queue_.push(node);
-
-    auto node = queue_.pop();
-    while (node) {
-      auto &f = (*node)->work_;
-      //if (f != nullptr)
-      //  std::invoke(f, (*node)->dependents_, &((*node)->out_));
-
-      PushSuccessors(*node);
-      node = queue_.unsync_pop();
-    }
-    return std::async(std::launch::deferred, []() {});
+  for (auto node : input_nodes) {
+    queue_.push(node);
+    notifier_.notify(false);
   }
-  else {  
-    for (auto node : input_nodes) {
-      queue_.push(node);
-      notifier_.notify(false);
-    }
 
-    std::future<void> future = status_->promise.get_future();
-    return future;
-  }
+  std::future<void> future = status_->promise.get_future();
+  return future;
 }
 
 }  // end of namespace hcs
