@@ -60,16 +60,18 @@ public:
   }
 
   bool PopOutput(IOParams *out, int branch_id = -1) {
+    std::unique_lock <std::mutex> lock(mutex_);
     IOParams *inside_out;
     if (branch_id == -1) {
+      //outs_full_.wait_and_pop(&inside_out);
       if (false == outs_full_.try_pop(&inside_out)) {
-        std::cout << "PopOutput: No element can be pop." << std::endl;
+        printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
         return false;
       }
     }
     else {
       if (false == outs_branch_full_[branch_id].try_pop(&inside_out)) {
-        std::cout << "PopOutput: No element can be pop." << std::endl;
+        printf("<%d>PopOutput outs_branch_full_: No element can be pop.", std::this_thread::get_id());
         return false;
       }
     }
@@ -79,9 +81,10 @@ public:
   }
 
   bool PushOutput(IOParams *out) {
+    std::unique_lock <std::mutex> lock(mutex_);
     IOParams *inside_out;
     if (false == outs_free_.try_pop(&inside_out)) {
-      std::cout << "PushOutput: failed." << std::endl;
+      printf("<%d>PushOutput: failed..", std::this_thread::get_id());
       return false;
     }
     Assistor::CopyParams(out, inside_out);
@@ -95,7 +98,7 @@ public:
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
 
-  IOParams *outs_[kMaxBatchSize];  
+  IOParams *outs_[kMaxBatchSize];
   BlockingQueue<IOParams *> outs_free_;
   BlockingQueue<IOParams *> outs_full_;
   BlockingQueue<IOParams *> *outs_branch_full_{ nullptr };
@@ -118,6 +121,7 @@ private:
   }
 private:
   std::string name_;
+  mutable std::mutex mutex_;
 };
 // ----------------------------------------------------------------------------
 

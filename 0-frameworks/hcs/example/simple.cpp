@@ -28,6 +28,7 @@ void Work1(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
   hcs::ParamsIF in;
+  printf("1>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[0]->PopOutput(&in);
 
   printf("1>before: %d, %f, %d.\n", in.i, in.f, in.obj_id);
@@ -48,6 +49,7 @@ void Work2(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
+  printf("2>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[0]->PopOutput(&in, 0);
 
   printf("2>before: %d, %f, %d.\n", in.i, in.f, in.obj_id);
@@ -68,6 +70,7 @@ void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
+  printf("3>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[0]->PopOutput(&in, 1);
 
   printf("3>before: %d, %f, %d.\n", in.i, in.f, in.obj_id);
@@ -94,8 +97,10 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
 
   // Fetch input from the former node.
   hcs::ParamsIF in;
+  printf("41>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[0]->PopOutput(&in);
   hcs::ParamsCxII in2;
+  printf("42>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[1]->PopOutput(&in2);
 
   printf("4>before: %d, %f, %d.\n", in.i, in.f, in.obj_id);
@@ -139,25 +144,26 @@ void Add() {
   C->precede(E);
   D->precede(E);
 
-  hcs::Executor executor;
-  std::future f1 = executor.Run(graph);
-
-  hcs::Executor executor2;
   input.obj_id = 2;
   A->PushOutput(&input);
-  std::future f2 = executor2.Run(graph);
+  input.obj_id = 3;
+  A->PushOutput(&input);
 
-  // TODO：核对executor中的成员变量，分析哪些是与当前计算图的计算状态有关的，看哪些在算完后是需要重置的。
-  //f1.get();
-  //f2.get();
+  hcs::Executor executor;
+  executor.name_ = "AAA";
 
-  //while(1)
-  //  executor.StatusView(graph);
-  //std::this_thread::sleep_for(std::chrono::seconds(5));
+  for (int i = 0; i < 3; i++) {
+    executor.Run(graph).wait();
+  }
+
+  while (1) {
+    hcs::Executor::StatusView(graph);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
   
   int count = 0;
   while (1) {
-    if (count >= 2) { break; }
+    if (count >= 3) { break; }
 
     hcs::ParamsCxII out;
     bool flag = E->PopOutput(&out);

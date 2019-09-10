@@ -8,6 +8,7 @@
 #include <thread>
 #include <cassert>
 #include <future>
+#include <map>
 
 #include "util/spmc_queue.hpp"
 #include "util/notifier.hpp"
@@ -29,18 +30,18 @@ class Executor {
   struct Status { 
     std::promise<void> promise;
     int num_incomplete_out_nodes;
+    std::map<std::string, std::atomic<int>> depends;
   };
 
 public:
+  std::string name_;
+
   // constructs the executor with N worker threads
   explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
     status_{ nullptr },
     workers_{ N },
     waiters_{ N },
     notifier_{ waiters_ } {
-
-    status_ = new Status();
-    status_->num_incomplete_out_nodes = 0;
 
     Spawn(N);
   }
@@ -57,7 +58,7 @@ public:
   // return a std::future to access the execution status.
   std::future<void> Run(Graph& g);
 
-  void StatusView(Graph& g);
+  static void StatusView(Graph& g);
   // queries the number of worker threads (can be zero)
   inline size_t num_workers() const { return workers_.size(); }
 
@@ -201,16 +202,17 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
           if ((*t)->outs_branch_full_ == nullptr) {
             (*t)->outs_branch_full_ = new BlockingQueue<IOParams *>[(*t)->num_successors()];
           }
-          IOParams *p2;
+
           (*t)->outs_free_.try_pop(&p);
           f((*t)->dependents_, &p);
+          (*t)->outs_branch_full_[0].push(p);
 
+          IOParams *p2;
           for (int i = 1; i < (*t)->num_successors(); i++) {
             (*t)->outs_free_.try_pop(&p2);
             Assistor::CopyParams(p, p2);
             (*t)->outs_branch_full_[i].push(p2);
           }
-          (*t)->outs_branch_full_[0].push(p);
         }
       }
 
@@ -269,13 +271,14 @@ inline void Executor::Schedule(Node* node) {
 
 inline void Executor::PushSuccessors(Node* node) {
 
-  // Recover for the next Run().
-  node->atomic_num_depends_ = static_cast<int>(node->num_dependents());
-
   const auto num_successors = node->num_successors();
   for (size_t i = 0; i < num_successors; ++i) {
-    if (--(node->successor(i)->atomic_num_depends_) == 0) {
+    std::map<std::string, std::atomic<int>>::iterator it;
+    it = status_->depends.find(node->successor(i)->name());
+
+    if (--(it->second) == 0) {
       Schedule(node->successor(i));
+      //printf("%s£¬ push node->succseeor: %s.\n", name_.c_str(), node->successor(i)->name().c_str());
     }
   }
 
@@ -309,7 +312,12 @@ void Executor::StatusView(Graph& g) {
 
 std::future<void> Executor::Run(Graph& g) {
 
+  status_ = new Status;
   status_->num_incomplete_out_nodes = g.GetOutputNodes().size();
+  for (auto& node : g.nodes()) {
+    status_->depends[node->name()] = node->num_dependents();
+  }
+
   std::vector<Node*> input_nodes = g.GetInputNodes();
 
   for (auto node : input_nodes) {
