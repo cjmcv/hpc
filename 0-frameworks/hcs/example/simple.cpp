@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "hcs/executor.hpp"
+#include "hcs/profiler.hpp"
 #include "hcs/params.hpp"
 
 template <typename... Args>
@@ -78,9 +79,12 @@ void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
   in.f++;
   printf("3>after: %d, %f, %d.\n", in.i, in.f, in.obj_id);
 
-  hcs::ParamsCxII out_temp;
-  out_temp.i1 = in.i;
-  out_temp.i2 = in.f;
+  hcs::ParamsFxII out_temp;
+  out_temp.i1 = 1;
+  out_temp.i2 = 2;
+  out_temp.fx = new float[2];
+  out_temp.fx[0] = in.i;
+  out_temp.fx[1] = in.f;
   
   out_temp.obj_id = in.obj_id;
 
@@ -99,7 +103,7 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
   hcs::ParamsIF in;
   printf("41>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[0]->PopOutput(&in);
-  hcs::ParamsCxII in2;
+  hcs::ParamsFxII in2;
   printf("42>(%d)PopOutput.\n", std::this_thread::get_id());
   dependents[1]->PopOutput(&in2);
 
@@ -108,9 +112,15 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams **output) {
   in.f += in2.i2;
   printf("4>after: %d, %f, %d.\n", in.i, in.f, in.obj_id);
 
-  hcs::ParamsCxII out_temp;
-  out_temp.i1 = in.i;
-  out_temp.i2 = in.f;
+  hcs::ParamsFxII out_temp;
+  int len = 2;
+  out_temp.fx = new float[len * len];
+  out_temp.fx[0] = in.i;
+  out_temp.fx[1] = in.f;
+  out_temp.fx[2] = in2.i1;
+  out_temp.fx[3] = in2.i2;
+  out_temp.i1 = len;
+  out_temp.i2 = len;
 
   out_temp.obj_id = in.obj_id;
 
@@ -130,8 +140,8 @@ void Add() {
   hcs::Node *A = graph.emplace(hcs::PARAMS_IF)->name("A");
   hcs::Node *B = graph.emplace(Work1, hcs::PARAMS_IF)->name("B");;
   hcs::Node *C = graph.emplace(Work2, hcs::PARAMS_IF)->name("C");;
-  hcs::Node *D = graph.emplace(Work3, hcs::PARAMS_CXII)->name("D");;
-  hcs::Node *E = graph.emplace(Work4, hcs::PARAMS_CXII)->name("E");;
+  hcs::Node *D = graph.emplace(Work3, hcs::PARAMS_FXII)->name("D");;
+  hcs::Node *E = graph.emplace(Work4, hcs::PARAMS_FXII)->name("E");;
 
   A->PushOutput(&input);
 
@@ -153,45 +163,37 @@ void Add() {
   executor.name_ = "AAA";
 
   for (int i = 0; i < 3; i++) {
-    executor.Run(graph).wait();
+    executor.Run(graph);
   }
 
-  while (1) {
-    hcs::Executor::StatusView(graph);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  }
+  //while (1) {
+  //  hcs::Profiler::StatusView(graph);
+  //  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  //}
   
   int count = 0;
   while (1) {
     if (count >= 3) { break; }
 
-    hcs::ParamsCxII out;
+    hcs::ParamsFxII out;
     bool flag = E->PopOutput(&out);
     if (flag == true) {
       count++;
-      std::cout << out.i1 << ", " << out.i2 << ", " << out.obj_id << std::endl;
+      printf("< %d, (%d, %d), <", out.obj_id, out.i1, out.i2);
+      for (int i = 0; i < out.i1 * out.i2; i++) {
+        printf("%f, ", out.fx[i]);
+      }
+      printf(">.\n");
     }
     else {
       std::cout << count << std::endl;
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
   }
 }
 
 int main() {
   Add();
-  //std::cout << "*******************************" << std::endl << std::endl;
-
-  //Simple();
-  //std::cout << "*******************************" << std::endl << std::endl;
-
-  //Simple2();
-  //std::cout << "*******************************" << std::endl << std::endl;
-
-  //Simple3();
-  //std::cout << "*******************************" << std::endl << std::endl;
-
-  //run_variants();
   //std::cout << "*******************************" << std::endl << std::endl;
 
   system("pause");

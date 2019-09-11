@@ -38,7 +38,6 @@ public:
 
   // constructs the executor with N worker threads
   explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
-    status_{ nullptr },
     workers_{ N },
     waiters_{ N },
     notifier_{ waiters_ } {
@@ -76,10 +75,10 @@ private:
   void Schedule(Node*);
 
   void PushSuccessors(Node *node);
-  void Stop();
+  void Stop(int id);
 
 private:
-  Status* status_;
+  std::vector<Status*> status_list_;
 
   std::vector<Worker> workers_;
   std::vector<Notifier::Waiter> waiters_;
@@ -216,6 +215,8 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
         }
       }
 
+      (*t)->atomic_run_count_++;
+
       PushSuccessors(*t);
       t = worker.queue.pop();
     } while (t);
@@ -271,10 +272,12 @@ inline void Executor::Schedule(Node* node) {
 
 inline void Executor::PushSuccessors(Node* node) {
 
+  int status_id = node->atomic_run_count_.load() - 1;
+
   const auto num_successors = node->num_successors();
   for (size_t i = 0; i < num_successors; ++i) {
     std::map<std::string, std::atomic<int>>::iterator it;
-    it = status_->depends.find(node->successor(i)->name());
+    it = status_list_[status_id]->depends.find(node->successor(i)->name());
 
     if (--(it->second) == 0) {
       Schedule(node->successor(i));
@@ -284,20 +287,20 @@ inline void Executor::PushSuccessors(Node* node) {
 
   // A node without any successor should check the termination of this run.
   if (num_successors == 0) {
-    if (--(status_->num_incomplete_out_nodes) == 0) {
+    if (--(status_list_[status_id]->num_incomplete_out_nodes) == 0) {
       // It means that all of the output nodes have been completed.
       if (workers_.size() > 0) {   
-        Stop();   // Finishing this Run.
+        Stop(status_id);   // Finishing this Run.
       }
     }
   }
 }
 
-inline void Executor::Stop() {
-  auto p{ std::move(status_->promise) };
+inline void Executor::Stop(int id) {
+  auto p{ std::move(status_list_[id]->promise) };
 
-  delete status_;
-  status_ = nullptr;
+  delete status_list_[id];
+  status_list_[id] = nullptr;
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
@@ -305,27 +308,28 @@ inline void Executor::Stop() {
 
 void Executor::StatusView(Graph& g) {
   for (int i = 0; i < g.nodes().size(); i++) {
-    printf("(%s: %d)", g.nodes()[i]->name().c_str(), g.nodes()[i]->outs_full_.size());
+    Node *n = &(*g.nodes()[i]);
+    printf("(%s: %d, %d)", n->name().c_str(), n->outs_full_.size(), n->atomic_run_count_.load());
   }
   printf("\n");
 }
 
 std::future<void> Executor::Run(Graph& g) {
 
-  status_ = new Status;
-  status_->num_incomplete_out_nodes = g.GetOutputNodes().size();
+  Status *stat = new Status;
+  stat->num_incomplete_out_nodes = g.GetOutputNodes().size();
   for (auto& node : g.nodes()) {
-    status_->depends[node->name()] = node->num_dependents();
+    stat->depends[node->name()] = node->num_dependents();
   }
+  status_list_.push_back(stat);
 
   std::vector<Node*> input_nodes = g.GetInputNodes();
-
   for (auto node : input_nodes) {
     queue_.push(node);
     notifier_.notify(false);
   }
 
-  std::future<void> future = status_->promise.get_future();
+  std::future<void> future = stat->promise.get_future();
   return future;
 }
 

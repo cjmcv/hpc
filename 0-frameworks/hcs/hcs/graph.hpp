@@ -35,7 +35,6 @@ public:
   void precede(Node &v) {
     successors_.push_back(&v);
     v.dependents_.push_back(this);
-    v.atomic_num_depends_.fetch_add(1, std::memory_order_relaxed);
   }
 
   template <typename... Ns>
@@ -94,7 +93,8 @@ public:
 
 public:
   StaticWork work_;
-  std::atomic<int> atomic_num_depends_{ 0 };
+  //std::atomic<int> atomic_num_depends_{ 0 }; v.atomic_num_depends_.fetch_add(1, std::memory_order_relaxed);
+  std::atomic<int> atomic_run_count_;
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
 
