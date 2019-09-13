@@ -59,7 +59,7 @@ public:
   }
 
   bool PopOutput(IOParams *out, int branch_id = -1) {
-    std::unique_lock <std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     IOParams *inside_out;
     if (branch_id == -1) {
       //outs_full_.wait_and_pop(&inside_out);
@@ -80,7 +80,7 @@ public:
   }
 
   bool PushOutput(IOParams *out) {
-    std::unique_lock <std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     IOParams *inside_out;
     if (false == outs_free_.try_pop(&inside_out)) {
       printf("<%d>PushOutput: failed..", std::this_thread::get_id());
@@ -93,7 +93,6 @@ public:
 
 public:
   StaticWork work_;
-  //std::atomic<int> atomic_num_depends_{ 0 }; v.atomic_num_depends_.fetch_add(1, std::memory_order_relaxed);
   std::atomic<int> atomic_run_count_;
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
@@ -116,7 +115,12 @@ private:
     for (int i = 0; i < kMaxBatchSize; i++) {
       if (outs_[i] != nullptr) {
         delete outs_[i];
+        outs_[i] = nullptr;
       }
+    }
+    if (outs_branch_full_ != nullptr) {
+      delete outs_branch_full_;
+      outs_branch_full_ = nullptr;
     }
   }
 private:

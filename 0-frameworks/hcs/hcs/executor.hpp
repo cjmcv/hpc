@@ -57,7 +57,6 @@ public:
   // return a std::future to access the execution status.
   std::future<void> Run(Graph& g);
 
-  static void StatusView(Graph& g);
   // queries the number of worker threads (can be zero)
   inline size_t num_workers() const { return workers_.size(); }
 
@@ -281,7 +280,6 @@ inline void Executor::PushSuccessors(Node* node) {
 
     if (--(it->second) == 0) {
       Schedule(node->successor(i));
-      //printf("%s£¬ push node->succseeor: %s.\n", name_.c_str(), node->successor(i)->name().c_str());
     }
   }
 
@@ -304,14 +302,6 @@ inline void Executor::Stop(int id) {
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
-}
-
-void Executor::StatusView(Graph& g) {
-  for (int i = 0; i < g.nodes().size(); i++) {
-    Node *n = &(*g.nodes()[i]);
-    printf("(%s: %d, %d)", n->name().c_str(), n->outs_full_.size(), n->atomic_run_count_.load());
-  }
-  printf("\n");
 }
 
 std::future<void> Executor::Run(Graph& g) {
