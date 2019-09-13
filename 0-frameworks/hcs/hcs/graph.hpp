@@ -16,16 +16,18 @@ class Graph;
 // Class: Node
 class Node {
 
-  using StaticWork = std::function<void(std::vector<Node*> &dependents, IOParams **output)>;
-  static const int kMaxBatchSize = 10;
+  using StaticWork = std::function<void(std::vector<Node*> &dependents, IOParams *output)>;
+  static const int kMaxBatchSize = 20;
 
 public:
   Node() = delete;
   Node(ParamsMode output_mode) {
-    Init(output_mode);
+    output_mode_ = output_mode;
+    Init(output_mode_);
   }
   Node(StaticWork &&c, ParamsMode output_mode) : work_(c) {
-    Init(output_mode);
+    output_mode_ = output_mode;
+    Init(output_mode_);
   }
 
   ~Node() {
@@ -49,20 +51,33 @@ public:
 
   Node *name(const std::string& name) { name_ = name; return this; }
 
-  bool FrontOutput(IOParams *out) {
-    IOParams *inside_out;
-    if (false == outs_full_.try_front(&inside_out)) {
-      std::cout << "FrontOutput: No element can be pop." << std::endl;
-      return false;
+  IOParams *BorrowOut(int branch_id = -1) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    IOParams *out = nullptr;
+    if (branch_id == -1) {
+      if (false == outs_full_.try_pop(&out)) {
+        printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
+        return nullptr;
+      }
     }
-    Assistor::CopyParams(inside_out, out);
+    else {
+      if (false == outs_branch_full_[branch_id].try_pop(&out)) {
+        printf("<%d>PopOutput outs_branch_full_: No element can be pop.", std::this_thread::get_id());
+        return nullptr;
+      }
+    }
+    return out;
+  }
+
+  bool RecycleOut(IOParams *out) {
+    outs_free_.push(out);
+    return true;
   }
 
   bool PopOutput(IOParams *out, int branch_id = -1) {
     std::unique_lock<std::mutex> lock(mutex_);
     IOParams *inside_out;
     if (branch_id == -1) {
-      //outs_full_.wait_and_pop(&inside_out);
       if (false == outs_full_.try_pop(&inside_out)) {
         printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
         return false;
@@ -118,14 +133,16 @@ private:
         outs_[i] = nullptr;
       }
     }
-    if (outs_branch_full_ != nullptr) {
-      delete outs_branch_full_;
-      outs_branch_full_ = nullptr;
-    }
+    //if (outs_branch_full_ != nullptr) {
+    //  delete outs_branch_full_;
+    //  outs_branch_full_ = nullptr;
+    //}
   }
 private:
   std::string name_;
   mutable std::mutex mutex_;
+  ParamsMode input_mode_;
+  ParamsMode output_mode_;
 };
 // ----------------------------------------------------------------------------
 

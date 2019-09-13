@@ -4,8 +4,8 @@
 namespace hcs {
 
 enum ParamsMode {
-  PARAMS_IF,
-  PARAMS_CXII
+  PARAMS_IF = 0,
+  PARAMS_FXII
 };
 
 struct IOParams {
@@ -18,16 +18,19 @@ struct IOParams {
 struct ParamsIF : IOParams {
   ParamsIF() :IOParams(PARAMS_IF) {}
 
-  int i;
-  float f;
+  int i = 0;
+  float f = 0.0;
 };
 
-struct ParamsCxII : IOParams {
-  ParamsCxII() :IOParams(PARAMS_CXII) {}
+struct ParamsFxII : IOParams {
+  ParamsFxII() :IOParams(PARAMS_FXII) {}
+  ~ParamsFxII() {
+    if (fx != nullptr) { delete[]fx; fx = nullptr; }
+  }
 
-  char *cx;
-  int i1;
-  int i2;
+  float *fx = nullptr;
+  int i1 = 0;
+  int i2 = 0;
 };
 
 class Assistor {
@@ -36,10 +39,10 @@ public:
     switch (mode) {
     case PARAMS_IF:
       return new ParamsIF();
-    case PARAMS_CXII:
-      return new ParamsCxII();
+    case PARAMS_FXII:
+      return new ParamsFxII();
     default:
-      std::cout << "GetInput -> Do not support mode " << mode << std::endl;
+      std::cout << "CreateParams -> Do not support mode " << mode << std::endl;
       return 0;
     }
   }
@@ -53,63 +56,24 @@ public:
     case hcs::PARAMS_IF:
       *(hcs::ParamsIF *)to = *(hcs::ParamsIF *)from;
       return 1;
-    case hcs::PARAMS_CXII:
-      *(hcs::ParamsCxII *)to = *(hcs::ParamsCxII *)from;
-      return 1;
-    default:
-      std::cout << "GetInput -> Do not support mode " << from->struct_id << std::endl;
-      return 0;
-    }
-  }
-
-  static int GetInput(hcs::IOParams *former_output, hcs::IOParams *input) {
-    if (former_output == nullptr || input == nullptr) {
-      std::cout << "GetInput -> node.out_ == nullptr || input == nullptr." << std::endl;
-      return 0;
-    }
-    if (former_output->struct_id != input->struct_id) {
-      std::cout << "GetInput -> The struct_id of input is not the same as output's." << std::endl;
-      return 0;
-    }
-
-    switch (former_output->struct_id) {
-    case hcs::PARAMS_IF:
-      *(hcs::ParamsIF *)input = *(hcs::ParamsIF *)former_output;
-      return 1;
-    case hcs::PARAMS_CXII:
-      *(hcs::ParamsCxII *)input = *(hcs::ParamsCxII *)former_output;
-      return 1;
-    default:
-      std::cout << "GetInput -> Do not support mode " << former_output->struct_id << std::endl;
-      return 0;
-    }
-  }
-
-  static int SetOutput(hcs::IOParams *input, hcs::IOParams **output) {
-    if (input == nullptr) {
-      std::cout << "SetOutput -> input == nullptr." << std::endl;
-      return 0;
-    }
-    if (*output != nullptr && input->struct_id != (*output)->struct_id) {
-      std::cout << "SetOutput -> The struct_id of input is not the same as output's." << std::endl;
-      return 0;
-    }
-
-    switch (input->struct_id) {
-    case hcs::PARAMS_IF:
-      if (*output == nullptr) {
-        *output = new hcs::ParamsIF();
+    case hcs::PARAMS_FXII:
+    {
+      hcs::ParamsFxII *out = (hcs::ParamsFxII *)to;
+      hcs::ParamsFxII *in = (hcs::ParamsFxII *)from;
+      if (out->i1 != in->i1 || out->i2 != in->i2) {
+        if (out->fx != nullptr) {
+          delete[] out->fx;
+        }
+        out->fx = new float[in->i1 * in->i2];
       }
-      *(hcs::ParamsIF *)(*output) = *(hcs::ParamsIF *)input;
+      out->i1 = in->i1;
+      out->i2 = in->i2;
+      out->obj_id = in->obj_id;
+      memcpy(out->fx, in->fx, sizeof(float) * in->i1 * in->i2);
       return 1;
-    case hcs::PARAMS_CXII:
-      if (*output == nullptr) {
-        *output = new hcs::ParamsCxII();
-      }
-      *(hcs::ParamsCxII *)(*output) = *(hcs::ParamsCxII *)(input);
-      return 1;
+    }
     default:
-      std::cout << "SetOutput -> Do not support mode " << input->struct_id << std::endl;
+      std::cout << "CopyParams -> Do not support mode " << from->struct_id << std::endl;
       return 0;
     }
   }

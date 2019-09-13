@@ -192,8 +192,10 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
       auto &f = (*t)->work_;
       if (f != nullptr) {
         if ((*t)->num_successors() <= 1) {
-          (*t)->outs_free_.try_pop(&p);
-          f((*t)->dependents_, &p);
+          if (false == (*t)->outs_free_.try_pop(&p)) {
+            printf("Failed to outs_free_.try_pop.\n");
+          }
+          f((*t)->dependents_, p);
           (*t)->outs_full_.push(p);
         }
         else {
@@ -201,13 +203,17 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
             (*t)->outs_branch_full_ = new BlockingQueue<IOParams *>[(*t)->num_successors()];
           }
 
-          (*t)->outs_free_.try_pop(&p);
-          f((*t)->dependents_, &p);
+          if (false == (*t)->outs_free_.try_pop(&p)) {
+            printf("Failed to outs_free_.try_pop.\n");
+          }
+          f((*t)->dependents_, p);
           (*t)->outs_branch_full_[0].push(p);
 
           IOParams *p2;
           for (int i = 1; i < (*t)->num_successors(); i++) {
-            (*t)->outs_free_.try_pop(&p2);
+            if (false == (*t)->outs_free_.try_pop(&p2)) {
+              printf("Failed to outs_free_.try_pop.\n");
+            }
             Assistor::CopyParams(p, p2);
             (*t)->outs_branch_full_[i].push(p2);
           }
@@ -322,6 +328,10 @@ std::future<void> Executor::Run(Graph& g) {
   std::future<void> future = stat->promise.get_future();
   return future;
 }
+
+// TODO: 1. (统一单输出，可以多输入，用brach)为每个节点添加一个输入点，该输入的数量与status的数量一致，在push status的时候添加；
+//         调用work时，输入对应的input空间，在work中将由前置节点获取得到的输入缓存在input中。
+//       2. 定时清除status_list_, 清除过程中，暂停主线程，不立即返回主线程控制权，直至清空完成。
 
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_
