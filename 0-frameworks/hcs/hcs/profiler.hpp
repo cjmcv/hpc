@@ -3,6 +3,7 @@
 
 #include <iostream>
 
+#include "util/internal_thread.hpp"
 #include "graph.hpp"
 
 namespace hcs {
@@ -16,7 +17,6 @@ public:
     }
     printf("\n");
   }
-
 };
 
 }  // namespace hcs.

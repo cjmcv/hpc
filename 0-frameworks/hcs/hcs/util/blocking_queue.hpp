@@ -10,46 +10,16 @@ public:
   BlockingQueue() {};
   ~BlockingQueue() {};
 
-  void push(const T& t) {
-    std::unique_lock <std::mutex> lock(mutex_);
-    queue_.push(t);
-    lock.unlock();
-    cond_var_.notify_one();
-  }
+  void push(const T& t);
+  bool try_front(T* t);
+  bool try_pop(T* t);
+  void wait_and_pop(T* t);
 
-  bool try_front(T* t) {
-    std::unique_lock <std::mutex> lock(mutex_);
-    if (queue_.empty())
-      return false;
-
-    *t = queue_.front();
-    return true;
-  }
-
-  bool try_pop(T* t) {
-    std::unique_lock <std::mutex> lock(mutex_);
-    if (queue_.empty())
-      return false;
-
-    *t = queue_.front();
-    queue_.pop();
-    return true;
-  }
-
-  void wait_and_pop(T* t) {
-    std::unique_lock <std::mutex> lock(mutex_);
-    while (queue_.empty())
-      cond_var_.wait(lock);
-
-    *t = queue_.front();
-    queue_.pop();
-  }
-
-  bool empty() const {
+  inline bool empty() const {
     std::unique_lock <std::mutex> lock(mutex_);
     return queue_.empty();
   }
-  int size() const {
+  inline int size() const {
     std::unique_lock <std::mutex> lock(mutex_);
     return queue_.size();
   }
@@ -59,6 +29,45 @@ private:
   std::condition_variable cond_var_;
   std::queue<T> queue_;
 };
+
+template <typename T>
+void BlockingQueue<T>::push(const T& t) {
+  std::unique_lock <std::mutex> lock(mutex_);
+  queue_.push(t);
+  lock.unlock();
+  cond_var_.notify_one();
+}
+
+template <typename T>
+bool BlockingQueue<T>::try_front(T* t) {
+  std::unique_lock <std::mutex> lock(mutex_);
+  if (queue_.empty())
+    return false;
+
+  *t = queue_.front();
+  return true;
+}
+
+template <typename T>
+bool BlockingQueue<T>::try_pop(T* t) {
+  std::unique_lock <std::mutex> lock(mutex_);
+  if (queue_.empty())
+    return false;
+
+  *t = queue_.front();
+  queue_.pop();
+  return true;
+}
+
+template <typename T>
+void BlockingQueue<T>::wait_and_pop(T* t) {
+  std::unique_lock <std::mutex> lock(mutex_);
+  while (queue_.empty())
+    cond_var_.wait(lock);
+
+  *t = queue_.front();
+  queue_.pop();
+}
 
 }  // namespace hcs
 
