@@ -51,6 +51,9 @@ public:
 
   Node *name(const std::string& name) { name_ = name; return this; }
 
+  void lock() { mutex_.lock(); }
+  void unlock() { mutex_.unlock(); }
+
   IOParams *BorrowOut(int branch_id = -1) {
     std::unique_lock<std::mutex> lock(mutex_);
     IOParams *out = nullptr;
@@ -181,6 +184,15 @@ public:
     }
     return output_nodes_;
   }
+
+  void Initialize() {
+    for (auto& node : nodes_) {
+      if (node->num_successors() >= 2 && node->outs_branch_full_ == nullptr) {
+        node->outs_branch_full_ = new BlockingQueue<IOParams *>[node->num_successors()];
+      }
+    }
+  }
+
   // create a node from a give argument; constructor is called if necessary
   template <typename C>
   Node *emplace(C &&c, ParamsMode mode) {

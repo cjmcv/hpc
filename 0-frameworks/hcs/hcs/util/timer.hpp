@@ -1,5 +1,5 @@
 /*!
-* \brief Utility.
+* \brief timer.
 */
 
 #ifndef HCS_TIMER_H_

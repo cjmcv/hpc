@@ -18,7 +18,9 @@ namespace hcs {
 
 // The executor class to run a graph.
 class Executor {
-  
+  // Just for debugging.
+  friend class Profiler;
+
   struct Worker {
     std::mt19937 rdgen{ std::random_device{}() };
     WorkStealingQueue<Node*> queue;
@@ -59,6 +61,7 @@ public:
 
   // queries the number of worker threads (can be zero)
   inline size_t num_workers() const { return workers_.size(); }
+  inline std::vector<Status*> &status_list() { return status_list_; };
 
 private:  
   PerThread& per_thread() const {
@@ -90,9 +93,10 @@ private:
   std::atomic<bool> done_{ 0 };
 
   Notifier notifier_;
+  std::mutex mutex_;
 };
 
-inline void Executor::Spawn(unsigned N) {
+void Executor::Spawn(unsigned N) {
 
   // Lock to synchronize all workers before creating _worker_maps
   for (unsigned i = 0; i < N; ++i) {
@@ -121,7 +125,7 @@ inline void Executor::Spawn(unsigned N) {
   }
 }
 
-inline unsigned Executor::FindVictim(unsigned thief) {
+unsigned Executor::FindVictim(unsigned thief) {
   // try to look for a task from other workers
   for (unsigned vtm = 0; vtm < workers_.size(); ++vtm) {
     if ((thief == vtm && !queue_.empty()) ||
@@ -133,7 +137,7 @@ inline unsigned Executor::FindVictim(unsigned thief) {
   return workers_.size();
 }
 
-inline void Executor::ExploreTask(unsigned thief, std::optional<Node*>& t) {
+void Executor::ExploreTask(unsigned thief, std::optional<Node*>& t) {
 
   assert(!t);
 
@@ -179,7 +183,7 @@ steal_loop:
   }
 }
 
-inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
+void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
   if (t) {
     auto& worker = workers_[i];
 
@@ -189,6 +193,8 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
 
     do {
       IOParams *p = nullptr;
+      // The same node can only be invoked by one thread at a time.
+      (*t)->lock(); 
       auto &f = (*t)->work_;
       if (f != nullptr) {
         if ((*t)->num_successors() <= 1) {
@@ -199,14 +205,11 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
           (*t)->outs_full_.push(p);
         }
         else {
-          if ((*t)->outs_branch_full_ == nullptr) {
-            (*t)->outs_branch_full_ = new BlockingQueue<IOParams *>[(*t)->num_successors()];
-          }
-
           if (false == (*t)->outs_free_.try_pop(&p)) {
             printf("Failed to outs_free_.try_pop.\n");
           }
           f((*t)->dependents_, p);
+          
           (*t)->outs_branch_full_[0].push(p);
 
           IOParams *p2;
@@ -219,10 +222,10 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
           }
         }
       }
-
-      (*t)->atomic_run_count_++;
-
       PushSuccessors(*t);
+      (*t)->atomic_run_count_++;
+      (*t)->unlock();
+
       t = worker.queue.pop();
     } while (t);
 
@@ -230,7 +233,7 @@ inline void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
   }
 }
 
-inline bool Executor::Wait4Tasks(unsigned me, std::optional<Node*>& t) {
+bool Executor::Wait4Tasks(unsigned me, std::optional<Node*>& t) {
 
   assert(!t);
 
@@ -254,7 +257,7 @@ inline bool Executor::Wait4Tasks(unsigned me, std::optional<Node*>& t) {
   return true;
 }
 
-inline void Executor::Schedule(Node* node) {
+void Executor::Schedule(Node* node) {
 
   // no worker thread available
   if (workers_.size() == 0) {
@@ -275,23 +278,27 @@ inline void Executor::Schedule(Node* node) {
   notifier_.notify(false);
 }
 
-inline void Executor::PushSuccessors(Node* node) {
+void Executor::PushSuccessors(Node* node) {
 
-  int status_id = node->atomic_run_count_.load() - 1;
+  int status_id = node->atomic_run_count_.load();
+  Status *status = status_list_[status_id];
+  //printf("push (%s, %d).\n", node->name().c_str(), status_id);
 
   const auto num_successors = node->num_successors();
   for (size_t i = 0; i < num_successors; ++i) {
     std::map<std::string, std::atomic<int>>::iterator it;
-    it = status_list_[status_id]->depends.find(node->successor(i)->name());
+    it = status->depends.find(node->successor(i)->name());
 
+    //printf("check (%s, %d).\n", node->successor(i)->name().c_str(), it->second.load());
     if (--(it->second) == 0) {
       Schedule(node->successor(i));
+      //printf("S_%s.\n", node->successor(i)->name().c_str());
     }
   }
 
   // A node without any successor should check the termination of this run.
   if (num_successors == 0) {
-    if (--(status_list_[status_id]->num_incomplete_out_nodes) == 0) {
+    if (--(status->num_incomplete_out_nodes) == 0) {
       // It means that all of the output nodes have been completed.
       if (workers_.size() > 0) {   
         Stop(status_id);   // Finishing this Run.
@@ -300,11 +307,12 @@ inline void Executor::PushSuccessors(Node* node) {
   }
 }
 
-inline void Executor::Stop(int id) {
+void Executor::Stop(int id) {
   auto p{ std::move(status_list_[id]->promise) };
 
   delete status_list_[id];
   status_list_[id] = nullptr;
+  printf("Detele Status: %d.\n", id);
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
@@ -329,9 +337,7 @@ std::future<void> Executor::Run(Graph& g) {
   return future;
 }
 
-// TODO: 1. (统一单输出，可以多输入，用brach)为每个节点添加一个输入点，该输入的数量与status的数量一致，在push status的时候添加；
-//         调用work时，输入对应的input空间，在work中将由前置节点获取得到的输入缓存在input中。
-//       2. 定时清除status_list_, 清除过程中，暂停主线程，不立即返回主线程控制权，直至清空完成。
+// TODO: 2. 定时清除status_list_, 清除过程中，暂停主线程，不立即返回主线程控制权，直至清空完成。
 
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_
