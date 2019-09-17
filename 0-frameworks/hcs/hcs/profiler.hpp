@@ -23,7 +23,7 @@ private:
   }
 
   void ViewStatus() {
-    std::vector<Executor::Status*> list = exec_->status_list();
+    std::vector<Executor::Status*> list = exec_->status_list_;
 
     for (int i = 0; i < list.size(); i++) {
       if (list[i] == nullptr) {
@@ -33,12 +33,12 @@ private:
       else
         printf("%d> %d -> ", i, list[i]->num_incomplete_out_nodes);
 
-      std::map<std::string, std::atomic<int>>::iterator iter;
-      iter = list[i]->depends.begin();
-      while (iter != list[i]->depends.end()) {
-        printf("%s: %d, ", iter->first.c_str(), iter->second.load());
-        iter++;
-      }
+      //std::map<std::string, std::atomic<int>>::iterator iter;
+      //iter = list[i]->depends.begin();
+      //while (iter != list[i]->depends.end()) {
+      //  printf("%s: %d, ", iter->first.c_str(), iter->second.load());
+      //  iter++;
+      //}
       printf("\n");
     }
   }

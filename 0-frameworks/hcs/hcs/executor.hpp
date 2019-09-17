@@ -32,7 +32,7 @@ class Executor {
   struct Status { 
     std::promise<void> promise;
     int num_incomplete_out_nodes;
-    std::map<std::string, std::atomic<int>> depends;
+    int *depends;
   };
 
 public:
@@ -58,10 +58,6 @@ public:
   // runs the taskflow once
   // return a std::future to access the execution status.
   std::future<void> Run(Graph& g);
-
-  // queries the number of worker threads (can be zero)
-  inline size_t num_workers() const { return workers_.size(); }
-  inline std::vector<Status*> &status_list() { return status_list_; };
 
 private:  
   PerThread& per_thread() const {
@@ -286,11 +282,8 @@ void Executor::PushSuccessors(Node* node) {
 
   const auto num_successors = node->num_successors();
   for (size_t i = 0; i < num_successors; ++i) {
-    std::map<std::string, std::atomic<int>>::iterator it;
-    it = status->depends.find(node->successor(i)->name());
-
-    //printf("check (%s, %d).\n", node->successor(i)->name().c_str(), it->second.load());
-    if (--(it->second) == 0) {
+    int depends = --(status->depends[node->successor(i)->id()]);
+    if (depends == 0) {
       Schedule(node->successor(i));
       //printf("S_%s.\n", node->successor(i)->name().c_str());
     }
@@ -310,9 +303,10 @@ void Executor::PushSuccessors(Node* node) {
 void Executor::Stop(int id) {
   auto p{ std::move(status_list_[id]->promise) };
 
+  delete status_list_[id]->depends;
   delete status_list_[id];
   status_list_[id] = nullptr;
-  printf("Detele Status: %d.\n", id);
+  //printf("Detele Status: %d.\n", id);
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
@@ -321,9 +315,11 @@ void Executor::Stop(int id) {
 std::future<void> Executor::Run(Graph& g) {
 
   Status *stat = new Status;
+  stat->depends = new int[g.nodes().size()];
+
   stat->num_incomplete_out_nodes = g.GetOutputNodes().size();
   for (auto& node : g.nodes()) {
-    stat->depends[node->name()] = node->num_dependents();
+    stat->depends[node->id()] = node->num_dependents();
   }
   status_list_.push_back(stat);
 
@@ -338,6 +334,6 @@ std::future<void> Executor::Run(Graph& g) {
 }
 
 // TODO: 2. 定时清除status_list_, 清除过程中，暂停主线程，不立即返回主线程控制权，直至清空完成。
-
+//       3. 其中处理每次run中status的初始化。
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_

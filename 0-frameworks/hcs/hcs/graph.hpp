@@ -48,6 +48,8 @@ public:
   size_t num_dependents() const { return dependents_.size(); }
   Node *successor(int id) { return successors_[id]; }
   const std::string &name() const { return name_; }
+  const int id() const { return id_; }
+  const void set_id(int id) { id_ = id; }
 
   Node *name(const std::string& name) { name_ = name; return this; }
 
@@ -146,6 +148,7 @@ private:
   mutable std::mutex mutex_;
   ParamsMode input_mode_;
   ParamsMode output_mode_;
+  int id_;
 };
 // ----------------------------------------------------------------------------
 
@@ -186,7 +189,9 @@ public:
   }
 
   void Initialize() {
-    for (auto& node : nodes_) {
+    for (int i = 0; i < nodes_.size(); i++) {
+      Node *node = &(*nodes_[i]);
+      node->set_id(i);
       if (node->num_successors() >= 2 && node->outs_branch_full_ == nullptr) {
         node->outs_branch_full_ = new BlockingQueue<IOParams *>[node->num_successors()];
       }
