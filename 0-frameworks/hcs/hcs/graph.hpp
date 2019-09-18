@@ -16,22 +16,45 @@ class Graph;
 // Class: Node
 class Node {
 
-  using StaticWork = std::function<void(std::vector<Node*> &dependents, IOParams *output)>;
-  static const int kMaxBatchSize = 20;
+  using Work = std::function<void(std::vector<Node*> &dependents, IOParams *output)>;
 
 public:
   Node() = delete;
   Node(ParamsMode output_mode) {
     output_mode_ = output_mode;
-    Init(output_mode_);
   }
-  Node(StaticWork &&c, ParamsMode output_mode) : work_(c) {
+  Node(Work &&c, ParamsMode output_mode) : work_(c) {
     output_mode_ = output_mode;
-    Init(output_mode_);
   }
 
-  ~Node() {
-    Clean();
+  ~Node() {}
+
+  void Init(int buffer_queue_size) {
+    outs_branch_full_ = nullptr;
+    for (int i = 0; i < buffer_queue_size; i++) {
+      IOParams *p = Assistor::CreateParams(output_mode_);
+      if (p != nullptr) {
+        outs_.push_back(p);
+        outs_free_.push(p);
+      }
+    }
+    if (successors_.size() >= 2) {
+      outs_branch_full_ = new BlockingQueue<IOParams *>[successors_.size()];
+    }
+  }
+  void Clean() {
+    if (outs_.size() > 0) {
+      for (int i = 0; i < outs_.size(); i++) {
+        if (outs_[i] != nullptr) {
+          delete outs_[i];
+          outs_[i] = nullptr;
+        }
+      }
+    }
+    if (outs_branch_full_ != nullptr) {
+      delete[]outs_branch_full_;
+      outs_branch_full_ = nullptr;
+    }
   }
 
   void precede(Node &v) {
@@ -112,37 +135,16 @@ public:
   }
 
 public:
-  StaticWork work_;
+  Work work_;
   std::atomic<int> atomic_run_count_;
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
 
-  IOParams *outs_[kMaxBatchSize];
+  std::vector<IOParams *> outs_;
   BlockingQueue<IOParams *> outs_free_;
   BlockingQueue<IOParams *> outs_full_;
-  BlockingQueue<IOParams *> *outs_branch_full_{ nullptr };
+  BlockingQueue<IOParams *> *outs_branch_full_;
 
-private:
-  void Init(ParamsMode output_mode) {
-    for (int i = 0; i < kMaxBatchSize; i++) {
-      outs_[i] = Assistor::CreateParams(output_mode);
-      if (outs_[i] != nullptr) {
-        outs_free_.push(outs_[i]);
-      }
-    }
-  }
-  void Clean() {
-    for (int i = 0; i < kMaxBatchSize; i++) {
-      if (outs_[i] != nullptr) {
-        delete outs_[i];
-        outs_[i] = nullptr;
-      }
-    }
-    //if (outs_branch_full_ != nullptr) {
-    //  delete outs_branch_full_;
-    //  outs_branch_full_ = nullptr;
-    //}
-  }
 private:
   std::string name_;
   mutable std::mutex mutex_;
@@ -166,6 +168,7 @@ public:
   inline size_t size() const { return nodes_.size(); }
   std::vector<std::unique_ptr<Node>>& nodes() { return nodes_; }
   const std::vector<std::unique_ptr<Node>>& nodes() const { return nodes_; }
+  inline int buffer_queue_size() const { return buffer_queue_size_; }
 
   // Collect header nodes that do not need to rely on other nodes
   std::vector<Node*> &GetInputNodes() {
@@ -176,7 +179,7 @@ public:
       }
     }
     return input_nodes_;
-  }   
+  }
   // Collect output nodes.
   std::vector<Node*> &GetOutputNodes() {
     output_nodes_.clear();
@@ -188,16 +191,24 @@ public:
     return output_nodes_;
   }
 
-  void Initialize() {
+  void Initialize(int buffer_queue_size) {
+    buffer_queue_size_ = buffer_queue_size;
     for (int i = 0; i < nodes_.size(); i++) {
       Node *node = &(*nodes_[i]);
       node->set_id(i);
-      if (node->num_successors() >= 2 && node->outs_branch_full_ == nullptr) {
-        node->outs_branch_full_ = new BlockingQueue<IOParams *>[node->num_successors()];
+
+      if (node->num_successors() >= 2) {
+        node->Init(buffer_queue_size * node->num_successors());
       }
+      else
+        node->Init(buffer_queue_size);
     }
   }
-
+  void Clean() {
+    for (auto& node : nodes_) {
+      node->Clean();
+    }
+  }
   // create a node from a give argument; constructor is called if necessary
   template <typename C>
   Node *emplace(C &&c, ParamsMode mode) {
@@ -222,6 +233,8 @@ private:
   
   std::vector<Node*> input_nodes_;
   std::vector<Node*> output_nodes_;
+
+  int buffer_queue_size_ = 0;
 };
 
 }  // end of namespace hcs.

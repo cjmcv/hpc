@@ -6,6 +6,7 @@
 #include "hcs/executor.hpp"
 #include "hcs/profiler.hpp"
 #include "hcs/params.hpp"
+#include "hcs/util/timer.hpp"
 
 template <typename... Args>
 auto PrintArgs(Args&&... args) {
@@ -30,7 +31,7 @@ void Work1(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   }
   hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut());
   
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   in->i++;
   in->f++;
 
@@ -51,7 +52,7 @@ void Work2(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   // Fetch input from the former node.
   hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut(0));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   in->i++;
   in->f++;
 
@@ -72,7 +73,7 @@ void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   // Fetch input from the former node.
   hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut(1));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   in->i++;
   in->f++;
 
@@ -103,7 +104,7 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut());
   hcs::ParamsFxII *in2 = (hcs::ParamsFxII *)(dependents[1]->BorrowOut());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   in->i += in2->i1;
   in->f += in2->i2;
 
@@ -152,24 +153,32 @@ void Add() {
   B->precede(D);
   C->precede(E);
   D->precede(E);
-  graph.Initialize();
+  graph.Initialize(100);
 
   hcs::Executor executor;
   executor.name_ = "AAA";
-
+  executor.Bind(&graph);
   //hcs::Profiler profiler(&executor, &graph);
   //profiler.Start(1, 200);
-
-  while (1) {
+  
+  hcs::CpuTimer timer;
+  float push_time = 0.0;
+  float get_time = 0.0;
+  //while (1) 
+  {
+    timer.Start();
     printf(">>>>>>>>>>>>>>>>> New Round <<<<<<<<<<<<<<<<.\n");
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 100; i++) {
       input.obj_id = i;
       A->PushOutput(&input);
-      executor.Run(graph);
+      executor.Run();
     }
+    timer.Stop();
+    push_time = timer.MilliSeconds();
 
+    timer.Start();
     int count = 0;
-    while (count < 10) {
+    while (count < 100) {
       hcs::ParamsFxII out;
       bool flag = E->PopOutput(&out);
       if (flag == true) {
@@ -182,10 +191,15 @@ void Add() {
       }
       else {
         std::cout << count << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
       }
     }
+    timer.Stop();
+    get_time = timer.MilliSeconds();
+    printf("time: %f, %f.\n", push_time, get_time);
   }
+
+  graph.Clean();
 }
 
 int main() {

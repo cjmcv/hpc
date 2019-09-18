@@ -29,10 +29,35 @@ class Executor {
     bool is_worker = false;
     int worker_id = -1;
   };
-  struct Status { 
+
+  struct Promise {
     std::promise<void> promise;
+  };
+  struct Status { 
     int num_incomplete_out_nodes;
-    int *depends;
+    int num_nodes;
+    int *depends = nullptr;
+    Promise *p = nullptr;
+
+    ~Status() {
+      if (p != nullptr) {
+        delete p;
+        p = nullptr;
+      }
+      if (depends != nullptr) {
+        delete depends;
+        depends = nullptr;
+      }
+    }
+    void CopyTo(Status *s) {
+      s->num_incomplete_out_nodes = this->num_incomplete_out_nodes;
+      s->num_nodes = this->num_nodes;
+      if (s->depends == nullptr)
+        s->depends = new int[s->num_nodes];
+      memcpy(s->depends, this->depends, sizeof(int) * s->num_nodes);    
+      if (s->p == nullptr)
+        s->p = new Promise;
+    }
   };
 
 public:
@@ -42,11 +67,24 @@ public:
   explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
     workers_{ N },
     waiters_{ N },
-    notifier_{ waiters_ } {
+    notifier_{ waiters_ },
+    base_status_{ nullptr }, 
+    graph_{ nullptr },
+    run_count_{ 0 } {
 
     Spawn(N);
   }
   ~Executor() {
+    if (base_status_ != nullptr) {
+      delete base_status_;
+      base_status_ = nullptr;
+    }
+    if (status_list_.size() > 0) {
+      for (int i = 0; i < status_list_.size(); i++) {
+        delete status_list_[i];
+      }
+      status_list_.clear();
+    }
     // shut down the scheduler
     done_ = true;
     notifier_.notify(true);
@@ -57,7 +95,8 @@ public:
 
   // runs the taskflow once
   // return a std::future to access the execution status.
-  std::future<void> Run(Graph& g);
+  std::future<void> Run();
+  void Bind(Graph *g);
 
 private:  
   PerThread& per_thread() const {
@@ -76,13 +115,17 @@ private:
   void Stop(int id);
 
 private:
+  Graph *graph_;
+  Status *base_status_;
   std::vector<Status*> status_list_;
+  int run_count_;
 
   std::vector<Worker> workers_;
   std::vector<Notifier::Waiter> waiters_;
   std::vector<std::thread> threads_;
 
-  WorkStealingQueue<Node*> queue_;  // The queue belngs to master thread.
+  // This queue is prepared for master thread.
+  WorkStealingQueue<Node*> queue_;  
 
   std::atomic<size_t> num_actives_{ 0 };
   std::atomic<size_t> num_thieves_{ 0 };
@@ -189,38 +232,41 @@ void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
 
     do {
       IOParams *p = nullptr;
-      // The same node can only be invoked by one thread at a time.
-      (*t)->lock(); 
-      auto &f = (*t)->work_;
+      Node *n = *t;
+      // Locked by node.
+      // That means the same node can only be invoked by one thread at a time.
+      n->lock(); 
+      auto &f = n->work_;
       if (f != nullptr) {
-        if ((*t)->num_successors() <= 1) {
-          if (false == (*t)->outs_free_.try_pop(&p)) {
+        if (n->num_successors() <= 1) {
+          if (false == n->outs_free_.try_pop(&p)) {
             printf("Failed to outs_free_.try_pop.\n");
           }
-          f((*t)->dependents_, p);
-          (*t)->outs_full_.push(p);
+          f(n->dependents_, p);
+          n->outs_full_.push(p);
         }
         else {
-          if (false == (*t)->outs_free_.try_pop(&p)) {
+          // If there are multiple successors, copy the output for each one.
+          if (false == n->outs_free_.try_pop(&p)) {
             printf("Failed to outs_free_.try_pop.\n");
           }
-          f((*t)->dependents_, p);
+          f(n->dependents_, p);
           
-          (*t)->outs_branch_full_[0].push(p);
+          n->outs_branch_full_[0].push(p);
 
           IOParams *p2;
-          for (int i = 1; i < (*t)->num_successors(); i++) {
-            if (false == (*t)->outs_free_.try_pop(&p2)) {
+          for (int i = 1; i < n->num_successors(); i++) {
+            if (false == n->outs_free_.try_pop(&p2)) {
               printf("Failed to outs_free_.try_pop.\n");
             }
             Assistor::CopyParams(p, p2);
-            (*t)->outs_branch_full_[i].push(p2);
+            n->outs_branch_full_[i].push(p2);
           }
         }
       }
-      PushSuccessors(*t);
-      (*t)->atomic_run_count_++;
-      (*t)->unlock();
+      PushSuccessors(n);
+      n->atomic_run_count_++;
+      n->unlock();
 
       t = worker.queue.pop();
     } while (t);
@@ -276,7 +322,7 @@ void Executor::Schedule(Node* node) {
 
 void Executor::PushSuccessors(Node* node) {
 
-  int status_id = node->atomic_run_count_.load();
+  int status_id = node->atomic_run_count_.load() % status_list_.size();
   Status *status = status_list_[status_id];
   //printf("push (%s, %d).\n", node->name().c_str(), status_id);
 
@@ -301,39 +347,59 @@ void Executor::PushSuccessors(Node* node) {
 }
 
 void Executor::Stop(int id) {
-  auto p{ std::move(status_list_[id]->promise) };
+  auto p{ std::move(status_list_[id]->p->promise) };
 
-  delete status_list_[id]->depends;
-  delete status_list_[id];
-  status_list_[id] = nullptr;
-  //printf("Detele Status: %d.\n", id);
+  delete status_list_[id]->p;
+  status_list_[id]->p = nullptr;
+
+  // Recover.
+  base_status_->CopyTo(status_list_[id]);
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
 }
 
-std::future<void> Executor::Run(Graph& g) {
-
-  Status *stat = new Status;
-  stat->depends = new int[g.nodes().size()];
-
-  stat->num_incomplete_out_nodes = g.GetOutputNodes().size();
-  for (auto& node : g.nodes()) {
-    stat->depends[node->id()] = node->num_dependents();
+void Executor::Bind(Graph *g) {
+  if (base_status_ != nullptr) {
+    delete base_status_;
+    base_status_ = nullptr;
   }
-  status_list_.push_back(stat);
 
-  std::vector<Node*> input_nodes = g.GetInputNodes();
+  base_status_ = new Status;
+  base_status_->num_incomplete_out_nodes = g->GetOutputNodes().size();
+  base_status_->num_nodes = g->nodes().size();
+  base_status_->depends = new int[g->nodes().size()];
+
+  for (auto& node : g->nodes()) {
+    base_status_->depends[node->id()] = node->num_dependents();
+  }
+
+  for (int i = 0; i < g->buffer_queue_size(); i++) {
+    Status *stat = new Status;
+    base_status_->CopyTo(stat);
+    status_list_.push_back(stat);
+  }
+
+  graph_ = g;
+}
+
+std::future<void> Executor::Run() {
+
+  Status *stat = status_list_[run_count_ % status_list_.size()];
+  run_count_++;
+
+  std::vector<Node*> input_nodes = graph_->GetInputNodes();
   for (auto node : input_nodes) {
     queue_.push(node);
     notifier_.notify(false);
   }
 
-  std::future<void> future = stat->promise.get_future();
+  std::future<void> future = stat->p->promise.get_future();
   return future;
 }
 
 // TODO: 2. 定时清除status_list_, 清除过程中，暂停主线程，不立即返回主线程控制权，直至清空完成。
 //       3. 其中处理每次run中status的初始化。
+
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_
