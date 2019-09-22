@@ -21,13 +21,14 @@ public:
     type_(-1) {
     shape_.clear();
   }
-  ~Blob() {}
+  ~Blob() { Release(); }
 
-  int Create(int num, int channel, int height, int width, int mode, int type);
-  int Release();
+  bool Create(int num, int channel, int height, int width, int mode, int type);
+  void Release();
 
   bool CopyTo(Blob *to);
   bool CloneTo(Blob *to);
+  bool SyncParams(int num, int channel, int height, int width, int mode, int type);
 
 public:
   void *data_;
@@ -43,7 +44,7 @@ private:
   std::vector<int> shape_;
 };
 
-int Blob::Create(int num, int channel, int height, int width, int mode, int type) {
+bool Blob::Create(int num, int channel, int height, int width, int mode, int type) {
   object_id_ = -1;
 
   shape_.clear();
@@ -69,15 +70,18 @@ int Blob::Create(int num, int channel, int height, int width, int mode, int type
   }
 
   is_created_ = true;
-  return 0;
+  return true;
 }
 
-int Blob::Release() {
+void Blob::Release() {
   if (data_ != nullptr) {
-    if (mode_ == ON_HOST)
+    if (mode_ == ON_HOST) {
       delete[]data_;
-    else
+    }
+    else {
       CUDA_CHECK(cudaFree(data_));
+    }
+    data_ = nullptr;
   }
   is_created_ = false;
 }
@@ -98,6 +102,26 @@ bool Blob::CopyTo(Blob *to) {
       cudaMemcpy(to->data_, data_, sizeof(T) * num_element_, cudaMemcpyDeviceToDevice);
     );
   }
+  return true;
+}
+
+bool Blob::SyncParams(int num, int channel, int height, int width, int mode, int type) {
+  // Check dimension.
+  if (is_created_ == false) {
+    return Create(num, channel, height, width, mode, type);
+  }
+
+  int num_element = num * channel * height * width;
+  if (mode_ != mode || type_ != type || num_element_ != num_element) {
+    Release();
+    return Create(num, channel, height, width, mode, type);
+  }
+
+  shape_.clear();
+  shape_.push_back(num);
+  shape_.push_back(channel);
+  shape_.push_back(height);
+  shape_.push_back(width);
 }
 
 bool Blob::CloneTo(Blob *to) {
@@ -106,13 +130,10 @@ bool Blob::CloneTo(Blob *to) {
     return false;
   }
   
-  // Check dimension.
-  if (mode_ != to->mode_ || type_ != to->type_ || num_element_ != to->num_element_) {
-    to->Release();
-    to->Create(shape_[0], shape_[1], shape_[2], shape_[3], mode_, type_);
-  }
+  to->SyncParams(shape_[0], shape_[1], shape_[2], shape_[3], mode_, type_);
 
   CopyTo(to);
+  // Pass object id.
   to->object_id_ = object_id_;
   return true;
 }

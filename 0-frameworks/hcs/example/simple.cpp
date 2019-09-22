@@ -29,16 +29,20 @@ void WorkB(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
   if (dependents.size() != 1) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
+
+  // Fetch input.
   hcs::Blob *in = dependents[0]->BorrowOut(); // 2 int
-  
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   int* data = (int *)in->data_;
+  
+  // Process.
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   data[0]++;
   data[1]++;
 
   // Set output.
   in->CloneTo(output);
 
+  // Recycle in.
   dependents[0]->RecycleOut(in);
   printf("(<1>: %d, end).", std::this_thread::get_id());
 }
@@ -50,17 +54,19 @@ void WorkC(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
 
-  // Fetch input from the former node.
+  // Fetch input.
   hcs::Blob *in = dependents[0]->BorrowOut(0); // 2 int
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   int* data = (int *)in->data_;
+  
+  // Process.
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   data[0]++;
   data[1]++;
 
   // Set output.
   in->CloneTo(output);
 
+  // Recycle in.
   dependents[0]->RecycleOut(in);
   printf("(<2>: %d, end).", std::this_thread::get_id());
 }
@@ -72,26 +78,23 @@ void WorkD(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
 
-  // Fetch input from the former node.
+  // Fetch input.
   hcs::Blob *in = dependents[0]->BorrowOut(1); // 2 int
+  int* in_data = (int *)in->data_;
+  // Fetch output.
+  output->SyncParams(1, 1, 1, 3, hcs::ON_HOST, hcs::FLOAT32);  
+  float* out_data = (float *)output->data_;
 
+  // Pass object id.
+  output->object_id_ = in->object_id_;
+
+  // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  int* data = (int *)in->data_;
-  data[0]++;
-  data[1]++;
+  out_data[0] = in_data[0] + 1.1;
+  out_data[1] = in_data[1] + 1.1;
+  out_data[2] = 1.1;
 
-  hcs::Blob out_temp;
-  out_temp.Create(1, 1, 1, 3, hcs::ON_HOST, hcs::FLOAT32);
-  out_temp.object_id_ = in->object_id_;
-  float *data2 = (float *)out_temp.data_;
-  data2[0] = data[0] + 1.1;
-  data2[1] = data[1] + 1.1;
-  data2[2] = 1.1;
-
-  // Set output.
-  out_temp.CloneTo(output);
-  out_temp.Release();
-
+  // Recycle in.
   dependents[0]->RecycleOut(in);
   printf("(<3>: %d, end).", std::this_thread::get_id());
 }
@@ -103,32 +106,26 @@ void WorkE(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
     std::cout << "dependents.size() != 2" << std::endl;
   }
 
-  // Fetch input from the former node.
+  // Fetch input.
   hcs::Blob *in = dependents[0]->BorrowOut(); // 2 int
   hcs::Blob *in2 = dependents[1]->BorrowOut(); // 3 float
+  int* in_data = (int *)in->data_;
+  float* in2_data = (float *)in2->data_;
+  // Fetch output.
+  output->SyncParams(1, 1, 1, 4, hcs::ON_HOST, hcs::FLOAT32);
+  float* out_data = (float *)output->data_;
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  int* data = (int *)in->data_;
-  data[0]++;
-  data[1]++;
-  float* data2 = (float *)in2->data_;
-  data2[0] += 1.0;
-  data2[1] += 1.0;
-  data2[2] += 1.0;
+  // Pass object id.
+  output->object_id_ = in->object_id_;
 
-  hcs::Blob out_temp;
-  out_temp.Create(1, 1, 1, 4, hcs::ON_HOST, hcs::FLOAT32);
-  out_temp.object_id_ = in->object_id_;
-  float *data3 = (float *)out_temp.data_;
-  data3[0] = data[0] + data2[0] + 1.1;
-  data3[1] = data[1] + data2[1] + 1.1;
-  data3[2] = data2[2] + 1.1;
-  data3[3] = 1.2;
+  // Process.
+  std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
+  out_data[0] = in_data[0] + in2_data[0] + 1.1;
+  out_data[1] = in_data[1] + in2_data[1] + 1.1;
+  out_data[2] = in2_data[2] + 1.1;
+  out_data[3] = 1.2;
 
-  // Set output.
-  out_temp.CloneTo(output);
-  out_temp.Release();
-
+  // Recycle in.
   dependents[0]->RecycleOut(in);
   dependents[1]->RecycleOut(in2);
 
@@ -171,8 +168,13 @@ void Add() {
   hcs::CpuTimer timer;
   float push_time = 0.0;
   float get_time = 0.0;
-  //while (1) 
-  {
+
+  int loop_cnt = 10;
+  while (1) {
+    if (loop_cnt <= 0)
+      break;
+    loop_cnt--;
+
     timer.Start();
     printf(">>>>>>>>>>>>>>>>> New Round <<<<<<<<<<<<<<<<.\n");
     for (int i = 0; i < 100; i++) {
@@ -212,10 +214,9 @@ void Add() {
 }
 
 int main() {
-  Add();
-  //std::cout << "*******************************" << std::endl << std::endl;
+  while(1)
+    Add();
 
-  system("pause");
   return 0;
 }
 #endif // SIMPLE

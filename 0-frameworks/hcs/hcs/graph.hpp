@@ -26,7 +26,7 @@ public:
   void Init(int buffer_queue_size) {
     outs_branch_full_ = nullptr;
     for (int i = 0; i < buffer_queue_size; i++) {
-      Blob *p = new Blob;// Assistor::CreateParams(output_mode_);
+      Blob *p = new Blob;
       if (p != nullptr) {
         outs_.push_back(p);
         outs_free_.push(p);
