@@ -231,7 +231,7 @@ void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
     }
 
     do {
-      IOParams *p = nullptr;
+      Blob *p = nullptr;
       Node *n = *t;
       // Locked by node.
       // That means the same node can only be invoked by one thread at a time.
@@ -254,12 +254,12 @@ void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
           
           n->outs_branch_full_[0].push(p);
 
-          IOParams *p2;
+          Blob *p2;
           for (int i = 1; i < n->num_successors(); i++) {
             if (false == n->outs_free_.try_pop(&p2)) {
               printf("Failed to outs_free_.try_pop.\n");
             }
-            Assistor::CopyParams(p, p2);
+            p->CloneTo(p2);
             n->outs_branch_full_[i].push(p2);
           }
         }
@@ -397,9 +397,6 @@ std::future<void> Executor::Run() {
   std::future<void> future = stat->p->promise.get_future();
   return future;
 }
-
-// TODO: 2. 定时清除status_list_, 清除过程中，暂停主线程，不立即返回主线程控制权，直至清空完成。
-//       3. 其中处理每次run中status的初始化。
 
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_

@@ -40,7 +40,7 @@ protected:
 //  auto func = [&]()
 //  -> float {
 //    timer.Start();
-//    cux::QueryDevices();
+//    hcs::QueryDevices();
 //    timer.Stop();
 //    return timer.MilliSeconds();
 //  };
@@ -53,5 +53,5 @@ protected:
     return timer.MilliSeconds();      \
   }();
 
-} // cux.
+} // hcs.
 #endif //HCS_TIMER_H_

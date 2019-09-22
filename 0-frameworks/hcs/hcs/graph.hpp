@@ -5,7 +5,7 @@
 #include <atomic>
 #include <functional>
 
-#include "params.hpp"
+#include "blob.hpp"
 #include "util/blocking_queue.hpp"
 
 namespace hcs {
@@ -16,30 +16,24 @@ class Graph;
 // Class: Node
 class Node {
 
-  using Work = std::function<void(std::vector<Node*> &dependents, IOParams *output)>;
+  using Work = std::function<void(std::vector<Node*> &dependents, Blob *output)>;
 
 public:
-  Node() = delete;
-  Node(ParamsMode output_mode) {
-    output_mode_ = output_mode;
-  }
-  Node(Work &&c, ParamsMode output_mode) : work_(c) {
-    output_mode_ = output_mode;
-  }
-
+  Node() {}
+  Node(Work &&c) : work_(c) {}
   ~Node() {}
 
   void Init(int buffer_queue_size) {
     outs_branch_full_ = nullptr;
     for (int i = 0; i < buffer_queue_size; i++) {
-      IOParams *p = Assistor::CreateParams(output_mode_);
+      Blob *p = new Blob;// Assistor::CreateParams(output_mode_);
       if (p != nullptr) {
         outs_.push_back(p);
         outs_free_.push(p);
       }
     }
     if (successors_.size() >= 2) {
-      outs_branch_full_ = new BlockingQueue<IOParams *>[successors_.size()];
+      outs_branch_full_ = new BlockingQueue<Blob *>[successors_.size()];
     }
   }
   void Clean() {
@@ -79,9 +73,9 @@ public:
   void lock() { mutex_.lock(); }
   void unlock() { mutex_.unlock(); }
 
-  IOParams *BorrowOut(int branch_id = -1) {
+  Blob *BorrowOut(int branch_id = -1) {
     std::unique_lock<std::mutex> lock(mutex_);
-    IOParams *out = nullptr;
+    Blob *out = nullptr;
     if (branch_id == -1) {
       if (false == outs_full_.try_pop(&out)) {
         printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
@@ -97,14 +91,14 @@ public:
     return out;
   }
 
-  bool RecycleOut(IOParams *out) {
+  bool RecycleOut(Blob *out) {
     outs_free_.push(out);
     return true;
   }
 
-  bool PopOutput(IOParams *out, int branch_id = -1) {
+  bool PopOutput(Blob *out, int branch_id = -1) {
     std::unique_lock<std::mutex> lock(mutex_);
-    IOParams *inside_out;
+    Blob *inside_out;
     if (branch_id == -1) {
       if (false == outs_full_.try_pop(&inside_out)) {
         printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
@@ -117,19 +111,19 @@ public:
         return false;
       }
     }
-    Assistor::CopyParams(inside_out, out);
+    inside_out->CloneTo(out);
     outs_free_.push(inside_out);
     return true;
   }
 
-  bool PushOutput(IOParams *out) {
+  bool PushOutput(Blob *out) {
     std::unique_lock<std::mutex> lock(mutex_);
-    IOParams *inside_out;
+    Blob *inside_out;
     if (false == outs_free_.try_pop(&inside_out)) {
       printf("<%d>PushOutput: failed..", std::this_thread::get_id());
       return false;
     }
-    Assistor::CopyParams(out, inside_out);
+    out->CloneTo(inside_out);
     outs_full_.push(inside_out);
     return true;
   }
@@ -140,16 +134,14 @@ public:
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
 
-  std::vector<IOParams *> outs_;
-  BlockingQueue<IOParams *> outs_free_;
-  BlockingQueue<IOParams *> outs_full_;
-  BlockingQueue<IOParams *> *outs_branch_full_;
+  std::vector<Blob *> outs_;
+  BlockingQueue<Blob *> outs_free_;
+  BlockingQueue<Blob *> outs_full_;
+  BlockingQueue<Blob *> *outs_branch_full_;
 
 private:
   std::string name_;
   mutable std::mutex mutex_;
-  ParamsMode input_mode_;
-  ParamsMode output_mode_;
   int id_;
 };
 // ----------------------------------------------------------------------------
@@ -211,12 +203,12 @@ public:
   }
   // create a node from a give argument; constructor is called if necessary
   template <typename C>
-  Node *emplace(C &&c, ParamsMode mode) {
-    nodes_.push_back(std::make_unique<Node>(std::forward<C>(c), mode));
+  Node *emplace(C &&c) {
+    nodes_.push_back(std::make_unique<Node>(std::forward<C>(c)));
     return &(*(nodes_.back()));
   }
-  Node *emplace(ParamsMode mode) {
-    nodes_.push_back(std::make_unique<Node>(mode));
+  Node *emplace() {
+    nodes_.push_back(std::make_unique<Node>());
     return &(*(nodes_.back()));
   }
 

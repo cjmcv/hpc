@@ -5,7 +5,7 @@
 
 #include "hcs/executor.hpp"
 #include "hcs/profiler.hpp"
-#include "hcs/params.hpp"
+#include "hcs/blob.hpp"
 #include "hcs/util/timer.hpp"
 
 template <typename... Args>
@@ -23,26 +23,27 @@ auto PrintArgs(Args&&... args) {
   return tup_data;
 }
 
-void Work1(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
+void WorkB(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
   printf("(<1>: %d, start)", std::this_thread::get_id());
 
   if (dependents.size() != 1) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
-  hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut());
+  hcs::Blob *in = dependents[0]->BorrowOut(); // 2 int
   
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  in->i++;
-  in->f++;
+  int* data = (int *)in->data_;
+  data[0]++;
+  data[1]++;
 
   // Set output.
-  hcs::Assistor::CopyParams(in, output);
+  in->CloneTo(output);
 
   dependents[0]->RecycleOut(in);
   printf("(<1>: %d, end).", std::this_thread::get_id());
 }
 
-void Work2(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
+void WorkC(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
   printf("(<2>: %d, start)", std::this_thread::get_id());
 
   if (dependents.size() != 1) {
@@ -50,20 +51,21 @@ void Work2(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   }
 
   // Fetch input from the former node.
-  hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut(0));
+  hcs::Blob *in = dependents[0]->BorrowOut(0); // 2 int
 
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  in->i++;
-  in->f++;
+  int* data = (int *)in->data_;
+  data[0]++;
+  data[1]++;
 
   // Set output.
-  hcs::Assistor::CopyParams(in, output);
+  in->CloneTo(output);
 
   dependents[0]->RecycleOut(in);
   printf("(<2>: %d, end).", std::this_thread::get_id());
 }
 
-void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
+void WorkD(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
   printf("(<3>: %d, start)", std::this_thread::get_id());
 
   if (dependents.size() != 1) {
@@ -71,29 +73,30 @@ void Work3(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   }
 
   // Fetch input from the former node.
-  hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut(1));
+  hcs::Blob *in = dependents[0]->BorrowOut(1); // 2 int
 
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  in->i++;
-  in->f++;
+  int* data = (int *)in->data_;
+  data[0]++;
+  data[1]++;
 
-  hcs::ParamsFxII out_temp;
-  out_temp.i1 = 1;
-  out_temp.i2 = 2;
-  out_temp.fx = new float[2];
-  out_temp.fx[0] = in->i;
-  out_temp.fx[1] = in->f;
-  
-  out_temp.obj_id = in->obj_id;
+  hcs::Blob out_temp;
+  out_temp.Create(1, 1, 1, 3, hcs::ON_HOST, hcs::FLOAT32);
+  out_temp.object_id_ = in->object_id_;
+  float *data2 = (float *)out_temp.data_;
+  data2[0] = data[0] + 1.1;
+  data2[1] = data[1] + 1.1;
+  data2[2] = 1.1;
 
   // Set output.
-  hcs::Assistor::CopyParams(&out_temp, output);
+  out_temp.CloneTo(output);
+  out_temp.Release();
 
   dependents[0]->RecycleOut(in);
   printf("(<3>: %d, end).", std::this_thread::get_id());
 }
 
-void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
+void WorkE(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
   printf("(<4>: %d, start).", std::this_thread::get_id());
 
   if (dependents.size() != 2) {
@@ -101,27 +104,30 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
   }
 
   // Fetch input from the former node.
-  hcs::ParamsIF *in = (hcs::ParamsIF *)(dependents[0]->BorrowOut());
-  hcs::ParamsFxII *in2 = (hcs::ParamsFxII *)(dependents[1]->BorrowOut());
+  hcs::Blob *in = dependents[0]->BorrowOut(); // 2 int
+  hcs::Blob *in2 = dependents[1]->BorrowOut(); // 3 float
 
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  in->i += in2->i1;
-  in->f += in2->i2;
+  int* data = (int *)in->data_;
+  data[0]++;
+  data[1]++;
+  float* data2 = (float *)in2->data_;
+  data2[0] += 1.0;
+  data2[1] += 1.0;
+  data2[2] += 1.0;
 
-  hcs::ParamsFxII out_temp;
-  int len = 2;
-  out_temp.fx = new float[len * len];
-  out_temp.fx[0] = in->i;
-  out_temp.fx[1] = in->f;
-  out_temp.fx[2] = in2->i1;
-  out_temp.fx[3] = in2->i2;
-  out_temp.i1 = len;
-  out_temp.i2 = len;
-
-  out_temp.obj_id = in->obj_id;
+  hcs::Blob out_temp;
+  out_temp.Create(1, 1, 1, 4, hcs::ON_HOST, hcs::FLOAT32);
+  out_temp.object_id_ = in->object_id_;
+  float *data3 = (float *)out_temp.data_;
+  data3[0] = data[0] + data2[0] + 1.1;
+  data3[1] = data[1] + data2[1] + 1.1;
+  data3[2] = data2[2] + 1.1;
+  data3[3] = 1.2;
 
   // Set output.
-  hcs::Assistor::CopyParams(&out_temp, output);
+  out_temp.CloneTo(output);
+  out_temp.Release();
 
   dependents[0]->RecycleOut(in);
   dependents[1]->RecycleOut(in2);
@@ -131,19 +137,20 @@ void Work4(std::vector<hcs::Node*> &dependents, hcs::IOParams *output) {
 
 void Add() {
   printf("<master thread: %d>", std::this_thread::get_id());
-  hcs::ParamsIF input;
-  input.i = 10;
-  input.f = 12.5;
-  input.obj_id = 1;
-  input.struct_id = hcs::ParamsMode::PARAMS_IF;
+  hcs::Blob input;
+  input.Create(1, 1, 1, 2, hcs::ON_HOST, hcs::INT32);
+  input.object_id_ = 1;
+  int *data = (int *)input.data_;
+  data[0] = 1;
+  data[1] = 1;
 
   hcs::Graph graph;
 
-  hcs::Node *A = graph.emplace(hcs::PARAMS_IF)->name("A");
-  hcs::Node *B = graph.emplace(Work1, hcs::PARAMS_IF)->name("B");;
-  hcs::Node *C = graph.emplace(Work2, hcs::PARAMS_IF)->name("C");;
-  hcs::Node *D = graph.emplace(Work3, hcs::PARAMS_FXII)->name("D");;
-  hcs::Node *E = graph.emplace(Work4, hcs::PARAMS_FXII)->name("E");;
+  hcs::Node *A = graph.emplace()->name("A");
+  hcs::Node *B = graph.emplace(WorkB)->name("B");;
+  hcs::Node *C = graph.emplace(WorkC)->name("C");;
+  hcs::Node *D = graph.emplace(WorkD)->name("D");;
+  hcs::Node *E = graph.emplace(WorkE)->name("E");;
 
   //      | -- C |
   // A -- B       -- E
@@ -169,7 +176,7 @@ void Add() {
     timer.Start();
     printf(">>>>>>>>>>>>>>>>> New Round <<<<<<<<<<<<<<<<.\n");
     for (int i = 0; i < 100; i++) {
-      input.obj_id = i;
+      input.object_id_ = i;
       A->PushOutput(&input);
       executor.Run();
     }
@@ -179,13 +186,14 @@ void Add() {
     timer.Start();
     int count = 0;
     while (count < 100) {
-      hcs::ParamsFxII out;
+      hcs::Blob out;
       bool flag = E->PopOutput(&out);
       if (flag == true) {
         count++;
-        printf("< %d, (%d, %d), <", out.obj_id, out.i1, out.i2);
-        for (int i = 0; i < out.i1 * out.i2; i++) {
-          printf("%f, ", out.fx[i]);
+        float *data = (float *)out.data_;
+        printf("< %d , <", out.object_id_);
+        for (int i = 0; i < out.num_element_; i++) {
+          printf("%f, ", data[i]);
         }
         printf(">.\n");
       }
@@ -200,6 +208,7 @@ void Add() {
   }
 
   graph.Clean();
+  input.Release();
 }
 
 int main() {
