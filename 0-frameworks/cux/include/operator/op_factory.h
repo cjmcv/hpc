@@ -20,6 +20,7 @@ class OpFactory {
 public:
   ~OpFactory() {};
 
+  // Create the op object by the name of the op.
   Operator *CreateOpByType(std::string type, OpAssistor *assistor, std::string param_str) {
     std::map<std::string, OpCreator>::iterator it = op_creator_map_.find(type);
     if (it == op_creator_map_.end()) {
@@ -35,7 +36,7 @@ public:
     return creator(assistor, param_str);
   }
 
-  // Registerer, set the mapping relation between operator's class name and it's specific pointer function.
+  // Registerer, set the mapping relation between operator's class name and its constructor.
   void RegisterOpClass(std::string type, OpCreator creator) {
     if (op_creator_map_.count(type) != 0) {
       CUXLOG_WARN("Op type: %s has already been registered.", type.c_str());

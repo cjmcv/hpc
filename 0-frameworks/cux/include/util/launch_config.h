@@ -41,6 +41,7 @@ struct Config3D {
   int shared_memory_size = 0;
 };
 
+// Mainly used for automatic generation of config for kernels.
 class LaunchConfig {
 public:
   LaunchConfig(Device *device) :device_(device) {}

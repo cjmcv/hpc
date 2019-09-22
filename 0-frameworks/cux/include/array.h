@@ -34,6 +34,7 @@ public:
   inline bool is_cpu_data_empty() { return cpu_data_ == nullptr ? true : false; }
   inline bool is_gpu_data_empty() { return gpu_data_ == nullptr ? true : false; }
 
+  // Save and restore data on host.
   void SaveCpuData(const void *cpu_data, const int num_element) {
     if (cpu_data_ == nullptr) {
       TYPE_SWITCH(type_flag_, T, cpu_data_ = new T[num_element];);
@@ -46,7 +47,7 @@ public:
     }
     memcpy(cpu_data, cpu_data_, element_size_ * num_element);
   }
-  //
+  // Save and restore data on device.
   void SaveGpuData(const void *gpu_data, const int num_element) {
     if (gpu_data_ == nullptr) {
       CUDA_CHECK(cudaMalloc(&gpu_data_, element_size_ * num_element));
@@ -60,13 +61,15 @@ public:
     CUDA_CHECK(cudaMemcpy(gpu_data, gpu_data_, element_size_ * num_element, cudaMemcpyDeviceToDevice));
   }
 public:
+  // Backup.
   void *cpu_data_;
   void *gpu_data_;
-
+  // It corresponds to TypeFlag.
   int type_flag_;
   int element_size_;
 };
 
+// The most basic data storage unit in cux.
 class Array4D {
 public:
   explicit Array4D(int num, int channels, int height, int width);
@@ -117,6 +120,7 @@ public:
   // Restore data from Array4DBackup.
   void Restore(int type_flag, OpRunMode mode);
 
+  // For precision conversion on host.
   template<typename SrcType, typename DstType>
   void PrecsCpuCvt() {
     int src_data_type = DataType<SrcType>::kFlag;
@@ -147,8 +151,7 @@ private:
   std::vector<void*> cpu_data_;
   std::vector<void*> gpu_data_;
 
-  // For data backup and restore.
-  // Refer to the matrix C in gemm.
+  // For data backup and restoration.
   std::vector<Array4DBackup*> backup_;
 };
 

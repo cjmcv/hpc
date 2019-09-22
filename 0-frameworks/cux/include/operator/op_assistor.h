@@ -29,8 +29,10 @@ public:
   }
   template <typename DType>
   bool CheckArray(DType *in, int len, float scale, int id) {
+    // Use the first result as a benchmark. 
+    // And the following results will be compared with this benchmark data.
     if (id == 0) {
-      SetBenchmarkData(in, len);
+      SetBenchmarkData(in, len); // Set prev_data_.
       return true;
     }
     float diff = 0.0;
@@ -42,7 +44,8 @@ public:
 
     float thresh = FLT_PRECISION_ERR_THRESH;// FLT_MIN;
     if (diff < thresh) {
-#ifdef WIN32 // Green 10, white 7, red 4, black 0
+#ifdef WIN32 
+      // Green 10, white 7, red 4, black 0
       SetConsoleTextAttribute(handle_std_, MAKEWORD(10, 0));
       CUXLOG_COUT("Pass: V0 vs V%d -> (diff_each: %f, thresh: %f, out[0]: %f, %f)",
         id, diff, thresh, (float)prev_data_[0], (float)in[0]);
@@ -93,6 +96,7 @@ private:
   int len_;
 };
 
+// This class is used to assist operators.
 class OpAssistor {
 public:
   OpAssistor(Device *device)

@@ -10,6 +10,7 @@
 
 namespace cux { 
 
+// It is used for filling data and mainly serves Array4D.
 class DataFiller {
 
 public:

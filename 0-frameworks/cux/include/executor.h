@@ -100,10 +100,12 @@ public:
     }
   }
 
+  // Create op by op name.
   void SelectOp(std::string op_name, std::string params) {
     op_ = OpFactory::GetInstance().CreateOpByType(op_name, op_assistor_, params);
   }
 
+  // Add user-defined kernel to a existing op.
   void AddPlugin(KernelInterface *kernel_if, OpRunMode mode) {
     if (op_ == nullptr) {
       CUXLOG_ERR("The operator has not been selected yet. Please select an operator first.");
@@ -111,6 +113,7 @@ public:
     op_->AddPlugin(kernel_if, mode);
   }
 
+  // Bind and fill input and output data for this executor.
   void BindAndFill(const std::vector< Array4D* > &inputs,
                    const std::vector< Array4D* > &outputs,
                    int min_value, int max_value, int decimal_pose) {

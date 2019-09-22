@@ -17,12 +17,13 @@ namespace cux {
 
 struct KernelTimeRecord {
   float run = 0.0;
-
   float warnup = 0.0;
+  // Time consuming of IO.
   float input = 0.0;
   float output = 0.0;
 };
 
+// The main computing unit.
 class Operator {
 public:
   Operator(OpAssistor *assistor) : assistor_(assistor) {}
@@ -35,9 +36,11 @@ public:
 
   // Show relevant prompts.
   virtual void Help() const = 0;
+  // Add user-defined kernel.
   virtual void AddPlugin(KernelInterface *kernel_if, OpRunMode mode) = 0;
+  // Extract all the data types that this op is using.
   virtual void ExtractDataTypes(std::vector<int>& type_flags) = 0;
-
+  // Run.
   virtual void RunOnHost(const std::vector< Array4D* > &input,
                          const std::vector< Array4D* > &output) = 0;
   virtual void RunOnDevice(const std::vector< Array4D* > &input,
@@ -48,7 +51,8 @@ private:
   virtual void IoCheckAndSet(const std::vector< Array4D* > &input,
                              const std::vector< Array4D* > &output) = 0;
 
-public:   
+public:
+  // It is owned by Executor and provides content that each op can share.
   OpAssistor *assistor_;
   
   GpuTimer gpu_timer_;

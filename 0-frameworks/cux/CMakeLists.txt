@@ -12,7 +12,7 @@ option(CUX_WIN_CPU_SIMD_OPTIONS  "Enables CPU SIMD instructions."  ON)
 #endif()
 
 # Version.
-set(CUDA_VERSION "9.0" CACHE STRING "CUDA version to build against")
+set(CUDA_VERSION "10.0" CACHE STRING "CUDA version to build against")
 
 # Define project name
 project(main_cux)
