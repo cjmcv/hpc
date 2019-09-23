@@ -134,7 +134,7 @@ void WorkE(std::vector<hcs::Node*> &dependents, hcs::Blob *output) {
 
 void Add() {
   printf("<master thread: %d>", std::this_thread::get_id());
-  hcs::Blob input;
+  hcs::Blob input("in");
   input.Create(1, 1, 1, 2, hcs::ON_HOST, hcs::INT32);
   input.object_id_ = 1;
   int *data = (int *)input.data_;
@@ -188,7 +188,7 @@ void Add() {
     timer.Start();
     int count = 0;
     while (count < 100) {
-      hcs::Blob out;
+      hcs::Blob out("out");
       bool flag = E->PopOutput(&out);
       if (flag == true) {
         count++;

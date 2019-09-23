@@ -253,7 +253,6 @@ void Executor::ExploitTask(unsigned i, std::optional<Node*>& t) {
           f(n->dependents_, p);
           
           n->outs_branch_full_[0].push(p);
-
           Blob *p2;
           for (int i = 1; i < n->num_successors(); i++) {
             if (false == n->outs_free_.try_pop(&p2)) {

@@ -4,6 +4,7 @@
 #include <optional>
 #include <atomic>
 #include <functional>
+#include <string>
 
 #include "blob.hpp"
 #include "util/blocking_queue.hpp"
@@ -19,15 +20,17 @@ class Node {
   using Work = std::function<void(std::vector<Node*> &dependents, Blob *output)>;
 
 public:
-  Node() {}
-  Node(Work &&c) : work_(c) {}
+  Node() { name_ = "noname"; }
+  Node(Work &&c) : work_(c) { name_ = "noname"; }
   ~Node() {}
 
   void Init(int buffer_queue_size) {
     outs_branch_full_ = nullptr;
     for (int i = 0; i < buffer_queue_size; i++) {
-      Blob *p = new Blob;
+      std::string blob_name = name_ + "-" + std::to_string(i);
+      Blob *p = new Blob(blob_name);
       if (p != nullptr) {
+        p->set_node_name(name_);
         outs_.push_back(p);
         outs_free_.push(p);
       }

@@ -13,15 +13,22 @@ namespace hcs {
 
 class Blob {
 public:
-  Blob() :is_created_(false), 
+  Blob(std::string name) :is_created_(false), 
     data_(nullptr), 
     object_id_(-1), 
     num_element_(0),
     mode_(-1), 
-    type_(-1) {
+    type_(-1),
+    name_(name),
+    node_name_("noname"){
     shape_.clear();
   }
   ~Blob() { Release(); }
+
+  const std::string &name() const { return name_; }
+  const std::string &node_name() const { return node_name_; }
+  inline std::vector<int> &shape() { return shape_; };
+  inline void set_node_name(std::string name) { node_name_ = name; }
 
   bool Create(int num, int channel, int height, int width, int mode, int type);
   void Release();
@@ -42,6 +49,8 @@ private:
   int type_;
 
   std::vector<int> shape_;
+  std::string name_;
+  std::string node_name_;
 };
 
 bool Blob::Create(int num, int channel, int height, int width, int mode, int type) {
@@ -122,6 +131,8 @@ bool Blob::SyncParams(int num, int channel, int height, int width, int mode, int
   shape_.push_back(channel);
   shape_.push_back(height);
   shape_.push_back(width);
+
+  return true;
 }
 
 bool Blob::CloneTo(Blob *to) {
