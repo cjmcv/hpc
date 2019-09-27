@@ -1,10 +1,10 @@
 #ifndef HCS_GRAPH_H_
 #define HCS_GRAPH_H_
 
-#include <optional>
 #include <atomic>
 #include <functional>
 #include <string>
+#include <condition_variable>
 
 #include "blob.hpp"
 #include "util/blocking_queue.hpp"
@@ -17,12 +17,17 @@ class Graph;
 // Class: Node
 class Node {
 
-  using Work = std::function<void(std::vector<Node*> &dependents, Blob *output)>;
+  using Work = std::function<void(std::vector<Blob *> inputs, Blob *output)>;
 
 public:
-  Node() { name_ = "noname"; }
-  Node(Work &&c) : work_(c) { name_ = "noname"; }
-  ~Node() {}
+  Node() : atomic_run_count_(0) { 
+    name_ = "noname"; 
+  }
+  Node(Work &&c) : work_(c), atomic_run_count_(0) { 
+    name_ = "noname"; 
+  }
+  ~Node() { }
+
 
   void Init(int buffer_queue_size) {
     outs_branch_full_ = nullptr;
@@ -54,6 +59,62 @@ public:
     }
   }
 
+  void Run() {
+    std::unique_lock<std::mutex> locker(mutex_);
+
+    printf("%s: Run.\n", name_.c_str());
+    Blob *p = nullptr;
+    if (work_ != nullptr) {
+
+      // Fetch input.
+      std::vector<Blob *> inputs;
+      for (int i = 0; i < dependents_.size(); i++) {
+
+        Blob *in = dependents_[i]->BorrowOut();
+        while (in == nullptr) {
+          cond_.wait(locker);
+          std::this_thread::yield();
+
+          in = dependents_[i]->BorrowOut();
+          printf("%s: waiting.\n", name_.c_str());
+        }
+        inputs.push_back(in);
+      }
+      // Prepare output.
+      if (false == outs_free_.try_pop(&p)) {
+        printf("%s: Failed to outs_free_.try_pop.\n", name_.c_str());
+      }
+
+      // Run.
+      printf("Precess:%s", name_.c_str());
+      work_(inputs, p);
+      atomic_run_count_++;
+
+      if (successors_.size() <= 1) {
+        outs_full_.push(p);
+      }
+      else {
+        // If there are multiple successors, copy the output for each one.
+        outs_branch_full_[0].push(p);
+        Blob *p2;
+        for (int i = 1; i < successors_.size(); i++) {
+          if (false == outs_free_.try_pop(&p2)) {
+            printf("Failed to outs_free_.try_pop.\n");
+          }
+          p->CloneTo(p2);
+          outs_branch_full_[i].push(p2);
+        }
+      }
+      // Recycle.
+      for (int i = 0; i < dependents_.size(); i++) {
+        dependents_[i]->RecycleOut(inputs[i]);
+      }
+    }
+    else {
+      printf("Error: No work can be invoked in %s.\n", name_.c_str());
+    }
+  }
+
   void precede(Node &v) {
     successors_.push_back(&v);
     v.dependents_.push_back(this);
@@ -67,27 +128,24 @@ public:
   size_t num_successors() const { return successors_.size(); }
   size_t num_dependents() const { return dependents_.size(); }
   Node *successor(int id) { return successors_[id]; }
+  Node *dependents(int id) { return dependents_[id]; }
   const std::string &name() const { return name_; }
   const int id() const { return id_; }
   const void set_id(int id) { id_ = id; }
 
   Node *name(const std::string& name) { name_ = name; return this; }
 
-  void lock() { mutex_.lock(); }
-  void unlock() { mutex_.unlock(); }
-
   Blob *BorrowOut(int branch_id = -1) {
-    std::unique_lock<std::mutex> lock(mutex_);
     Blob *out = nullptr;
     if (branch_id == -1) {
       if (false == outs_full_.try_pop(&out)) {
-        printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
+        printf("<%d-%s>BorrowOut outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
         return nullptr;
       }
     }
     else {
       if (false == outs_branch_full_[branch_id].try_pop(&out)) {
-        printf("<%d>PopOutput outs_branch_full_: No element can be pop.", std::this_thread::get_id());
+        printf("<%d-%s>BorrowOut outs_branch_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
         return nullptr;
       }
     }
@@ -100,17 +158,16 @@ public:
   }
 
   bool PopOutput(Blob *out, int branch_id = -1) {
-    std::unique_lock<std::mutex> lock(mutex_);
     Blob *inside_out;
     if (branch_id == -1) {
       if (false == outs_full_.try_pop(&inside_out)) {
-        printf("<%d>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id());
+        printf("<%d-%s>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
         return false;
       }
     }
     else {
       if (false == outs_branch_full_[branch_id].try_pop(&inside_out)) {
-        printf("<%d>PopOutput outs_branch_full_: No element can be pop.", std::this_thread::get_id());
+        printf("<%d-%s>PopOutput outs_branch_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
         return false;
       }
     }
@@ -120,7 +177,6 @@ public:
   }
 
   bool PushOutput(Blob *out) {
-    std::unique_lock<std::mutex> lock(mutex_);
     Blob *inside_out;
     if (false == outs_free_.try_pop(&inside_out)) {
       printf("<%d>PushOutput: failed..", std::this_thread::get_id());
@@ -132,6 +188,9 @@ public:
   }
 
 public:
+  std::condition_variable cond_;
+  mutable std::mutex mutex_;
+
   Work work_;
   std::atomic<int> atomic_run_count_;
   std::vector<Node*> successors_;
@@ -144,7 +203,6 @@ public:
 
 private:
   std::string name_;
-  mutable std::mutex mutex_;
   int id_;
 };
 // ----------------------------------------------------------------------------
