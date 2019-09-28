@@ -117,7 +117,7 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
       while (1) {
         node->Run();
         PushSuccessors(node);
-        // 在wait里卡住了，join不了，需要唤醒来判断是否done.
+        // TODO: 在wait里卡住了，join不了，需要唤醒来判断是否done.
         //if (done_) {
         //  break;
         //}
@@ -132,15 +132,15 @@ void Executor::PushSuccessors(Node* node) {
   for (int i = 0; i < num_successors; ++i) {
     Node *successor = node->successor(i);
 
-    for (int j = 0; j < successor->num_dependents(); ++j) {
-      // TODO: 多输入的情况，brach.
-      if (successor->dependents(j)->outs_full_.size() <= 0) {
-        break;
-      }
-    }
+    //for (int j = 0; j < successor->num_dependents(); ++j) {
+    //  // TODO: 多输入的情况，brach.
+    //  if (successor->dependents(j)->outs_full_.size() <= 0) {
+    //    break;
+    //  }
+    //}
 
     successor->cond_.notify_one();
-    // 删除后，其他线程无法马上唤醒？
+    // Note: 删除后，其他线程无法马上唤醒？
     // 因为BorrowOut等地方也用了std::unique_lock<std::mutex> locker(mutex_)，跟wait里调动该锁有冲突
     //std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
   }
@@ -204,7 +204,7 @@ std::future<void> Executor::Run() {
   return future;
 }
 
-// TODO: 2. 多输入的节点有输出方案，但没有写对应输入的方式。
+// TODO: 前置节点的输出增加时，后续节点borrow需要锁定？
 
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_

@@ -156,22 +156,23 @@ void Add() {
   hcs::Node *B = graph.emplace(WorkB)->name("B");
   hcs::Node *C = graph.emplace(WorkC)->name("C");
   hcs::Node *D = graph.emplace(WorkD)->name("D");
-  hcs::Node *OUT = graph.emplace(WorkE1)->name("E");
+  hcs::Node *OUT = graph.emplace(WorkE)->name("E");
 
-  ////      | -- C |
-  //// A -- B       -- E
-  ////      | -- D |
-  //A->precede(B);
-  //B->precede(C);
-  //B->precede(D);
-  //C->precede(E);
-  //D->precede(E);
-
-  // A -- B -- C -- D  -- E
+  //      | -- C |
+  // A -- B       -- E
+  //      | -- D |
   A->precede(B);
   B->precede(C);
-  C->precede(D);
+  B->precede(D);
+  C->precede(OUT);
   D->precede(OUT);
+
+  //// A -- B -- C -- D  -- E
+  //A->precede(B);
+  //B->precede(C);
+  //C->precede(D);
+  //D->precede(OUT);
+
   int buffer_size = 100;
   graph.Initialize(buffer_size);
 
@@ -216,7 +217,7 @@ void Add() {
     int count = 0;
     while (count < buffer_size) {
       hcs::Blob out("out");
-      bool flag = OUT->PopOutput(&out);
+      bool flag = OUT->PopOutput(&out, 0);
       if (flag == true) {
         count++;
         float *data = (float *)out.data_;
