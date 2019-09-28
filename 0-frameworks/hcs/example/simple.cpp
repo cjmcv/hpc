@@ -180,16 +180,16 @@ void Add() {
   executor.name_ = "AAA";
   executor.Bind(&graph);
 
-  //hcs::Profiler profiler(&executor, &graph);
-  //profiler.Start(0, 200);
-  //
-  //{
-  //  hcs::Blob out("out");
-  //  input.object_id_ = -1;
-  //  A->PushOutput(&input);
-  //  executor.Run().wait();
-  //  OUT->PopOutput(&out);
-  //}
+  hcs::Profiler profiler(&executor, &graph);
+  profiler.Start(0, 200);
+  
+  {
+    hcs::Blob out("out");
+    input.object_id_ = -1;
+    A->PushOutput(&input);
+    executor.Run().wait();
+    OUT->PopOutput(&out, 0);
+  }
 
   hcs::CpuTimer timer;
   float push_time = 0.0;
@@ -230,6 +230,7 @@ void Add() {
       else {
         std::cout << count << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        executor.NotifyAll();
       }
     }
     timer.Stop();

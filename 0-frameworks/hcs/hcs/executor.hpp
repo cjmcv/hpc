@@ -67,17 +67,23 @@ public:
     }
     // shut down the scheduler
     done_ = true;
+
+    // Nodtify and join
+    printf("notify and join.\n");
+    for (auto &node : graph_->nodes()) {
+      node->cond_.notify_all();
+    }
     for (auto& t : threads_) {
       t.join();
     }
   }
 
-  // runs the taskflow once
-  // return a std::future to access the execution status.
+  void Bind(Graph *g);  
+  // TODO: Match wait with all task.
   std::future<void> Run();
-  void Bind(Graph *g);
+  void NotifyAll();
 
-private:  
+private:
   PerThread& per_thread() const {
     thread_local PerThread pt;
     return pt;
@@ -85,7 +91,10 @@ private:
 
   void Spawn(std::vector<std::unique_ptr<Node>> &nodes);
 
-  void PushSuccessors(Node *node);
+  bool WaitBorrowOut(Node *node, std::vector<Blob *> &inputs);
+
+  void NotifySuccessors(Node *node);
+
   void Stop(int id);
 
 private:
@@ -111,45 +120,87 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
     if (node->num_dependents() == 0) {
       continue;
     }
+    if (node->work_ == nullptr) {
+      printf("Error: No work can be invoked in %s.\n", name_.c_str());
+    }
 
     threads_.emplace_back([this, i, node]() -> void {
 
-      while (1) {
-        node->Run();
-        PushSuccessors(node);
-        // TODO: 在wait里卡住了，join不了，需要唤醒来判断是否done.
-        //if (done_) {
-        //  break;
-        //}
+      while (!done_) {
+        // Wait and borrow intputs from depends.
+        std::vector<Blob *> inputs;
+        bool is_pass = WaitBorrowOut(node, inputs);
+        if (!is_pass) { break; }
+
+        node->Run(inputs);
+
+        // Recycle inputs.
+        for (int i = 0; i < node->dependents_.size(); i++) {
+          node->RecycleDependsOut(i, inputs[i]);
+        }
+        
+        NotifySuccessors(node);
       }
     });
   }
 }
 
-void Executor::PushSuccessors(Node* node) {
+bool Executor::WaitBorrowOut(Node *node, std::vector<Blob *> &inputs) {
+
+  std::unique_lock<std::mutex> locker(node->mutex_);
+  inputs.clear();
+
+  for (int i = 0; i < node->dependents_.size(); i++) {
+    // If the output from the dependent node cannot be extracted, wait.
+    Blob *in = node->BorrowDependsOut(i);
+    while (in == nullptr) {
+      printf("Info: %s-waiting (%d).\n", node->name().c_str(), i);
+      node->cond_.wait(locker);
+
+      if (done_) return false;
+      in = node->BorrowDependsOut(i);
+    }
+    inputs.push_back(in);
+  }
+
+  return true;
+}
+
+void Executor::NotifySuccessors(Node* node) {
 
   const auto num_successors = node->num_successors();
+ 
+  mutex_.lock();
   for (int i = 0; i < num_successors; ++i) {
+    // Check that all dependent nodes have cached output data.
     Node *successor = node->successor(i);
+    bool is_ready = true;
+    for (int j = 0; j < successor->num_dependents(); ++j) {
+      if (successor->GetDependsOutSize(j) <= 0) {
+        is_ready = false;
+        break;
+      }
+    }
 
-    //for (int j = 0; j < successor->num_dependents(); ++j) {
-    //  // TODO: 多输入的情况，brach.
-    //  if (successor->dependents(j)->outs_full_.size() <= 0) {
-    //    break;
-    //  }
-    //}
-
-    successor->cond_.notify_one();
-    // Note: 删除后，其他线程无法马上唤醒？
-    // 因为BorrowOut等地方也用了std::unique_lock<std::mutex> locker(mutex_)，跟wait里调动该锁有冲突
-    //std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
+    // If the dependents are ready, wake up it.
+    // Note: mutex_ in node is a member variable of node. 
+    // So std::unique_lock<std::mutex> locker(mutex_) should only be use for 
+    // std::condition_variable to prevent multiple locks from being invoked 
+    // at the same time and causing unawakes
+    printf("Notify %s.", successor->name().c_str());
+    if (is_ready)
+      successor->cond_.notify_one();
   }
+  mutex_.unlock();
+
   int status_id = (node->atomic_run_count_.load() - 1) % status_list_.size(); 
   Status *status = status_list_[status_id];
+  printf("Check %d.", status_id);
   // A node without any successor should check the termination of this run.
   if (num_successors == 0) {
     if (--(status->num_incomplete_out_nodes) == 0) {
       // It means that all of the output nodes have been completed.
+      printf("Stop %d.", status_id);
       Stop(status_id);   // Finishing this Run.
     }
   }
@@ -204,7 +255,11 @@ std::future<void> Executor::Run() {
   return future;
 }
 
-// TODO: 前置节点的输出增加时，后续节点borrow需要锁定？
+void Executor::NotifyAll() {
+  for (auto &node : graph_->nodes()) {
+    node->cond_.notify_all();
+  }
+}
 
 }  // end of namespace hcs
 #endif // HCS_EXECUTOR_H_

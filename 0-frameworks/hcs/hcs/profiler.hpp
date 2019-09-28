@@ -17,7 +17,12 @@ private:
   void ViewNode() {
     for (int i = 0; i < graph_->nodes().size(); i++) {
       Node *n = &(*(graph_->nodes()[i]));
-      printf("(%s: %d, %d)", n->name().c_str(), n->outs_full_.size(), n->atomic_run_count_.load());
+      printf("(%s: ", n->name().c_str());
+      printf(" %d ", n->outs_full_[0].size());
+      for (int si = 1; si < n->num_successors(); si++) {
+        printf(" %d ", n->outs_full_[si].size());
+      }
+      printf(", %d)", n->atomic_run_count_.load());
     }
     printf("\n");
   }

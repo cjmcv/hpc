@@ -45,21 +45,25 @@ public:
 
   void Init(int buffer_queue_size);
   void Clean();
-  void Run();
+  void Run(std::vector<Blob *> &inputs);
 
-  Blob *BorrowOut(int branch_id);
-  bool RecycleOut(Blob *out);
+  int GetDependsOutSize(int depend_id);
+
+  Blob *BorrowDependsOut(int depend_id);
+  bool RecycleDependsOut(int depend_id, Blob *out);
 
   bool PushOutput(Blob *out);
   bool PopOutput(Blob *out, int branch_id);
 
 public:
   std::condition_variable cond_;
+  mutable std::mutex mutex_;
 
   Work work_;
   std::atomic<int> atomic_run_count_;
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
+  std::vector<int> depends_branch_id_;
 
   std::vector<Blob *> outs_;
   BlockingQueue<Blob *> outs_free_;
@@ -67,10 +71,10 @@ public:
 
 private:
   std::string name_;  
-  mutable std::mutex mutex_;
 };
 
 void Node::Init(int buffer_queue_size) {
+  // Initialize the buffer blobs.
   for (int i = 0; i < buffer_queue_size; i++) {
     std::string blob_name = name_ + "-" + std::to_string(i);
     Blob *p = new Blob(blob_name);
@@ -81,11 +85,38 @@ void Node::Init(int buffer_queue_size) {
     }
   }
 
+  // Multiple copies for multiple successors.
   int len = 1;
   if (successors_.size() >= 2) {
     len = successors_.size();
   }
   outs_full_ = new BlockingQueue<Blob *>[len];
+  if (outs_full_ == nullptr) {
+    printf("Error: Failed to new for outs_full_.\n");
+  }
+
+  // Set the branch id for the case of multiple inputs.
+  //   When the dependent node has multiple outputs, multiple copies of the 
+  // output will be saved in outs_full_, and bound to the successors by index.
+  // So we need to find the index and fetch the output in the corresponding branch.
+  depends_branch_id_.resize(dependents_.size());
+  for (int i = 0; i < depends_branch_id_.size(); i++) {
+    depends_branch_id_[i] = -1;
+  }
+  for (int i = 0; i < dependents_.size(); i++) {
+    for (int si = 0; si < dependents_[i]->num_successors(); si++) {
+      if (dependents_[i]->successors_[si] == this) {
+        depends_branch_id_[i] = si;
+        break;
+      }
+    }
+  }
+  // Check.
+  for (int i = 0; i < depends_branch_id_.size(); i++) {
+    if (depends_branch_id_[i] == -1) {
+      printf("Error: Failed to initialize depends_branch_id_.\n");
+    }
+  }
 }
 
 void Node::Clean() {
@@ -102,84 +133,49 @@ void Node::Clean() {
   }
 }
 
-void Node::Run() {
-  std::unique_lock<std::mutex> locker(mutex_);
+void Node::Run(std::vector<Blob *> &inputs) {
 
+  // Prepare output.
   Blob *p = nullptr;
-  if (work_ != nullptr) {
+  if (false == outs_free_.try_pop(&p)) {
+    printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
+  }
 
-    // Fetch input.
-    std::vector<Blob *> inputs;
-    for (int i = 0; i < dependents_.size(); i++) {
-      // Check the case of multiple inputs.
-      //   When the dependent node has multiple outputs, multiple copies of the 
-      // output will be saved in outs_full_, and bound to the successors by index.
-      // So we need to find the index and fetch the output in the corresponding branch.
-      int branch_id = -1;
-      for (int si = 0; si < dependents_[i]->num_successors(); si++) {
-        if (dependents_[i]->successors_[si] == this) {
-          branch_id = si;
-          break;
-        }
-      }
-      if (branch_id == -1) {
-        printf("Error: Can not match branch id.\n");
-      }
+  // Run.
+  work_(inputs, p);
+  atomic_run_count_++;
 
-      // If the output from the dependent node cannot be extracted, wait.
-      Blob *in = dependents_[i]->BorrowOut(branch_id);
-      while (in == nullptr) {
-        cond_.wait(locker);
-
-        in = dependents_[i]->BorrowOut(branch_id);
-        printf("Info: %s-waiting.\n", name_.c_str());
-      }
-      inputs.push_back(in);
-    }
-    // Prepare output.
-    if (false == outs_free_.try_pop(&p)) {
+  // Push output.
+  outs_full_[0].push(p);
+  Blob *p2;
+  for (int i = 1; i < successors_.size(); i++) {
+    if (false == outs_free_.try_pop(&p2)) {
       printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
     }
-
-    // Run.
-    work_(inputs, p);
-    atomic_run_count_++;
-
-    // Push to output.
-    outs_full_[0].push(p);
-    Blob *p2;
-    for (int i = 1; i < successors_.size(); i++) {
-      if (false == outs_free_.try_pop(&p2)) {
-        printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
-      }
-      p->CloneTo(p2);
-      outs_full_[i].push(p2);
-    }
-
-    // Recycle.
-    for (int i = 0; i < dependents_.size(); i++) {
-      dependents_[i]->RecycleOut(inputs[i]);
-    }
-  }
-  else {
-    printf("Error: No work can be invoked in %s.\n", name_.c_str());
+    p->CloneTo(p2);
+    outs_full_[i].push(p2);
   }
 }
 
-Blob* Node::BorrowOut(int branch_id) {
-  if (branch_id > successors_.size()) {
-    printf("Error: BorrowOut %s -> branch_id > outs_full_.size()", name_.c_str());
-  }
+int Node::GetDependsOutSize(int id) {
+  return dependents_[id]->outs_full_[depends_branch_id_[id]].size();
+}
+
+Blob* Node::BorrowDependsOut(int id) {
+  // node->dependents(i)->outs_full_[node->depends_branch_id_[i]].size()
+  // node->dependents_[i]->BorrowOut(node->depends_branch_id_[i]);
+  Node *depends = dependents_[id];
   Blob *out = nullptr;
-  if (false == outs_full_[branch_id].try_pop(&out)) {
+  if (false == depends->outs_full_[depends_branch_id_[id]].try_pop(&out)) {
     printf("<%d-%s>BorrowOut outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
     return nullptr;
   }
   return out;
 }
 
-bool Node::RecycleOut(Blob *out) {
-  outs_free_.push(out);
+bool Node::RecycleDependsOut(int id, Blob *out) {
+  //node->dependents_[i]->RecycleOut(inputs[i]);
+  dependents_[id]->outs_free_.push(out);
   return true;
 }
 
@@ -195,7 +191,7 @@ bool Node::PushOutput(Blob *out) {
   }
   return true;
 }
-
+// TODO: update.
 bool Node::PopOutput(Blob *out, int branch_id) {
   if (branch_id > successors_.size()) {
     printf("Error: PopOutput %s -> branch_id > outs_full_.size()", name_.c_str());
