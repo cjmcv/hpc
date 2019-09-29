@@ -28,7 +28,6 @@ class Executor {
   };
   struct Status { 
     int num_incomplete_out_nodes;
-    int num_nodes;
     Promise *p = nullptr;
 
     ~Status() {
@@ -39,7 +38,6 @@ class Executor {
     }
     void CopyTo(Status *s) {
       s->num_incomplete_out_nodes = this->num_incomplete_out_nodes;
-      s->num_nodes = this->num_nodes;  
       if (s->p == nullptr)
         s->p = new Promise;
     }
@@ -50,29 +48,22 @@ public:
 
   // constructs the executor with N worker threads
   explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
-    base_status_{ nullptr }, 
     graph_{ nullptr },
     run_count_{ 0 } {}
 
   ~Executor() {
-    if (base_status_ != nullptr) {
-      delete base_status_;
-      base_status_ = nullptr;
-    }
+    // Clear.
     if (status_list_.size() > 0) {
       for (int i = 0; i < status_list_.size(); i++) {
         delete status_list_[i];
       }
       status_list_.clear();
     }
+
     // shut down the scheduler
     done_ = true;
-
     // Nodtify and join
-    printf("notify and join.\n");
-    for (auto &node : graph_->nodes()) {
-      node->cond_.notify_all();
-    }
+    NotifyAll();
     for (auto& t : threads_) {
       t.join();
     }
@@ -99,7 +90,6 @@ private:
 
 private:
   Graph *graph_;
-  Status *base_status_;
   std::vector<Status*> status_list_;
   int run_count_;
 
@@ -120,8 +110,8 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
     if (node->num_dependents() == 0) {
       continue;
     }
-    if (node->work_ == nullptr) {
-      printf("Error: No work can be invoked in %s.\n", name_.c_str());
+    if (node->has_task()) {
+      printf("Error: No task can be invoked in %s.\n", name_.c_str());
     }
 
     threads_.emplace_back([this, i, node]() -> void {
@@ -135,7 +125,7 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
         node->Run(inputs);
 
         // Recycle inputs.
-        for (int i = 0; i < node->dependents_.size(); i++) {
+        for (int i = 0; i < node->num_dependents(); i++) {
           node->RecycleDependsOut(i, inputs[i]);
         }
         
@@ -150,9 +140,11 @@ bool Executor::WaitBorrowOut(Node *node, std::vector<Blob *> &inputs) {
   std::unique_lock<std::mutex> locker(node->mutex_);
   inputs.clear();
 
-  for (int i = 0; i < node->dependents_.size(); i++) {
+  for (int i = 0; i < node->num_dependents(); i++) {
     // If the output from the dependent node cannot be extracted, wait.
+    mutex_.lock();
     Blob *in = node->BorrowDependsOut(i);
+    mutex_.unlock();
     while (in == nullptr) {
       printf("Info: %s-waiting (%d).\n", node->name().c_str(), i);
       node->cond_.wait(locker);
@@ -187,13 +179,13 @@ void Executor::NotifySuccessors(Node* node) {
     // So std::unique_lock<std::mutex> locker(mutex_) should only be use for 
     // std::condition_variable to prevent multiple locks from being invoked 
     // at the same time and causing unawakes
-    printf("Notify %s.", successor->name().c_str());
+    //printf("Notify %s.", successor->name().c_str());
     if (is_ready)
       successor->cond_.notify_one();
   }
   mutex_.unlock();
 
-  int status_id = (node->atomic_run_count_.load() - 1) % status_list_.size(); 
+  int status_id = (node->run_count() - 1) % status_list_.size(); 
   Status *status = status_list_[status_id];
   printf("Check %d.", status_id);
   // A node without any successor should check the termination of this run.
@@ -209,29 +201,23 @@ void Executor::NotifySuccessors(Node* node) {
 void Executor::Stop(int id) {
   auto p{ std::move(status_list_[id]->p->promise) };
 
+  // Delete Promise.
   delete status_list_[id]->p;
-  status_list_[id]->p = nullptr;
-
   // Recover.
-  base_status_->CopyTo(status_list_[id]);
+  status_list_[id]->p = new Promise;
+  status_list_[id]->num_incomplete_out_nodes = graph_->GetOutputNodes().size();
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
 }
 
 void Executor::Bind(Graph *g) {
-  if (base_status_ != nullptr) {
-    delete base_status_;
-    base_status_ = nullptr;
-  }
-
-  base_status_ = new Status;
-  base_status_->num_incomplete_out_nodes = g->GetOutputNodes().size();
-  base_status_->num_nodes = g->nodes().size();
 
   for (int i = 0; i < g->buffer_queue_size(); i++) {
     Status *stat = new Status;
-    base_status_->CopyTo(stat);
+    stat->p = new Promise;
+    stat->num_incomplete_out_nodes = g->GetOutputNodes().size();
+
     status_list_.push_back(stat);
   }
 

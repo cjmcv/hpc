@@ -25,8 +25,10 @@ public:
   }
   ~Blob() { Release(); }
 
-  const std::string &name() const { return name_; }
-  const std::string &node_name() const { return node_name_; }
+  inline void *data() { return data_; }
+  inline int num_element() const { return num_element_; }
+  inline const std::string &name() const { return name_; }
+  inline const std::string &node_name() const { return node_name_; }
   inline std::vector<int> &shape() { return shape_; };
   inline void set_node_name(std::string name) { node_name_ = name; }
 
@@ -38,16 +40,16 @@ public:
   bool SyncParams(int num, int channel, int height, int width, int mode, int type);
 
 public:
-  void *data_;
   int object_id_;
-  int num_element_;
 
-private:
+private: 
+  void *data_;
   bool is_created_;
 
   int mode_;
   int type_;
 
+  int num_element_;
   std::vector<int> shape_;
   std::string name_;
   std::string node_name_;
@@ -67,7 +69,7 @@ bool Blob::Create(int num, int channel, int height, int width, int mode, int typ
   mode_ = mode;
   type_ = type;
 
-  if (num_element_ <= 0) { return -1; }
+  if (num_element_ <= 0) { return false; }
 
   if (mode_ == ON_HOST) {
     TYPE_SWITCH(type_, T, data_ = new T[num_element_];);

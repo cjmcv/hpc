@@ -7,6 +7,8 @@
 #include "executor.hpp"
 #include "graph.hpp"
 
+// TODO: 添加调试打印控制，设置后所有信息都打印，否则所有信息都不打印。
+
 namespace hcs {
 
 class Profiler :public InternalThread {
@@ -18,11 +20,11 @@ private:
     for (int i = 0; i < graph_->nodes().size(); i++) {
       Node *n = &(*(graph_->nodes()[i]));
       printf("(%s: ", n->name().c_str());
-      printf(" %d ", n->outs_full_[0].size());
+      printf(" %d ", n->num_cached_output(0));
       for (int si = 1; si < n->num_successors(); si++) {
-        printf(" %d ", n->outs_full_[si].size());
+        printf(" %d ", n->num_cached_output(si));
       }
-      printf(", %d)", n->atomic_run_count_.load());
+      printf(", %d)", n->run_count());
     }
     printf("\n");
   }

@@ -20,11 +20,14 @@ class Node {
   using Work = std::function<void(std::vector<Blob *> inputs, Blob *output)>;
 
 public:
-  Node() : atomic_run_count_(0), outs_full_(nullptr), name_("noname") {}
-  Node(Work &&c) : work_(c), atomic_run_count_(0), outs_full_(nullptr), name_("noname") {}
+  Node() : run_count_(0), outs_full_(nullptr), name_("noname") {}
+  Node(Work &&c) : task_(c), run_count_(0), outs_full_(nullptr), name_("noname") {}
   ~Node() {}
 
   // Querys.
+  inline int has_task() const { return task_ != nullptr; }
+  inline int run_count() const { return run_count_.load(); }
+  inline int num_cached_output(int id) const { return outs_full_[id].size(); }
   inline size_t num_successors() const { return successors_.size(); }
   inline size_t num_dependents() const { return dependents_.size(); }
   inline Node *successor(int id) { return successors_[id]; }
@@ -37,40 +40,41 @@ public:
     successors_.push_back(&v);
     v.dependents_.push_back(this);
   }
-
   template <typename... Ns>
   inline void precede(Ns&&... node) {
     (precede(*(node)), ...);
+  }
+
+  inline int GetDependsOutSize(int depend_id) {
+    return dependents_[depend_id]->outs_full_[depends_branch_id_[depend_id]].size();
   }
 
   void Init(int buffer_queue_size);
   void Clean();
   void Run(std::vector<Blob *> &inputs);
 
-  int GetDependsOutSize(int depend_id);
-
   Blob *BorrowDependsOut(int depend_id);
   bool RecycleDependsOut(int depend_id, Blob *out);
 
   bool PushOutput(Blob *out);
-  bool PopOutput(Blob *out, int branch_id);
+  bool PopOutput(Blob *out);
 
 public:
   std::condition_variable cond_;
   mutable std::mutex mutex_;
 
-  Work work_;
-  std::atomic<int> atomic_run_count_;
+private:
+  Work task_;
+  std::string name_;   
+
   std::vector<Node*> successors_;
   std::vector<Node*> dependents_;
-  std::vector<int> depends_branch_id_;
-
+  std::vector<int> depends_branch_id_; 
+  
+  std::atomic<int> run_count_;
   std::vector<Blob *> outs_;
   BlockingQueue<Blob *> outs_free_;
   BlockingQueue<Blob *> *outs_full_;
-
-private:
-  std::string name_;  
 };
 
 void Node::Init(int buffer_queue_size) {
@@ -142,8 +146,8 @@ void Node::Run(std::vector<Blob *> &inputs) {
   }
 
   // Run.
-  work_(inputs, p);
-  atomic_run_count_++;
+  task_(inputs, p);
+  run_count_++;
 
   // Push output.
   outs_full_[0].push(p);
@@ -157,16 +161,14 @@ void Node::Run(std::vector<Blob *> &inputs) {
   }
 }
 
-int Node::GetDependsOutSize(int id) {
-  return dependents_[id]->outs_full_[depends_branch_id_[id]].size();
-}
-
 Blob* Node::BorrowDependsOut(int id) {
-  // node->dependents(i)->outs_full_[node->depends_branch_id_[i]].size()
-  // node->dependents_[i]->BorrowOut(node->depends_branch_id_[i]);
-  Node *depends = dependents_[id];
+
   Blob *out = nullptr;
-  if (false == depends->outs_full_[depends_branch_id_[id]].try_pop(&out)) {
+  if (false == dependents_[id]->outs_full_[depends_branch_id_[id]].try_pop(&out)) {
+    // TODO: 使用sleep来放大测试？
+    // 当线程来到这里时，后面将会进行wait，但是同时前置节点刚完成，则已经有数据了，过来notify该节点，
+    // 但实际上该节点只训练到这里，还没有开始wait，所以notify失效。
+    // 前置节点notify过了后，该节点才往下走去wait。这时的wait已经没有前置节点给该节点notify了，则导致有数据滞留。
     printf("<%d-%s>BorrowOut outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
     return nullptr;
   }
@@ -174,7 +176,6 @@ Blob* Node::BorrowDependsOut(int id) {
 }
 
 bool Node::RecycleDependsOut(int id, Blob *out) {
-  //node->dependents_[i]->RecycleOut(inputs[i]);
   dependents_[id]->outs_free_.push(out);
   return true;
 }
@@ -191,13 +192,14 @@ bool Node::PushOutput(Blob *out) {
   }
   return true;
 }
-// TODO: update.
-bool Node::PopOutput(Blob *out, int branch_id) {
-  if (branch_id > successors_.size()) {
-    printf("Error: PopOutput %s -> branch_id > outs_full_.size()", name_.c_str());
+
+bool Node::PopOutput(Blob *out) {
+  if (successors_.size() >= 1) {
+    printf("Error: You can only pop output from output nodes of the graph.\n");
+    return false;
   }
   Blob *inside_out;
-  if (false == outs_full_[branch_id].try_pop(&inside_out)) {
+  if (false == outs_full_[0].try_pop(&inside_out)) {
     printf("<%d-%s>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
     return false;
   }
