@@ -20,10 +20,11 @@ private:
     for (int i = 0; i < graph_->nodes().size(); i++) {
       Node *n = &(*(graph_->nodes()[i]));
       printf("(%s: ", n->name().c_str());
-      printf(" %d ", n->num_cached_output(0));
+      printf(" %d ", n->num_cached_buf(0));
       for (int si = 1; si < n->num_successors(); si++) {
-        printf(" %d ", n->num_cached_output(si));
+        printf(" %d ", n->num_cached_buf(si));
       }
+      printf("<%d>", n->num_empty_buf());
       printf(", %d)", n->run_count());
     }
     printf("\n");

@@ -49,9 +49,11 @@ public:
     for (int i = 0; i < nodes_.size(); i++) {
       Node *node = &(*nodes_[i]);
       if (node->num_successors() >= 2) {
-        buffer_queue_size *= node->num_successors();
+        node->Init(buffer_queue_size * node->num_successors());
       }
-      node->Init(buffer_queue_size);
+      else {
+        node->Init(buffer_queue_size);
+      }
     }
   }
 

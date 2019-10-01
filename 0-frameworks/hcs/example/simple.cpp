@@ -182,14 +182,13 @@ void Add() {
 
   hcs::Profiler profiler(&executor, &graph);
   profiler.Start(0, 200);
-  
-  {
-    hcs::Blob out("out");
-    input.object_id_ = -1;
-    A->PushOutput(&input);
-    executor.Run().wait();
-    OUT->PopOutput(&out);
-  }
+  //{
+  //  hcs::Blob out("out");
+  //  input.object_id_ = -1;
+  //  A->Enqueue(&input);
+  //  executor.Run().wait();
+  //  OUT->Dequeue(&out);
+  //}
 
   hcs::CpuTimer timer;
   float push_time = 0.0;
@@ -206,7 +205,7 @@ void Add() {
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     for (int i = 0; i < buffer_size; i++) {
       input.object_id_ = i;
-      A->PushOutput(&input);
+      A->Enqueue(&input);
     }
     executor.Run();
 
@@ -217,7 +216,7 @@ void Add() {
     int count = 0;
     while (count < buffer_size) {
       hcs::Blob out("out");
-      bool flag = OUT->PopOutput(&out);
+      bool flag = OUT->Dequeue(&out);
       if (flag == true) {
         count++;
         float *data = (float *)out.data();
@@ -238,6 +237,7 @@ void Add() {
     printf("time: %f, %f.\n", push_time, get_time);
   }
 
+  profiler.Stop();
   graph.Clean();
   input.Release();
 }

@@ -25,9 +25,10 @@ public:
   ~Node() {}
 
   // Querys.
-  inline int has_task() const { return task_ != nullptr; }
+  inline bool has_task() const { return task_ != nullptr; }
   inline int run_count() const { return run_count_.load(); }
-  inline int num_cached_output(int id) const { return outs_full_[id].size(); }
+  inline int num_cached_buf(int id) const { return outs_full_[id].size(); }
+  inline int num_empty_buf() const { return outs_free_.size(); }
   inline size_t num_successors() const { return successors_.size(); }
   inline size_t num_dependents() const { return dependents_.size(); }
   inline Node *successor(int id) { return successors_[id]; }
@@ -45,23 +46,30 @@ public:
     (precede(*(node)), ...);
   }
 
-  inline int GetDependsOutSize(int depend_id) {
-    return dependents_[depend_id]->outs_full_[depends_branch_id_[depend_id]].size();
+  inline bool IsDependsOutEmpty(int depend_id) {
+    return dependents_[depend_id]->outs_full_[depends_branch_id_[depend_id]].empty();
   }
 
   void Init(int buffer_queue_size);
   void Clean();
-  void Run(std::vector<Blob *> &inputs);
+  void Run(std::vector<Blob *> &inputs, Blob *output);
 
-  Blob *BorrowDependsOut(int depend_id);
-  bool RecycleDependsOut(int depend_id, Blob *out);
 
-  bool PushOutput(Blob *out);
-  bool PopOutput(Blob *out);
+  bool BorrowInputs(std::vector<Blob *> &inputs); 
+  bool RecycleInputs(std::vector<Blob *> &inputs);
+
+  bool PrepareOutput(Blob **output);
+  bool PushOutput(Blob *output);
+
+  bool Enqueue(Blob *input);
+  bool Dequeue(Blob *output);
 
 public:
   std::condition_variable cond_;
   mutable std::mutex mutex_;
+
+  BlockingQueue<Blob *> outs_free_;
+  BlockingQueue<Blob *> *outs_full_;
 
 private:
   Work task_;
@@ -73,8 +81,6 @@ private:
   
   std::atomic<int> run_count_;
   std::vector<Blob *> outs_;
-  BlockingQueue<Blob *> outs_free_;
-  BlockingQueue<Blob *> *outs_full_;
 };
 
 void Node::Init(int buffer_queue_size) {
@@ -137,74 +143,78 @@ void Node::Clean() {
   }
 }
 
-void Node::Run(std::vector<Blob *> &inputs) {
-
-  // Prepare output.
-  Blob *p = nullptr;
-  if (false == outs_free_.try_pop(&p)) {
-    printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
-  }
-
-  // Run.
-  task_(inputs, p);
+void Node::Run(std::vector<Blob *> &inputs, Blob *output) {
+  task_(inputs, output);
   run_count_++;
+}
 
-  // Push output.
-  outs_full_[0].push(p);
-  Blob *p2;
-  for (int i = 1; i < successors_.size(); i++) {
-    if (false == outs_free_.try_pop(&p2)) {
-      printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
+bool Node::BorrowInputs(std::vector<Blob *> &inputs) {
+  inputs.clear();
+  for (int i = 0; i < num_dependents(); i++) {
+    Blob *in = nullptr;
+    if (false == dependents_[i]->outs_full_[depends_branch_id_[i]].try_pop(&in)) {
+      printf("Error: <%d-%s>BorrowOut outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
+      return false;
     }
-    p->CloneTo(p2);
-    outs_full_[i].push(p2);
+    inputs.push_back(in);
   }
-}
-
-Blob* Node::BorrowDependsOut(int id) {
-
-  Blob *out = nullptr;
-  if (false == dependents_[id]->outs_full_[depends_branch_id_[id]].try_pop(&out)) {
-    // TODO: 使用sleep来放大测试？
-    // 当线程来到这里时，后面将会进行wait，但是同时前置节点刚完成，则已经有数据了，过来notify该节点，
-    // 但实际上该节点只训练到这里，还没有开始wait，所以notify失效。
-    // 前置节点notify过了后，该节点才往下走去wait。这时的wait已经没有前置节点给该节点notify了，则导致有数据滞留。
-    printf("<%d-%s>BorrowOut outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
-    return nullptr;
-  }
-  return out;
-}
-
-bool Node::RecycleDependsOut(int id, Blob *out) {
-  dependents_[id]->outs_free_.push(out);
   return true;
 }
 
-bool Node::PushOutput(Blob *out) {
+bool Node::RecycleInputs(std::vector<Blob *> &inputs) {
+  for (int i = 0; i < num_dependents(); i++) {
+    dependents_[i]->outs_free_.push(inputs[i]);
+  }
+  return true;
+}
+
+bool Node::PrepareOutput(Blob **output) {
+  if (false == outs_free_.try_pop(output)) {
+    printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool Node::PushOutput(Blob *output) {
+  outs_full_[0].push(output);
+  Blob *p2;
+  for (int i = 1; i < num_successors(); i++) {
+    if (false == outs_free_.try_pop(&p2)) {
+      printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
+      return false;
+    }
+    output->CloneTo(p2);
+    outs_full_[i].push(p2);
+  }
+  return true;
+}
+
+bool Node::Enqueue(Blob *input) {
   Blob *inside_out;
   for (int i = 0; i < successors_.size(); i++) {
     if (false == outs_free_.try_pop(&inside_out)) {
-      printf("<%d>PushOutput: failed..", std::this_thread::get_id());
+      printf("<%d>Enqueue: failed..", std::this_thread::get_id());
       return false;
     }
-    out->CloneTo(inside_out);
+    input->CloneTo(inside_out);
     outs_full_[i].push(inside_out);
   }
   return true;
 }
 
-bool Node::PopOutput(Blob *out) {
+bool Node::Dequeue(Blob *output) {
   if (successors_.size() >= 1) {
     printf("Error: You can only pop output from output nodes of the graph.\n");
     return false;
   }
   Blob *inside_out;
   if (false == outs_full_[0].try_pop(&inside_out)) {
-    printf("<%d-%s>PopOutput outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
+    printf("<%d-%s>Dequeue outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
     return false;
   }
 
-  inside_out->CloneTo(out);
+  inside_out->CloneTo(output);
   outs_free_.push(inside_out);
   return true;
 }

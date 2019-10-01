@@ -60,7 +60,7 @@ public:
       status_list_.clear();
     }
 
-    // shut down the scheduler
+    // Shut down the scheduler
     done_ = true;
     // Nodtify and join
     NotifyAll();
@@ -70,19 +70,15 @@ public:
   }
 
   void Bind(Graph *g);  
-  // TODO: Match wait with all task.
+  // TODO: Match wait() with all task.
   std::future<void> Run();
   void NotifyAll();
 
 private:
-  PerThread& per_thread() const {
-    thread_local PerThread pt;
-    return pt;
-  }
 
   void Spawn(std::vector<std::unique_ptr<Node>> &nodes);
 
-  bool WaitBorrowOut(Node *node, std::vector<Blob *> &inputs);
+  bool WaitCheckInputs(Node *node);
 
   void NotifySuccessors(Node *node);
 
@@ -104,57 +100,69 @@ private:
 
 void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
 
-  // Lock to synchronize all workers before creating _worker_maps
   for (unsigned i = 0; i < nodes.size(); ++i) {
     Node *node = &(*nodes[i]);
     if (node->num_dependents() == 0) {
       continue;
     }
-    if (node->has_task()) {
-      printf("Error: No task can be invoked in %s.\n", name_.c_str());
+    printf("Info: spawn %s.\n", node->name().c_str());
+    if (!(node->has_task())) {
+      printf("Error: No task can be invoked in %s.\n", node->name().c_str());
+      continue;
     }
 
     threads_.emplace_back([this, i, node]() -> void {
 
       while (!done_) {
-        // Wait and borrow intputs from depends.
-        std::vector<Blob *> inputs;
-        bool is_pass = WaitBorrowOut(node, inputs);
+        // Wait and check intputs from depends.
+        bool is_pass = WaitCheckInputs(node);
         if (!is_pass) { break; }
 
-        node->Run(inputs);
+        std::vector<Blob *> inputs;
+        Blob *output = nullptr;
 
-        // Recycle inputs.
-        for (int i = 0; i < node->num_dependents(); i++) {
-          node->RecycleDependsOut(i, inputs[i]);
+        { // Borrow input & Prepare output.
+          std::unique_lock<std::mutex> locker(mutex_);
+          node->BorrowInputs(inputs);
+          node->PrepareOutput(&output);
         }
-        
+
+        node->Run(inputs, output);
+
+        { // Recycle inputs & Push output.
+          std::unique_lock<std::mutex> locker(mutex_);
+          node->RecycleInputs(inputs);
+          node->PushOutput(output);
+        }
+
         NotifySuccessors(node);
       }
     });
   }
 }
 
-bool Executor::WaitBorrowOut(Node *node, std::vector<Blob *> &inputs) {
+bool Executor::WaitCheckInputs(Node *node) {
 
   std::unique_lock<std::mutex> locker(node->mutex_);
-  inputs.clear();
-
-  for (int i = 0; i < node->num_dependents(); i++) {
-    // If the output from the dependent node cannot be extracted, wait.
-    mutex_.lock();
-    Blob *in = node->BorrowDependsOut(i);
-    mutex_.unlock();
-    while (in == nullptr) {
-      printf("Info: %s-waiting (%d).\n", node->name().c_str(), i);
-      node->cond_.wait(locker);
-
-      if (done_) return false;
-      in = node->BorrowDependsOut(i);
+  bool is_ready = false;
+  while (!is_ready) {
+    is_ready = true;
+    for (int i = 0; i < node->num_dependents(); ++i) {
+      if (node->IsDependsOutEmpty(i)) {
+        is_ready = false;
+        break;
+      }
     }
-    inputs.push_back(in);
-  }
 
+    if (!is_ready) {
+      node->cond_.wait(locker);
+      if (done_) {
+        locker.unlock();
+        return false;
+      }
+      printf("Info: %s-waiting.\n", node->name().c_str());
+    }
+  }
   return true;
 }
 
@@ -162,28 +170,24 @@ void Executor::NotifySuccessors(Node* node) {
 
   const auto num_successors = node->num_successors();
  
-  mutex_.lock();
   for (int i = 0; i < num_successors; ++i) {
     // Check that all dependent nodes have cached output data.
     Node *successor = node->successor(i);
     bool is_ready = true;
     for (int j = 0; j < successor->num_dependents(); ++j) {
-      if (successor->GetDependsOutSize(j) <= 0) {
+      if (successor->IsDependsOutEmpty(j)) {
         is_ready = false;
         break;
       }
     }
-
     // If the dependents are ready, wake up it.
     // Note: mutex_ in node is a member variable of node. 
     // So std::unique_lock<std::mutex> locker(mutex_) should only be use for 
     // std::condition_variable to prevent multiple locks from being invoked 
-    // at the same time and causing unawakes
-    //printf("Notify %s.", successor->name().c_str());
+    // at the same time and causing unawakes.
     if (is_ready)
       successor->cond_.notify_one();
   }
-  mutex_.unlock();
 
   int status_id = (node->run_count() - 1) % status_list_.size(); 
   Status *status = status_list_[status_id];
