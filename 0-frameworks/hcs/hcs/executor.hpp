@@ -105,9 +105,9 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
     if (node->num_dependents() == 0) {
       continue;
     }
-    printf("Info: spawn %s.\n", node->name().c_str());
+    LOG(INFO) << "Spawn " << node->name().c_str();
     if (!(node->has_task())) {
-      printf("Error: No task can be invoked in %s.\n", node->name().c_str());
+      LOG(ERROR) << "No task can be invoked in " << node->name().c_str();
       continue;
     }
 
@@ -160,7 +160,7 @@ bool Executor::WaitCheckInputs(Node *node) {
         locker.unlock();
         return false;
       }
-      printf("Info: %s-waiting.\n", node->name().c_str());
+      LOG(INFO) << node->name().c_str() << "-waiting";
     }
   }
   return true;
@@ -191,12 +191,11 @@ void Executor::NotifySuccessors(Node* node) {
 
   int status_id = (node->run_count() - 1) % status_list_.size(); 
   Status *status = status_list_[status_id];
-  printf("Check %d.", status_id);
   // A node without any successor should check the termination of this run.
   if (num_successors == 0) {
     if (--(status->num_incomplete_out_nodes) == 0) {
       // It means that all of the output nodes have been completed.
-      printf("Stop %d.", status_id);
+      LOG(INFO) << "Stop " << status_id;
       Stop(status_id);   // Finishing this Run.
     }
   }

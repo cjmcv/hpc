@@ -102,7 +102,7 @@ void Node::Init(int buffer_queue_size) {
   }
   outs_full_ = new BlockingQueue<Blob *>[len];
   if (outs_full_ == nullptr) {
-    printf("Error: Failed to new for outs_full_.\n");
+    LOG(ERROR) << "Node::Init -> Failed to new for outs_full_";
   }
 
   // Set the branch id for the case of multiple inputs.
@@ -124,7 +124,7 @@ void Node::Init(int buffer_queue_size) {
   // Check.
   for (int i = 0; i < depends_branch_id_.size(); i++) {
     if (depends_branch_id_[i] == -1) {
-      printf("Error: Failed to initialize depends_branch_id_.\n");
+      LOG(ERROR) << "Node::Init -> Failed to initialize depends_branch_id_";
     }
   }
 }
@@ -153,7 +153,8 @@ bool Node::BorrowInputs(std::vector<Blob *> &inputs) {
   for (int i = 0; i < num_dependents(); i++) {
     Blob *in = nullptr;
     if (false == dependents_[i]->outs_full_[depends_branch_id_[i]].try_pop(&in)) {
-      printf("Error: <%d-%s>BorrowOut outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
+      LOG(ERROR) << "Node::BorrowInputs -> <" << std::this_thread::get_id() 
+        << "-" << name_.c_str() << ">BorrowOut outs_full_: No element can be pop.";
       return false;
     }
     inputs.push_back(in);
@@ -170,7 +171,7 @@ bool Node::RecycleInputs(std::vector<Blob *> &inputs) {
 
 bool Node::PrepareOutput(Blob **output) {
   if (false == outs_free_.try_pop(output)) {
-    printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
+    LOG(ERROR) << "Node::PrepareOutput -> Failed to outs_free_.try_pop in blob-" << name_.c_str();
     return false;
   }
   return true;
@@ -181,7 +182,7 @@ bool Node::PushOutput(Blob *output) {
   Blob *p2;
   for (int i = 1; i < num_successors(); i++) {
     if (false == outs_free_.try_pop(&p2)) {
-      printf("Error: %s-Failed to outs_free_.try_pop.\n", name_.c_str());
+      LOG(ERROR) << "Node::PushOutput -> Failed to outs_free_.try_pop in blob-" << name_.c_str();
       return false;
     }
     output->CloneTo(p2);
@@ -194,7 +195,7 @@ bool Node::Enqueue(Blob *input) {
   Blob *inside_out;
   for (int i = 0; i < successors_.size(); i++) {
     if (false == outs_free_.try_pop(&inside_out)) {
-      printf("<%d>Enqueue: failed..", std::this_thread::get_id());
+      LOG(ERROR) << "Node::Enqueue -> Failed in thread-" << std::this_thread::get_id();
       return false;
     }
     input->CloneTo(inside_out);
@@ -205,12 +206,12 @@ bool Node::Enqueue(Blob *input) {
 
 bool Node::Dequeue(Blob *output) {
   if (successors_.size() >= 1) {
-    printf("Error: You can only pop output from output nodes of the graph.\n");
+    LOG(ERROR) << "Node::Dequeue -> You can only pop output from output nodes of the graph";
     return false;
   }
   Blob *inside_out;
   if (false == outs_full_[0].try_pop(&inside_out)) {
-    printf("<%d-%s>Dequeue outs_full_: No element can be pop.", std::this_thread::get_id(), name_.c_str());
+    LOG(WARNING) << "Node::Dequeue -> No element can be pop in blob-" << name_.c_str();
     return false;
   }
 

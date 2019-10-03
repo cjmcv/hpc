@@ -6,6 +6,7 @@
 #define HCS_UTIL_H_
 
 #include <iostream>
+#include "logging.hpp"
 #include "../common.hpp"
 
 namespace hcs {
@@ -43,7 +44,7 @@ namespace hcs {
     }                                               \
     break;                                          \
   default:                                          \
-    printf("Unknown type enum %d", type);           \
+    LOG(ERROR) << "Unknown type enum " << type;     \
   }
 
 // Get type flag from type.

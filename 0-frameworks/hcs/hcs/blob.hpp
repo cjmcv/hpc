@@ -99,7 +99,7 @@ void Blob::Release() {
 
 bool Blob::CopyTo(Blob *to) {
   if (mode_ != to->mode_) {
-    printf("Error in CopyTo-> !mode_ != to->mode_.\n");
+    LOG(ERROR) << "CopyTo -> !mode_ != to->mode_.";
     return false;
   }
 
@@ -139,7 +139,7 @@ bool Blob::SyncParams(int num, int channel, int height, int width, int mode, int
 
 bool Blob::CloneTo(Blob *to) {
   if (!is_created_) {
-    printf("Error -> !is_created_.\n");
+    LOG(ERROR) << "CloneTo -> !is_created_.";
     return false;
   }
   
