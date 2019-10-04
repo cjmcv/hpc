@@ -36,11 +36,6 @@ class Executor {
         p = nullptr;
       }
     }
-    void CopyTo(Status *s) {
-      s->num_incomplete_out_nodes = this->num_incomplete_out_nodes;
-      if (s->p == nullptr)
-        s->p = new Promise;
-    }
   };
 
 public:

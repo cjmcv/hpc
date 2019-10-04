@@ -4,8 +4,9 @@
 #include <thread>
 
 #include "hcs/executor.hpp"
-#include "hcs/profiler.hpp"
 #include "hcs/blob.hpp"
+#include "hcs/profiler.hpp"
+
 #include "hcs/util/timer.hpp"
 
 template <typename... Args>
@@ -181,7 +182,9 @@ void Add() {
   executor.Bind(&graph);
 
   hcs::Profiler profiler(&executor, &graph);
-  profiler.Start(0, 200);
+  profiler.Config(1, 200);
+  profiler.Start();
+
   //{
   //  hcs::Blob out("out");
   //  input.object_id_ = -1;

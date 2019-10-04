@@ -17,10 +17,8 @@ public:
 
   // To chech wether the internal thread has been started. 
   inline bool is_started() const { return thread_ && thread_->joinable(); }
-  inline int function_id() const { return function_id_; }
-  inline int ms() const { return ms_; }
 
-  bool Start(int func_id, int ms);
+  bool Start();
   void Stop();
 
 protected:
@@ -32,8 +30,6 @@ protected:
 private:
   bool interrupt_flag_;
   std::shared_ptr<std::thread> thread_;
-  int function_id_;
-  int ms_;
 };
 
 bool InternalThread::IsMustStop() {
@@ -44,9 +40,7 @@ bool InternalThread::IsMustStop() {
   return false;
 }
 
-bool InternalThread::Start(int func_id, int ms) {
-  function_id_ = func_id;
-  ms_ = ms;
+bool InternalThread::Start() {
   if (is_started()) {
     printf("Threads should persist and not be restarted.");
     return false;
