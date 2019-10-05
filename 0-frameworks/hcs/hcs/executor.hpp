@@ -23,10 +23,12 @@ class Executor {
     int worker_id = -1;
   };
 
+  // A Run() corresponds to a Promise.
   struct Promise {
     std::promise<void> promise;
   };
-  struct Status { 
+  struct Status {
+    // The output node that this Run should invoke.
     int num_incomplete_out_nodes;
     Promise *p = nullptr;
 
@@ -44,7 +46,8 @@ public:
   // constructs the executor with N worker threads
   explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
     graph_{ nullptr },
-    run_count_{ 0 } {}
+    run_count_{ 0 },
+    finish_count_{ 0 } {}
 
   ~Executor() {
     // Clear.
@@ -65,7 +68,6 @@ public:
   }
 
   void Bind(Graph *g);  
-  // TODO: Match wait() with all task.
   std::future<void> Run();
   void NotifyAll();
 
@@ -82,7 +84,8 @@ private:
 private:
   Graph *graph_;
   std::vector<Status*> status_list_;
-  int run_count_;
+  std::atomic<int> run_count_;
+  std::atomic<int> finish_count_;
 
   std::vector<std::thread> threads_;
 
@@ -184,7 +187,7 @@ void Executor::NotifySuccessors(Node* node) {
       successor->cond_.notify_one();
   }
 
-  int status_id = (node->run_count() - 1) % status_list_.size(); 
+  int status_id = finish_count_.load() % status_list_.size();
   Status *status = status_list_[status_id];
   // A node without any successor should check the termination of this run.
   if (num_successors == 0) {
@@ -197,13 +200,16 @@ void Executor::NotifySuccessors(Node* node) {
 }
 
 void Executor::Stop(int id) {
+  // Finsh one.
+  finish_count_++;
+
   auto p{ std::move(status_list_[id]->p->promise) };
 
   // Delete Promise.
   delete status_list_[id]->p;
   // Recover.
   status_list_[id]->p = new Promise;
-  status_list_[id]->num_incomplete_out_nodes = graph_->GetOutputNodes().size();
+  status_list_[id]->num_incomplete_out_nodes = 0;
 
   // We set the promise in the end to response the std::future in Run().
   p.set_value();
@@ -214,7 +220,7 @@ void Executor::Bind(Graph *g) {
   for (int i = 0; i < g->buffer_queue_size(); i++) {
     Status *stat = new Status;
     stat->p = new Promise;
-    stat->num_incomplete_out_nodes = g->GetOutputNodes().size();
+    stat->num_incomplete_out_nodes = 0;
 
     status_list_.push_back(stat);
   }
@@ -225,10 +231,29 @@ void Executor::Bind(Graph *g) {
 }
 
 std::future<void> Executor::Run() {
-  Status *stat = status_list_[run_count_ % status_list_.size()];
-  run_count_++;
-
   std::vector<Node*> input_nodes = graph_->GetInputNodes();
+  if (input_nodes.size() <= 0) {
+    LOG(ERROR) << "A graph needs at least one input node";
+  }
+  // Check the dimension of each input nodes.
+  if (input_nodes.size() > 1) {
+    for (int i = 1; i < input_nodes.size(); i++) {
+      if (input_nodes[i]->num_cached_buf(0)
+        != input_nodes[i - 1]->num_cached_buf(0)) {
+        LOG(ERROR) << "The number of input data of each input node should be the same";
+      }
+    }
+  }
+
+  Status *stat = status_list_[run_count_.load() % status_list_.size()];
+  run_count_++;
+  // TODO: Enable batch size.
+  // Set the number of output nodes of this Run.
+  stat->num_incomplete_out_nodes 
+    = input_nodes[0]->num_cached_buf(0)
+    * graph_->GetOutputNodes().size();
+
+  // Notify each input nodes.
   for (auto node : input_nodes) {
     for (size_t i = 0; i < node->num_successors(); ++i) {
       node->successor(i)->cond_.notify_one();

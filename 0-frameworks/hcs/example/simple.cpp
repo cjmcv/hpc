@@ -182,16 +182,23 @@ void Add() {
   executor.Bind(&graph);
 
   hcs::Profiler profiler(&executor, &graph);
-  profiler.Config(1, 200);
+  profiler.Config(0, 200);
   profiler.Start();
 
-  //{
-  //  hcs::Blob out("out");
-  //  input.object_id_ = -1;
-  //  A->Enqueue(&input);
-  //  executor.Run().wait();
-  //  OUT->Dequeue(&out);
-  //}
+  { // Test wait().
+    hcs::Blob out("out");
+    input.object_id_ = -1;
+    A->Enqueue(&input);
+    executor.Run().wait();
+    OUT->Dequeue(&out);
+
+    A->Enqueue(&input);
+    A->Enqueue(&input);
+    executor.Run().wait();
+    OUT->Dequeue(&out);
+    OUT->Dequeue(&out);
+    assert(OUT->num_cached_buf(0) == 0);
+  }
 
   hcs::CpuTimer timer;
   float push_time = 0.0;

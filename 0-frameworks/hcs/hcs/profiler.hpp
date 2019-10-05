@@ -39,12 +39,11 @@ private:
   void ViewStatus() {
     std::vector<Executor::Status*> list = exec_->status_list_;
     for (int i = 0; i < list.size(); i++) {
-      if (list[i] == nullptr) {
-        printf("%d> nullptr.\n", i);
+      if (list[i] == nullptr || list[i]->num_incomplete_out_nodes == 0) {
         continue;
       }
       else {
-        printf("%d> %d -> ", i, list[i]->num_incomplete_out_nodes);
+        printf("<%d, %d>", i, list[i]->num_incomplete_out_nodes);
       }
     }
     printf("\n");
