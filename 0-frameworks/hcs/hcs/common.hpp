@@ -15,6 +15,11 @@ enum TypeFlag {
   TYPES_NUM = 3  // Used to mark the total number of elements in TypeFlag.
 };
 
+enum ProfilerMode {
+  VIEW_NODE = 0x01,
+  VIEW_STATUS = 0x02
+};
+
 }  // namespace hcs.
 
 #endif // HCS_COMMON_H_

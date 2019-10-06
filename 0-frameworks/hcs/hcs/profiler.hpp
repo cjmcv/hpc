@@ -9,12 +9,12 @@
 
 namespace hcs {
 
-// TODO: 1. 使用 位与 选择功能;  2.时间测试，在内部调用，在demo中将不能使用timer。
+// TODO: 1. 时间测试，在内部调用，在demo中将不能使用timer。
 class Profiler :public InternalThread {
 public:
   Profiler(Executor *exec, Graph *graph) { exec_ = exec; graph_ = graph; }
-  void Config(int func_id, int ms) {
-    function_id_ = func_id;
+  void Config(int mode, int ms) {
+    mode_ = mode;
     interval_ms_ = ms;
 
     LogMessage::min_log_level_ = INFO;
@@ -33,31 +33,36 @@ private:
       stream << "<" << n->num_empty_buf() << ">";
       stream << ", " << n->run_count() << ")";
     }
-    LOG(INFO) << stream.str();
+    LOG(INFO) << "Profiler->ViewNode: " << stream.str();
   }
 
   void ViewStatus() {
+    bool flag = false;
+    std::ostringstream stream;
     std::vector<Executor::Status*> list = exec_->status_list_;
     for (int i = 0; i < list.size(); i++) {
       if (list[i] == nullptr || list[i]->num_incomplete_out_nodes == 0) {
         continue;
       }
       else {
-        printf("<%d, %d>", i, list[i]->num_incomplete_out_nodes);
+        flag = true;
+        stream << "<" << i << ", " << list[i]->num_incomplete_out_nodes << ">";
       }
     }
-    printf("\n");
+    if (flag)
+      LOG(INFO) << stream.str();
+    else
+      LOG(INFO) << "Profiler->ViewStatus: There's no active Status";
   }
 
   void Entry() {
     while (!IsMustStop()) {
-      switch (function_id_) {
-      case 0:
+      // Note: "==" has a higher priority than "&".
+      if ((mode_ & VIEW_NODE) == VIEW_NODE) {
         ViewNode();
-        break;
-      case 1:
+      }
+      if ((mode_ & VIEW_STATUS) == VIEW_STATUS) {
         ViewStatus();
-        break;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms_));
     }
@@ -67,7 +72,7 @@ private:
   Executor *exec_;
   Graph *graph_;
 
-  int function_id_;
+  int mode_;
   int interval_ms_;
 };
 

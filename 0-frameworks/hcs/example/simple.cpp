@@ -182,7 +182,7 @@ void Add() {
   executor.Bind(&graph);
 
   hcs::Profiler profiler(&executor, &graph);
-  profiler.Config(0, 200);
+  profiler.Config(hcs::VIEW_NODE, 200);// | hcs::VIEW_STATUS
   profiler.Start();
 
   { // Test wait().

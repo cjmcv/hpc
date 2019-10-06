@@ -235,7 +235,7 @@ std::future<void> Executor::Run() {
   if (input_nodes.size() <= 0) {
     LOG(ERROR) << "A graph needs at least one input node";
   }
-  // Check the dimension of each input nodes.
+  // Check the dimensions of each input node.
   if (input_nodes.size() > 1) {
     for (int i = 1; i < input_nodes.size(); i++) {
       if (input_nodes[i]->num_cached_buf(0)
@@ -248,7 +248,7 @@ std::future<void> Executor::Run() {
   Status *stat = status_list_[run_count_.load() % status_list_.size()];
   run_count_++;
   // TODO: Enable batch size.
-  // Set the number of output nodes of this Run.
+  // Set the number of output nodes for this Run.
   stat->num_incomplete_out_nodes 
     = input_nodes[0]->num_cached_buf(0)
     * graph_->GetOutputNodes().size();
