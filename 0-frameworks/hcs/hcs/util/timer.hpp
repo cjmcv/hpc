@@ -53,5 +53,33 @@ protected:
     return timer.MilliSeconds();      \
   }();
 
+// TODO: 1. 时间记录，标志位由profiler控制，if则执行，else为空。数据记录到自身的列表中，由profiler去获取
+//       2. 每个线程都会有一个Timer对象，即一个Timer对应一个node
+//       3. 兼容GPU核函数？
+class Timer {
+public:
+  Timer() {}
+
+  void Start() {
+    if (is_record_)
+      timer_.Start();
+  }
+  void Stop() {
+    if (is_record_) {
+      timer_.Stop();
+      float time = timer_.MilliSeconds();
+    }
+  }
+
+public:
+  static bool is_record_;
+
+private:
+  CpuTimer timer_;
+  float lists_;
+};
+
+bool Timer::is_record_ = false;
+
 } // hcs.
 #endif //HCS_TIMER_H_

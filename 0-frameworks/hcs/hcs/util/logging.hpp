@@ -20,13 +20,11 @@ class LogMessage : public std::basic_ostringstream<char> {
 public:
   LogMessage(const char* fname, int line, int severity)
     : fname_(fname), line_(line), severity_(severity) {}
-
   ~LogMessage() {
-    if (severity_ >= min_log_level_)
-      GenerateLogMessage();
+    if (severity_ >= min_log_level_) GenerateLogMessage();
   }
 
-protected:
+private:
   void GenerateLogMessage() {
     fprintf(stderr, "<%c>", "IWE"[severity_]);
     if (fname_) {
