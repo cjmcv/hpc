@@ -10,6 +10,7 @@
 #include <map>
 
 #include "graph.hpp"
+#include "util/timer.hpp"
 
 namespace hcs {
 
@@ -51,12 +52,14 @@ public:
 
   ~Executor() {
     // Clear.
-    if (status_list_.size() > 0) {
-      for (int i = 0; i < status_list_.size(); i++) {
-        delete status_list_[i];
-      }
-      status_list_.clear();
+    for (int i = 0; i < status_list_.size(); i++) {
+      delete status_list_[i];
     }
+    status_list_.clear();
+    for (int i = 0; i < timers_.size(); i++) {
+      delete timers_[i];
+    }
+    timers_.clear();
 
     // Shut down the scheduler
     done_ = true;
@@ -88,12 +91,11 @@ private:
   std::atomic<int> finish_count_;
 
   std::vector<std::thread> threads_;
-
-  std::atomic<size_t> num_actives_{ 0 };
-  std::atomic<size_t> num_thieves_{ 0 };
   std::atomic<bool> done_{ 0 };
 
   std::mutex mutex_;
+
+  std::vector<Timer *> timers_;
 };
 
 void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
@@ -111,6 +113,11 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
 
     threads_.emplace_back([this, i, node]() -> void {
 
+      Timer *timer = new Timer(i, node->name());
+      mutex_.lock();
+      timers_.push_back(timer);
+      mutex_.unlock();
+
       while (!done_) {
         // Wait and check intputs from depends.
         bool is_pass = WaitCheckInputs(node);
@@ -125,7 +132,9 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
           node->PrepareOutput(&output);
         }
 
-        node->Run(inputs, output);
+        TIMER_PROFILER((*timer), 
+          std::unique_lock<std::mutex> locker(mutex_), 
+          node->Run(inputs, output););
 
         { // Recycle inputs & Push output.
           std::unique_lock<std::mutex> locker(mutex_);

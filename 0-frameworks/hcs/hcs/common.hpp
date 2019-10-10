@@ -16,8 +16,11 @@ enum TypeFlag {
 };
 
 enum ProfilerMode {
-  VIEW_NODE = 0x01,
-  VIEW_STATUS = 0x02
+  LOCK_RUN_TO_SERIAL = 0x01,
+  VIEW_NODE = 0x02,
+  VIEW_STATUS = 0x04,
+  VIEW_TIMER = 0x08,
+
 };
 
 }  // namespace hcs.

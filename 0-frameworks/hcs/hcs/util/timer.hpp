@@ -53,33 +53,73 @@ protected:
     return timer.MilliSeconds();      \
   }();
 
-// TODO: 1. 时间记录，标志位由profiler控制，if则执行，else为空。数据记录到自身的列表中，由profiler去获取
-//       2. 每个线程都会有一个Timer对象，即一个Timer对应一个node
-//       3. 兼容GPU核函数？
+// TODO: 3. 兼容GPU核函数？
 class Timer {
 public:
-  Timer() {}
+  Timer(int node_idx, std::string name) :
+    node_idx_(node_idx), 
+    node_name_(name),
+    count_(0), ave_(0),
+    min_(FLT_MAX), max_(0) {}
 
-  void Start() {
+  inline std::string node_name() const { return node_name_; }
+  inline int node_idx() const { return node_idx_; }
+  inline float min() const { return min_; }
+  inline float max() const { return max_; }
+  inline float ave() const { return ave_; }
+  inline int count() const { return count_; }
+
+  inline void Start() {
     if (is_record_)
       timer_.Start();
   }
-  void Stop() {
+  inline void Stop() {
     if (is_record_) {
       timer_.Stop();
       float time = timer_.MilliSeconds();
+      if (time > max_) {
+        max_ = time;
+      }
+      else if (time < min_) {
+        min_ = time;
+      }
+      ave_ = (count_ / (count_ + 1.0)) * ave_ + time / (count_ + 1.0);
+      count_++;
     }
   }
 
 public:
   static bool is_record_;
+  static bool lock2serial_;
 
 private:
   CpuTimer timer_;
-  float lists_;
+  int node_idx_;
+  std::string node_name_;
+
+  float min_;
+  float max_;
+  float ave_;
+  int count_;
 };
 
 bool Timer::is_record_ = false;
+bool Timer::lock2serial_ = false;
+
+#define TIMER_PROFILER(timer, unique_lock, ...)    \
+  [&]() -> void {                     \
+    if (Timer::lock2serial_) {        \
+      unique_lock;                    \
+      timer.Start();                  \
+      {__VA_ARGS__}                   \
+      timer.Stop();                   \
+    }                                 \
+    else {                            \
+      timer.Start();                  \
+      {__VA_ARGS__}                   \
+      timer.Stop();                   \
+    }                                 \
+  }();
 
 } // hcs.
 #endif //HCS_TIMER_H_

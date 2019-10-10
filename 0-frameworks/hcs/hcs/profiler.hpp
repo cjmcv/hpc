@@ -19,6 +19,10 @@ public:
 
     LogMessage::min_log_level_ = INFO;
   }
+  ~Profiler() { 
+    LogMessage::min_log_level_ = WARNING; 
+    Timer::is_record_ = false;
+  }
 
 private:
   void ViewNode() {
@@ -55,14 +59,34 @@ private:
       LOG(INFO) << "Profiler->ViewStatus: There's no active Status";
   }
 
+  void ViewTimer() {
+    Timer::is_record_ = true;
+    std::ostringstream stream;
+    for (int i = 0; i < exec_->timers_.size(); i++) {
+      Timer *timer = exec_->timers_[i];
+      stream << "(" << timer->node_name().c_str() << ": ";
+      stream << "count-" << timer->count() << ", ";
+      stream << "min-" << timer->min() << ", ";
+      stream << "max-" << timer->max() << ", ";
+      stream << "ave-" << timer->ave() << "). ";
+    }
+    LOG(INFO) << "Profiler->ViewTimer: " << stream.str();
+  }
+
   void Entry() {
     while (!IsMustStop()) {
       // Note: "==" has a higher priority than "&".
+      if ((mode_ & LOCK_RUN_TO_SERIAL) == LOCK_RUN_TO_SERIAL) {
+        Timer::lock2serial_ = true; // TODO: 转移到其他地方，不放在timer
+      }
       if ((mode_ & VIEW_NODE) == VIEW_NODE) {
         ViewNode();
       }
       if ((mode_ & VIEW_STATUS) == VIEW_STATUS) {
         ViewStatus();
+      }
+      if ((mode_ & VIEW_TIMER) == VIEW_TIMER) {
+        ViewTimer();
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms_));
     }
