@@ -2,12 +2,11 @@
 #ifdef SIMPLE
 
 #include <thread>
+#include <ctime>
 
 #include "hcs/executor.hpp"
 #include "hcs/blob.hpp"
 #include "hcs/profiler.hpp"
-
-#include "hcs/util/timer.hpp"
 
 template <typename... Args>
 auto PrintArgs(Args&&... args) {
@@ -163,7 +162,7 @@ void Add() {
   executor.Bind(&graph);
 
   hcs::Profiler profiler(&executor, &graph);
-  int config_flag = hcs::VIEW_NODE | hcs::VIEW_TIMER;// | hcs::LOCK_RUN_TO_SERIAL | hcs::VIEW_STATUS
+  int config_flag = hcs::VIEW_NODE | hcs::VIEW_STATUS_RUN_TIME | hcs::VIEW_STATUS;// | hcs::LOCK_RUN_TO_SERIAL
   profiler.Config(config_flag, 200);
   profiler.Start();
 
@@ -182,7 +181,7 @@ void Add() {
     assert(OUT->num_cached_buf(0) == 0);
   }
 
-  hcs::CpuTimer timer;
+  clock_t time;
   float push_time = 0.0;
   float get_time = 0.0;
 
@@ -192,7 +191,7 @@ void Add() {
       break;
     loop_cnt--;
 
-    timer.Start();
+    time = clock();
     printf(">>>>>>>>>>>>>>>>> New Round <<<<<<<<<<<<<<<<.\n");
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     for (int i = 0; i < buffer_size; i++) {
@@ -201,10 +200,9 @@ void Add() {
     }
     executor.Run();
 
-    timer.Stop();
-    push_time = timer.MilliSeconds();
+    push_time = (clock() - time) * 1000.0 / CLOCKS_PER_SEC;
 
-    timer.Start();
+    time = clock();
     int count = 0;
     while (count < buffer_size) {
       hcs::Blob out("out");
@@ -224,8 +222,7 @@ void Add() {
         //executor.NotifyAll();
       }
     }
-    timer.Stop();
-    get_time = timer.MilliSeconds();
+    get_time = (clock() - time) * 1000.0 / CLOCKS_PER_SEC;
     printf("time: %f, %f.\n", push_time, get_time);
   }
 

@@ -36,7 +36,7 @@ private:
       stream << "<" << n->num_empty_buf() << ">";
       stream << ", " << n->run_count() << ")";
     }
-    LOG(INFO) << "Profiler->ViewNode: " << stream.str();
+    LOG(INFO) << "Profiler->Node: " << stream.str();
   }
 
   void ViewStatus() {
@@ -55,21 +55,36 @@ private:
     if (flag)
       LOG(INFO) << stream.str();
     else
-      LOG(INFO) << "Profiler->ViewStatus: There's no active Status";
+      LOG(INFO) << "Profiler->Status: There's no active Status";
   }
 
-  void ViewTimer() {
+  void ViewNodeRunTime() {
     Timer::is_record_ = true;
     std::ostringstream stream;
     for (int i = 0; i < exec_->node_timers_.size(); i++) {
       Timer *timer = exec_->node_timers_[i];
-      stream << "(" << timer->node_name().c_str() << ": ";
+      stream << "(" << timer->name().c_str() << ": ";
       stream << "count-" << timer->count() << ", ";
       stream << "min-" << timer->min() << ", ";
       stream << "max-" << timer->max() << ", ";
       stream << "ave-" << timer->ave() << "). ";
     }
-    LOG(INFO) << "Profiler->ViewTimer: " << stream.str();
+    LOG(INFO) << "Profiler->NodeRunTime: " << stream.str();
+  }
+
+  void ViewStatusRunTime() {
+    Timer::is_record_ = true;
+    std::ostringstream stream;
+    std::vector<Executor::Status*> list = exec_->status_list_;
+    for (int i = 0; i < list.size(); i++) {
+      Timer *timer = &(list[i]->timer);
+      if (timer->count() == 0)
+        continue;
+      stream << "(" << i << ": ";
+      stream << "count-" << timer->count() << ", ";
+      stream << "ave-" << timer->ave() << "). ";
+    }
+    LOG(INFO) << "Profiler->StatusRunTime: " << stream.str();
   }
 
   void Entry() {
@@ -84,8 +99,11 @@ private:
       if ((mode_ & VIEW_STATUS) == VIEW_STATUS) {
         ViewStatus();
       }
-      if ((mode_ & VIEW_TIMER) == VIEW_TIMER) {
-        ViewTimer();
+      if ((mode_ & VIEW_NODE_RUN_TIME) == VIEW_NODE_RUN_TIME) {
+        ViewNodeRunTime();
+      }
+      if ((mode_ & VIEW_STATUS_RUN_TIME) == VIEW_STATUS_RUN_TIME) {
+        ViewStatusRunTime();
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms_));
     }

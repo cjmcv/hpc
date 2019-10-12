@@ -54,7 +54,6 @@ public:
   void Clean();
   void Run(std::vector<Blob *> &inputs, Blob *output);
 
-
   bool BorrowInputs(std::vector<Blob *> &inputs); 
   bool RecycleInputs(std::vector<Blob *> &inputs);
 

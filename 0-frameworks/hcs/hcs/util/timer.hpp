@@ -39,14 +39,20 @@ protected:
 // TODO: 3. ¼æÈÝGPUºËº¯Êý£¿
 class Timer {
 public:
-  Timer(int node_idx, std::string name) :
-    node_idx_(node_idx), 
-    node_name_(name),
+  Timer() :
+    idx_(-1),
+    name_("executor"),
     count_(0), ave_(0),
     min_(FLT_MAX), max_(0) {}
 
-  inline std::string node_name() const { return node_name_; }
-  inline int node_idx() const { return node_idx_; }
+  Timer(int idx, std::string name) :
+    idx_(idx), 
+    name_(name),
+    count_(0), ave_(0),
+    min_(FLT_MAX), max_(0) {}
+
+  inline std::string name() const { return name_; }
+  inline int idx() const { return idx_; }
   inline float min() const { return min_; }
   inline float max() const { return max_; }
   inline float ave() const { return ave_; }
@@ -63,7 +69,7 @@ public:
       if (time > max_) {
         max_ = time;
       }
-      else if (time < min_) {
+      if (time < min_) {
         min_ = time;
       }
       ave_ = (count_ / (count_ + 1.0)) * ave_ + time / (count_ + 1.0);
@@ -76,8 +82,8 @@ public:
 
 private:
   CpuTimer timer_;
-  int node_idx_;
-  std::string node_name_;
+  int idx_;
+  std::string name_;
 
   float min_;
   float max_;

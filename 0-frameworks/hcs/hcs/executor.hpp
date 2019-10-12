@@ -19,11 +19,6 @@ class Executor {
   // Just for debugging.
   friend class Profiler;
 
-  struct PerThread {
-    bool is_worker = false;
-    int worker_id = -1;
-  };
-
   // A Run() corresponds to a Promise.
   struct Promise {
     std::promise<void> promise;
@@ -32,6 +27,7 @@ class Executor {
     // The output node that this Run should invoke.
     int num_incomplete_out_nodes;
     Promise *p = nullptr;
+    Timer timer;
 
     ~Status() {
       if (p != nullptr) {
@@ -51,17 +47,18 @@ public:
     finish_count_{ 0 } {}
 
   ~Executor() {
-    // Clear.
+    // Clear status.
     for (int i = 0; i < status_list_.size(); i++) {
       delete status_list_[i];
     }
     status_list_.clear();
+    // Clear Timers.
     for (int i = 0; i < node_timers_.size(); i++) {
       delete node_timers_[i];
     }
     node_timers_.clear();
 
-    // Shut down the scheduler
+    // Shut down this scheduler
     done_ = true;
     // Nodtify and join
     NotifyAll();
@@ -89,12 +86,12 @@ private:
   std::vector<Status*> status_list_;
   std::atomic<int> run_count_;
   std::atomic<int> finish_count_;
-
+ 
+  std::mutex mutex_;
   std::vector<std::thread> threads_;
   std::atomic<bool> done_{ 0 };
 
-  std::mutex mutex_;
-
+  Timer exec_timer_;
   std::vector<Timer *> node_timers_;
 
   static bool lock2serial_;
@@ -218,8 +215,9 @@ void Executor::NotifySuccessors(Node* node) {
 }
 
 void Executor::Stop(int id) {
-  // Finsh one.
+  // Finsh one. 
   finish_count_++;
+  status_list_[id]->timer.Stop();
 
   auto p{ std::move(status_list_[id]->p->promise) };
 
@@ -249,6 +247,8 @@ void Executor::Bind(Graph *g) {
 }
 
 std::future<void> Executor::Run() {
+  exec_timer_.Start();
+
   std::vector<Node*> input_nodes = graph_->GetInputNodes();
   if (input_nodes.size() <= 0) {
     LOG(ERROR) << "A graph needs at least one input node";
@@ -264,6 +264,10 @@ std::future<void> Executor::Run() {
   }
 
   Status *stat = status_list_[run_count_.load() % status_list_.size()];
+  if (stat->num_incomplete_out_nodes != 0) {
+    LOG(ERROR) << "The Status you chose is busy, please wait.";
+  }
+  stat->timer.Start();
   run_count_++;
   // TODO: Enable batch size.
   // Set the number of output nodes for this Run.
