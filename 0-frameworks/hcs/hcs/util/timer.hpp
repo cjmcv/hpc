@@ -36,23 +36,6 @@ protected:
   std::chrono::time_point<clock> stop_time_;
 };
 
-/////////////////////////////////////////////////
-//  auto func = [&]()
-//  -> float {
-//    timer.Start();
-//    hcs::QueryDevices();
-//    timer.Stop();
-//    return timer.MilliSeconds();
-//  };
-//  ret = func();
-#define GET_TIME_DIFF(timer, ...)     \
-  [&]() -> float {                    \
-    timer.Start();                    \
-    {__VA_ARGS__}                     \
-    timer.Stop();                     \
-    return timer.MilliSeconds();      \
-  }();
-
 // TODO: 3. ¼æÈÝGPUºËº¯Êý£¿
 class Timer {
 public:
@@ -90,7 +73,6 @@ public:
 
 public:
   static bool is_record_;
-  static bool lock2serial_;
 
 private:
   CpuTimer timer_;
@@ -104,21 +86,21 @@ private:
 };
 
 bool Timer::is_record_ = false;
-bool Timer::lock2serial_ = false;
 
-#define TIMER_PROFILER(timer, unique_lock, ...)    \
+/////////////////////////////////////////////////
+//  auto func = [&]()
+//  -> float {
+//    timer.Start();
+//    hcs::QueryDevices();
+//    timer.Stop();
+//    return timer.MilliSeconds();
+//  };
+//  ret = func();
+#define TIME_DIFF_RECORD(timer, ...)  \
   [&]() -> void {                     \
-    if (Timer::lock2serial_) {        \
-      unique_lock;                    \
-      timer.Start();                  \
-      {__VA_ARGS__}                   \
-      timer.Stop();                   \
-    }                                 \
-    else {                            \
-      timer.Start();                  \
-      {__VA_ARGS__}                   \
-      timer.Stop();                   \
-    }                                 \
+    timer.Start();                    \
+    {__VA_ARGS__}                     \
+    timer.Stop();                     \
   }();
 
 } // hcs.

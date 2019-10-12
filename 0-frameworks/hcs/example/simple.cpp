@@ -25,8 +25,6 @@ auto PrintArgs(Args&&... args) {
 }
 
 void WorkB(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
-  printf("(<%s>: %d, start)", output->name().c_str(), std::this_thread::get_id());
-
   if (inputs.size() != 1) {
     std::cout << "inputs.size() != 1" << std::endl;
   }
@@ -41,13 +39,9 @@ void WorkB(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
 
   // Set output.
   inputs[0]->CloneTo(output);
-
-  printf("(<%s>: %d, end)", output->name().c_str(), std::this_thread::get_id());
 }
 
 void WorkC(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
-  printf("(<%s>: %d, start)", output->name().c_str(), std::this_thread::get_id());
-
   if (inputs.size() != 1) {
     std::cout << "inputs.size() != 1" << std::endl;
   }
@@ -62,12 +56,9 @@ void WorkC(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
 
   // Set output.
   inputs[0]->CloneTo(output);
-  printf("(<%s>: %d, end)", output->name().c_str(), std::this_thread::get_id());
 }
 
 void WorkD(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
-  printf("(<%s>: %d, start)", output->name().c_str(), std::this_thread::get_id());
-
   if (inputs.size() != 1) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
@@ -86,13 +77,9 @@ void WorkD(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   out_data[0] = in_data[0] + 1.1;
   out_data[1] = in_data[1] + 1.1;
   out_data[2] = 1.1;
-
-  printf("(<%s>: %d, end)", output->name().c_str(), std::this_thread::get_id());
 }
 
 void WorkE1(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
-  printf("(<%s>: %d, start)", output->name().c_str(), std::this_thread::get_id());
-
   if (inputs.size() != 1) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
@@ -111,13 +98,9 @@ void WorkE1(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   out_data[0] = in_data[0] + 1.1;
   out_data[1] = in_data[1] + 1.1;
   out_data[2] = in_data[2] + 1.1;
-
-  printf("(<%s>: %d, end)", output->name().c_str(), std::this_thread::get_id());
 }
 
 void WorkE(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
-  printf("(<%s>: %d, start)", output->name().c_str(), std::this_thread::get_id());
-
   if (inputs.size() != 2) {
     std::cout << "inputs.size() != 2" << std::endl;
   }
@@ -138,8 +121,6 @@ void WorkE(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   out_data[1] = in_data[1] + in2_data[1] + 1.1;
   out_data[2] = in2_data[2] + 1.1;
   out_data[3] = 1.2;
-
-  printf("(<%s>: %d, end)", output->name().c_str(), std::this_thread::get_id());
 }
 
 void Add() {
@@ -182,7 +163,7 @@ void Add() {
   executor.Bind(&graph);
 
   hcs::Profiler profiler(&executor, &graph);
-  int config_flag = hcs::VIEW_NODE | hcs::VIEW_TIMER | hcs::LOCK_RUN_TO_SERIAL;// | hcs::VIEW_STATUS
+  int config_flag = hcs::VIEW_NODE | hcs::VIEW_TIMER;// | hcs::LOCK_RUN_TO_SERIAL | hcs::VIEW_STATUS
   profiler.Config(config_flag, 200);
   profiler.Start();
 

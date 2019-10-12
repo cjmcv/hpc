@@ -11,9 +11,10 @@
 namespace hcs {
 
 enum LogLevel {
-  INFO = 0,
-  WARNING = 1,
-  ERROR = 2
+  INFO_S = 0,
+  INFO = 1,
+  WARNING = 2,
+  ERROR = 3,
 };
 
 class LogMessage : public std::basic_ostringstream<char> {
@@ -26,15 +27,17 @@ public:
 
 private:
   void GenerateLogMessage() {
-    fprintf(stderr, "<%c>", "IWE"[severity_]);
+    fprintf(stderr, "<%c>", "IIWE"[severity_]);
     if (fname_) {
       fprintf(stderr, " %s:%d] ", fname_, line_);
     }
-    fprintf(stderr, "%s.\n", str().c_str());
+    fprintf(stderr, "%s.", str().c_str());
 
-    if (severity_ == ERROR) {
+    if (severity_ != INFO_S)
+      fprintf(stderr, "\n");
+
+    if (severity_ == ERROR)
       std::abort();
-    }
   }
 
 public:
@@ -50,9 +53,10 @@ int LogMessage::min_log_level_ = WARNING;
 
 #define LOG(severity) _HCS_LOG_##severity
 
-#define _HCS_LOG_INFO    LogMessage(nullptr, 0, LogLevel::INFO)
-#define _HCS_LOG_WARNING LogMessage(__FILE__, __LINE__, LogLevel::WARNING)
-#define _HCS_LOG_ERROR   LogMessage(__FILE__, __LINE__, LogLevel::ERROR)
+#define _HCS_LOG_INFO_S    LogMessage(nullptr, 0, LogLevel::INFO_S)
+#define _HCS_LOG_INFO      LogMessage(nullptr, 0, LogLevel::INFO)
+#define _HCS_LOG_WARNING   LogMessage(__FILE__, __LINE__, LogLevel::WARNING)
+#define _HCS_LOG_ERROR     LogMessage(__FILE__, __LINE__, LogLevel::ERROR)
 
 } // hcs.
 #endif //HCS_LOG_H_

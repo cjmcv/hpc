@@ -9,7 +9,6 @@
 
 namespace hcs {
 
-// TODO: 1. 时间测试，在内部调用，在demo中将不能使用timer。
 class Profiler :public InternalThread {
 public:
   Profiler(Executor *exec, Graph *graph) { exec_ = exec; graph_ = graph; }
@@ -62,8 +61,8 @@ private:
   void ViewTimer() {
     Timer::is_record_ = true;
     std::ostringstream stream;
-    for (int i = 0; i < exec_->timers_.size(); i++) {
-      Timer *timer = exec_->timers_[i];
+    for (int i = 0; i < exec_->node_timers_.size(); i++) {
+      Timer *timer = exec_->node_timers_[i];
       stream << "(" << timer->node_name().c_str() << ": ";
       stream << "count-" << timer->count() << ", ";
       stream << "min-" << timer->min() << ", ";
@@ -77,7 +76,7 @@ private:
     while (!IsMustStop()) {
       // Note: "==" has a higher priority than "&".
       if ((mode_ & LOCK_RUN_TO_SERIAL) == LOCK_RUN_TO_SERIAL) {
-        Timer::lock2serial_ = true; // TODO: 转移到其他地方，不放在timer
+        Executor::lock2serial_ = true;
       }
       if ((mode_ & VIEW_NODE) == VIEW_NODE) {
         ViewNode();

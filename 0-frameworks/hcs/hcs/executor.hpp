@@ -56,10 +56,10 @@ public:
       delete status_list_[i];
     }
     status_list_.clear();
-    for (int i = 0; i < timers_.size(); i++) {
-      delete timers_[i];
+    for (int i = 0; i < node_timers_.size(); i++) {
+      delete node_timers_[i];
     }
-    timers_.clear();
+    node_timers_.clear();
 
     // Shut down the scheduler
     done_ = true;
@@ -95,8 +95,12 @@ private:
 
   std::mutex mutex_;
 
-  std::vector<Timer *> timers_;
+  std::vector<Timer *> node_timers_;
+
+  static bool lock2serial_;
 };
+
+bool Executor::lock2serial_ = false;
 
 void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
 
@@ -115,7 +119,7 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
 
       Timer *timer = new Timer(i, node->name());
       mutex_.lock();
-      timers_.push_back(timer);
+      node_timers_.push_back(timer);
       mutex_.unlock();
 
       while (!done_) {
@@ -132,9 +136,14 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
           node->PrepareOutput(&output);
         }
 
-        TIMER_PROFILER((*timer), 
-          std::unique_lock<std::mutex> locker(mutex_), 
-          node->Run(inputs, output););
+        // Run.
+        if (!lock2serial_) {
+          TIME_DIFF_RECORD((*timer), node->Run(inputs, output););
+        }
+        else {
+          std::unique_lock<std::mutex> locker(mutex_);
+          TIME_DIFF_RECORD((*timer), node->Run(inputs, output););
+        }
 
         { // Recycle inputs & Push output.
           std::unique_lock<std::mutex> locker(mutex_);

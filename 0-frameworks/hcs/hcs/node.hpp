@@ -144,7 +144,10 @@ void Node::Clean() {
 }
 
 void Node::Run(std::vector<Blob *> &inputs, Blob *output) {
+  LOG(INFO_S) << "(<" << output->name().c_str() << ">: " << std::this_thread::get_id() << ", start)";
   task_(inputs, output);
+  LOG(INFO_S) << "(<" << output->name().c_str() << ">: " << std::this_thread::get_id() << ", end)";
+
   run_count_++;
 }
 
