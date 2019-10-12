@@ -2,6 +2,7 @@
 CUDA® is a parallel computing platform and programming model developed by NVIDIA for general computing on graphical processing units (GPUs). 
 * [Zone](https://developer.nvidia.com/cuda-zone)
 * [Toolkit](https://developer.nvidia.com/cuda-toolkit)
+* [GPU Specs Database](https://www.techpowerup.com/gpu-specs/)
 
 ## cuBLAS
 The NVIDIA cuBLAS library is a fast GPU-accelerated implementation of the standard basic linear algebra subroutines (BLAS). Using cuBLAS APIs, you can speed up your applications by deploying compute-intensive operations to a single GPU or scale up and distribute work across multi-GPU configurations efficiently.
