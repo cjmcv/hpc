@@ -12,8 +12,6 @@
 #include "graph.hpp"
 #include "util/timer.hpp"
 
-// TODO: 1、多stream对应PARALLEL_USE_GPU
-//       2、TaskAssistor带参数进task
 namespace hcs {
 
 // The executor class to run a graph.
@@ -359,12 +357,18 @@ void Executor::Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor) {
     status_list_.push_back(stat);
   }
 
-  if (mode == PARALLEL || mode == PARALLEL_USE_GPU)
+  switch (mode) {
+  case PARALLEL_STREAMS:
+    task_assistor->Init4GPU(g->nodes().size());
+  case PARALLEL:
     Spawn();
-  else if (mode == SERIAL)
+    break;
+  case SERIAL:
     SerialFreeze();
-  else
+    break;
+  default:
     LOG(ERROR) << "mode " << mode << "is not supported.";
+  }
 }
 
 std::future<void> Executor::Run() {
@@ -397,7 +401,7 @@ std::future<void> Executor::Run() {
 
   std::future<void> future = stat->p->promise.get_future();
 
-  if (mode_ == PARALLEL || mode_ == PARALLEL_USE_GPU) {
+  if (mode_ == PARALLEL || mode_ == PARALLEL_STREAMS) {
     // Notify each input nodes.
     for (auto node : input_nodes) {
       for (size_t i = 0; i < node->num_successors(); ++i) {
