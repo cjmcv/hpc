@@ -5,7 +5,6 @@
 #include <ctime>
 
 #include "hcs/executor.hpp"
-#include "hcs/blob.hpp"
 #include "hcs/profiler.hpp"
 
 template <typename... Args>
@@ -36,7 +35,7 @@ void WorkB(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
     std::cout << "inputs.size() != 1" << std::endl;
   }
   ((TestClass *)assistor)->count_++;
-  printf("tB(%d),", ((TestClass *)assistor)->id());
+  //printf("tB(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* data = (int *)inputs[0]->data(); // 2 int
@@ -55,7 +54,7 @@ void WorkC(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
     std::cout << "inputs.size() != 1" << std::endl;
   }
   ((TestClass *)assistor)->count_++;
-  printf("tC(%d),", ((TestClass *)assistor)->id());
+  //printf("tC(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* data = (int *)inputs[0]->data(); // 2 int
@@ -74,7 +73,7 @@ void WorkD(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
     std::cout << "dependents.size() != 1" << std::endl;
   }
   ((TestClass *)assistor)->count_++;
-  printf("tD(%d),", ((TestClass *)assistor)->id());
+  //printf("tD(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* in_data = (int *)inputs[0]->data(); // 2 int
@@ -97,7 +96,7 @@ void WorkE(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
     std::cout << "inputs.size() != 2" << std::endl;
   }
   ((TestClass *)assistor)->count_++;
-  printf("tE(%d),", ((TestClass *)assistor)->id());
+  //printf("tE(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* in_data = (int *)inputs[0]->data(); // 2 int
@@ -152,8 +151,7 @@ void Add() {
   int buffer_size = 100;
   graph.Initialize(buffer_size);
 
-  hcs::Executor executor;
-  executor.name_ = "Test";
+  hcs::Executor executor("SimpleTest");
   TestClass ass;
   executor.Bind(&graph, hcs::PARALLEL, &ass); // hcs::SERIAL  hcs::PARALLEL
 
@@ -163,8 +161,8 @@ void Add() {
   profiler.Start();
 
   //  Note: If you don't wait a bit, the first run in the main thread
-  // may be faster than the profiler's thread, causing the profiler's 
-  // first timing to fail
+  // may be faster than the profiler's thread, causing the failure of
+  // first timing in profiler.
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   { // Test wait().
@@ -212,7 +210,7 @@ void Add() {
         count++;
         float *data = (float *)out.data();
         printf("< %d , <", out.object_id_);
-        for (int i = 0; i < out.num_element(); i++) {
+        for (int i = 0; i < out.len(); i++) {
           printf("%f, ", data[i]);
         }
         printf(">.\n");

@@ -39,13 +39,13 @@ enum ProfilerMode {
 //        3. Use Bind() to pass the class into executor, and call it in tasks.
 class TaskAssistor {
 public:
-  TaskAssistor() {}
+  TaskAssistor() :streams_(nullptr) {}
   ~TaskAssistor() {
     if (streams_ != nullptr) {
       for (int i = 0; i < num_streams_; i++) {
         cudaStreamDestroy(streams_[i]);
       }
-      free(streams_);
+      //free(streams_);
       streams_ = nullptr;
     }
   }
@@ -71,7 +71,12 @@ public:
       cudaStreamCreate(&(streams_[i]));
     }
   }
-  inline cudaStream_t stream() const { return streams_[id()]; }
+  inline cudaStream_t stream() const {
+    if (streams_ != nullptr)
+      return streams_[id()];
+    else
+      return nullptr;
+  }
 
 private:
   int num_streams_;
