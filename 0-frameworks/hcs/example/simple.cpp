@@ -158,25 +158,30 @@ void Add() {
   graph.Initialize(buffer_size);
 
   hcs::Executor executor;
-  executor.name_ = "AAA";
-  executor.Bind(&graph);
+  executor.name_ = "Test";
+  executor.Bind(&graph, hcs::PARALLEL); // hcs::SERIAL  hcs::PARALLEL
 
   hcs::Profiler profiler(&executor, &graph);
   int config_flag = hcs::VIEW_NODE | hcs::VIEW_STATUS_RUN_TIME | hcs::VIEW_STATUS;// | hcs::LOCK_RUN_TO_SERIAL
   profiler.Config(config_flag, 200);
   profiler.Start();
 
+  //  Note: If you don't wait a bit, the first run in the main thread
+  // may be faster than the profiler's thread, causing the profiler's 
+  // first timing to fail
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
   { // Test wait().
     hcs::Blob out("out");
     input.object_id_ = -1;
     A->Enqueue(&input);
+    A->Enqueue(&input);
     executor.Run().wait();
+    OUT->Dequeue(&out);
     OUT->Dequeue(&out);
 
     A->Enqueue(&input);
-    A->Enqueue(&input);
     executor.Run().wait();
-    OUT->Dequeue(&out);
     OUT->Dequeue(&out);
     assert(OUT->num_cached_buf(0) == 0);
   }
@@ -193,7 +198,7 @@ void Add() {
 
     time = clock();
     printf(">>>>>>>>>>>>>>>>> New Round <<<<<<<<<<<<<<<<.\n");
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     for (int i = 0; i < buffer_size; i++) {
       input.object_id_ = i;
       A->Enqueue(&input);

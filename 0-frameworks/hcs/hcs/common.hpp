@@ -3,6 +3,11 @@
 
 namespace hcs {
 
+enum ExecutorMode {
+  PARALLEL = 0,
+  SERIAL
+};
+
 enum MemoryMode {
   ON_HOST = 0,
   ON_DEVICE

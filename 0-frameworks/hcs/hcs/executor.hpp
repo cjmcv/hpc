@@ -12,6 +12,7 @@
 #include "graph.hpp"
 #include "util/timer.hpp"
 
+// TODO: 添加串行模式，将不开线程？
 namespace hcs {
 
 // The executor class to run a graph.
@@ -67,19 +68,22 @@ public:
     }
   }
 
-  void Bind(Graph *g);  
+  void Bind(Graph *g, ExecutorMode mode);
   std::future<void> Run();
   void NotifyAll();
 
 private:
 
-  void Spawn(std::vector<std::unique_ptr<Node>> &nodes);
+  void SerialFreeze();
+  void SerialExec();
+
+  void Spawn();
 
   bool WaitCheckInputs(Node *node);
 
   void NotifySuccessors(Node *node);
 
-  void Stop(int id);
+  bool CheckStop(Node* node);
 
 private:
   Graph *graph_;
@@ -90,8 +94,10 @@ private:
   std::mutex mutex_;
   std::vector<std::thread> threads_;
   std::atomic<bool> done_{ 0 };
+  
+  ExecutorMode mode_; //
+  std::vector<Node *> serial_nodes_; // For serial mode only.
 
-  Timer exec_timer_;
   std::vector<Timer *> node_timers_;
 
   static bool lock2serial_;
@@ -99,8 +105,102 @@ private:
 
 bool Executor::lock2serial_ = false;
 
-void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
+void Executor::SerialFreeze() {
+  serial_nodes_.clear();
 
+  // flag_ in here is used to record whether a node has been added to serial_nodes_.
+  for (int i = 0; i < graph_->nodes().size(); i++) {
+    graph_->nodes()[i]->flag_ = 0;
+  }
+
+  // BFS.
+  std::queue<Node *> queue;
+  std::vector<Node *> input_nodes = graph_->GetInputNodes();
+  for (int i = 0; i < input_nodes.size(); i++) {
+    input_nodes[i]->flag_ = 2;
+    queue.push(input_nodes[i]);
+  }
+  while (!queue.empty()) {
+    Node *front = queue.front();
+
+    // We need to ensure that all the leading nodes of this node 
+    // have been added to serial_nodes_.
+    bool all_depent_flag = true;
+    for (int di = 0; di < front->num_dependents(); di++) {
+      bool one_depent_flag = false;
+      for (int j = 0; j < serial_nodes_.size(); j++) {
+        if (serial_nodes_[j] == front->dependents(di)) {
+          one_depent_flag = true;
+          break;
+        }
+      }
+      // If not, put the node back at the end of the queue and 
+      // wait for the next retrieval.
+      if (one_depent_flag == false) {
+        all_depent_flag = false;
+        queue.pop();
+        queue.push(front);
+        break;
+      }
+    }
+    if (all_depent_flag) {
+      serial_nodes_.push_back(front);
+      queue.pop();
+      for (int si = 0; si < front->num_successors(); si++) {
+        // Skip nodes that have been placed.
+        if (front->successor(si)->flag_ == 0) {
+          front->successor(si)->flag_ = 1;
+          queue.push(front->successor(si));
+        }
+      }
+    }
+  }
+
+  // Skip input nodes.
+  for (auto it = serial_nodes_.begin(); it != serial_nodes_.end(); it++) {
+    if ((*it)->flag_ == 2)
+      it = serial_nodes_.erase(it);
+  }
+
+  // Shows the node order of serial execution.
+  std::ostringstream stream;
+  stream << "Serial: ";
+  for (int i = 0; i < serial_nodes_.size(); i++) {
+    stream << serial_nodes_[i]->name().c_str() << ", ";
+  }
+  LOG(INFO) << stream.str();
+}
+
+void Executor::SerialExec() {
+  for (int i = 0; i < serial_nodes_.size(); i++) {
+    Timer *timer = new Timer(i, serial_nodes_[i]->name());
+    node_timers_.push_back(timer);
+  }
+
+  bool stop = false;
+  while (!stop) {
+    for (int n = 0; n < serial_nodes_.size(); n++) {
+      Node *node = serial_nodes_[n];
+
+      std::vector<Blob *> inputs; 
+      Blob *output = nullptr;
+      {
+        node->BorrowInputs(inputs); 
+        node->PrepareOutput(&output);
+
+        node->Run(inputs, output);
+
+        node->RecycleInputs(inputs);
+        node->PushOutput(output);
+      }
+      stop = CheckStop(node);
+    }
+  }
+}
+
+void Executor::Spawn() {
+
+  std::vector<std::unique_ptr<Node>> &nodes = graph_->nodes();
   for (unsigned i = 0; i < nodes.size(); ++i) {
     Node *node = &(*nodes[i]);
     if (node->num_dependents() == 0) {
@@ -149,6 +249,8 @@ void Executor::Spawn(std::vector<std::unique_ptr<Node>> &nodes) {
         }
 
         NotifySuccessors(node);
+
+        CheckStop(node);
       }
     });
   }
@@ -179,7 +281,7 @@ bool Executor::WaitCheckInputs(Node *node) {
   return true;
 }
 
-void Executor::NotifySuccessors(Node* node) {
+void Executor::NotifySuccessors(Node *node) {
 
   const auto num_successors = node->num_successors();
  
@@ -201,6 +303,10 @@ void Executor::NotifySuccessors(Node* node) {
     if (is_ready)
       successor->cond_.notify_one();
   }
+}
+
+bool Executor::CheckStop(Node *node) {
+  const auto num_successors = node->num_successors();
 
   int status_id = finish_count_.load() % status_list_.size();
   Status *status = status_list_[status_id];
@@ -209,29 +315,26 @@ void Executor::NotifySuccessors(Node* node) {
     if (--(status->num_incomplete_out_nodes) == 0) {
       // It means that all of the output nodes have been completed.
       LOG(INFO) << "Stop " << status_id;
-      Stop(status_id);   // Finishing this Run.
+      finish_count_++;
+      status_list_[status_id]->timer.Stop();
+
+      auto p{ std::move(status_list_[status_id]->p->promise) };
+
+      // Delete Promise & Recover status.
+      delete status_list_[status_id]->p;
+      status_list_[status_id]->p = new Promise;
+      status_list_[status_id]->num_incomplete_out_nodes = 0;
+
+      // We set the promise in the end to response the std::future in Run().
+      p.set_value();
+
+      return true;
     }
   }
+  return false;
 }
 
-void Executor::Stop(int id) {
-  // Finsh one. 
-  finish_count_++;
-  status_list_[id]->timer.Stop();
-
-  auto p{ std::move(status_list_[id]->p->promise) };
-
-  // Delete Promise.
-  delete status_list_[id]->p;
-  // Recover.
-  status_list_[id]->p = new Promise;
-  status_list_[id]->num_incomplete_out_nodes = 0;
-
-  // We set the promise in the end to response the std::future in Run().
-  p.set_value();
-}
-
-void Executor::Bind(Graph *g) {
+void Executor::Bind(Graph *g, ExecutorMode mode) {
 
   for (int i = 0; i < g->buffer_queue_size(); i++) {
     Status *stat = new Status;
@@ -242,12 +345,17 @@ void Executor::Bind(Graph *g) {
   }
 
   graph_ = g;
+  mode_ = mode;
 
-  Spawn(graph_->nodes());
+  if (mode == PARALLEL)
+    Spawn();
+  else if (mode == SERIAL)
+    SerialFreeze();
+  else
+    LOG(ERROR) << "mode " << mode << "is not supported.";
 }
 
 std::future<void> Executor::Run() {
-  exec_timer_.Start();
 
   std::vector<Node*> input_nodes = graph_->GetInputNodes();
   if (input_nodes.size() <= 0) {
@@ -275,14 +383,23 @@ std::future<void> Executor::Run() {
     = input_nodes[0]->num_cached_buf(0)
     * graph_->GetOutputNodes().size();
 
-  // Notify each input nodes.
-  for (auto node : input_nodes) {
-    for (size_t i = 0; i < node->num_successors(); ++i) {
-      node->successor(i)->cond_.notify_one();
+  std::future<void> future = stat->p->promise.get_future();
+
+  if (mode_ == PARALLEL) {
+    // Notify each input nodes.
+    for (auto node : input_nodes) {
+      for (size_t i = 0; i < node->num_successors(); ++i) {
+        node->successor(i)->cond_.notify_one();
+      }
     }
   }
+  else if (mode_ == SERIAL) {
+    SerialExec();
+  }
+  else {
+    LOG(ERROR) << "mode " << mode_ << "is not supported.";
+  }
 
-  std::future<void> future = stat->p->promise.get_future();
   return future;
 }
 

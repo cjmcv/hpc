@@ -36,7 +36,6 @@ protected:
   std::chrono::time_point<clock> stop_time_;
 };
 
-// TODO: 3. ¼æÈÝGPUºËº¯Êý£¿
 class Timer {
 public:
   Timer() :

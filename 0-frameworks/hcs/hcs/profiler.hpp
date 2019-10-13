@@ -16,7 +16,8 @@ public:
     mode_ = mode;
     interval_ms_ = ms;
 
-    LogMessage::min_log_level_ = INFO;
+    if (mode != 0)
+      LogMessage::min_log_level_ = INFO;
   }
   ~Profiler() { 
     LogMessage::min_log_level_ = WARNING; 

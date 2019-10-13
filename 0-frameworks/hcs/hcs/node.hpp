@@ -67,6 +67,9 @@ public:
   std::condition_variable cond_;
   mutable std::mutex mutex_;
 
+  // Used as a tag. Useful in function Executor::SerialFreeze.
+  int flag_;
+
   BlockingQueue<Blob *> outs_free_;
   BlockingQueue<Blob *> *outs_full_;
 
