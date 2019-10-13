@@ -17,11 +17,11 @@ class Graph;
 // Class: Node
 class Node {
 
-  using Work = std::function<void(std::vector<Blob *> inputs, Blob *output)>;
+  using Task = std::function<void(hcs::TaskAssistor *assistor, std::vector<Blob *> inputs, Blob *output)>;
 
 public:
   Node() : run_count_(0), outs_full_(nullptr), name_("noname") {}
-  Node(Work &&c) : task_(c), run_count_(0), outs_full_(nullptr), name_("noname") {}
+  Node(Task &&c) : task_(c), run_count_(0), outs_full_(nullptr), name_("noname") {}
   ~Node() {}
 
   // Querys.
@@ -52,7 +52,7 @@ public:
 
   void Init(int buffer_queue_size);
   void Clean();
-  void Run(std::vector<Blob *> &inputs, Blob *output);
+  void Run(hcs::TaskAssistor *assistor, std::vector<Blob *> &inputs, Blob *output);
 
   bool BorrowInputs(std::vector<Blob *> &inputs); 
   bool RecycleInputs(std::vector<Blob *> &inputs);
@@ -74,7 +74,7 @@ public:
   BlockingQueue<Blob *> *outs_full_;
 
 private:
-  Work task_;
+  Task task_;
   std::string name_;   
 
   std::vector<Node*> successors_;
@@ -145,9 +145,9 @@ void Node::Clean() {
   }
 }
 
-void Node::Run(std::vector<Blob *> &inputs, Blob *output) {
+void Node::Run(hcs::TaskAssistor *assistor, std::vector<Blob *> &inputs, Blob *output) {
   LOG(INFO_S) << "(<" << output->name().c_str() << ">: " << std::this_thread::get_id() << ", start)";
-  task_(inputs, output);
+  task_(assistor, inputs, output);
   LOG(INFO_S) << "(<" << output->name().c_str() << ">: " << std::this_thread::get_id() << ", end)";
 
   run_count_++;

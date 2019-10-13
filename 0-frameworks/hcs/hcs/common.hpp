@@ -4,8 +4,9 @@
 namespace hcs {
 
 enum ExecutorMode {
-  PARALLEL = 0,
-  SERIAL
+  SERIAL = 0,
+  PARALLEL,
+  PARALLEL_USE_GPU
 };
 
 enum MemoryMode {
@@ -26,6 +27,27 @@ enum ProfilerMode {
   VIEW_STATUS = 0x04,
   VIEW_NODE_RUN_TIME = 0x08,
   VIEW_STATUS_RUN_TIME = 0x16,
+};
+
+class TaskAssistor {
+public:
+  TaskAssistor() {}
+  ~TaskAssistor() {}
+
+  int ass_a;
+
+  inline int id() const {
+    return thread_var().id;
+  }
+
+  struct ThreadVar {
+    int id = -1;
+  };
+
+  inline ThreadVar &thread_var() const {
+    thread_local ThreadVar thread_var;
+    return thread_var;
+  }
 };
 
 }  // namespace hcs.

@@ -12,7 +12,8 @@
 #include "graph.hpp"
 #include "util/timer.hpp"
 
-// TODO: 添加串行模式，将不开线程？
+// TODO: 1、多stream对应PARALLEL_USE_GPU
+//       2、TaskAssistor带参数进task
 namespace hcs {
 
 // The executor class to run a graph.
@@ -45,7 +46,8 @@ public:
   explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
     graph_{ nullptr },
     run_count_{ 0 },
-    finish_count_{ 0 } {}
+    finish_count_{ 0 },
+    task_assistor_{ nullptr } {}
 
   ~Executor() {
     // Clear status.
@@ -58,7 +60,6 @@ public:
       delete node_timers_[i];
     }
     node_timers_.clear();
-
     // Shut down this scheduler
     done_ = true;
     // Nodtify and join
@@ -68,7 +69,7 @@ public:
     }
   }
 
-  void Bind(Graph *g, ExecutorMode mode);
+  void Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor);
   std::future<void> Run();
   void NotifyAll();
 
@@ -87,10 +88,15 @@ private:
 
 private:
   Graph *graph_;
+  // Bring configurable parameters to Task.
+  // Memory is controlled from the outside and set via Bind().
+  TaskAssistor *task_assistor_; 
+
+  // Record the state of each Run.
   std::vector<Status*> status_list_;
   std::atomic<int> run_count_;
   std::atomic<int> finish_count_;
- 
+
   std::mutex mutex_;
   std::vector<std::thread> threads_;
   std::atomic<bool> done_{ 0 };
@@ -172,9 +178,12 @@ void Executor::SerialFreeze() {
 }
 
 void Executor::SerialExec() {
-  for (int i = 0; i < serial_nodes_.size(); i++) {
-    Timer *timer = new Timer(i, serial_nodes_[i]->name());
-    node_timers_.push_back(timer);
+  if (node_timers_.size() != serial_nodes_.size()) {
+    node_timers_.clear();
+    for (int i = 0; i < serial_nodes_.size(); i++) {
+      Timer *timer = new Timer(i, serial_nodes_[i]->name());
+      node_timers_.push_back(timer);
+    }
   }
 
   bool stop = false;
@@ -188,7 +197,7 @@ void Executor::SerialExec() {
         node->BorrowInputs(inputs); 
         node->PrepareOutput(&output);
 
-        node->Run(inputs, output);
+        TIME_DIFF_RECORD((*node_timers_[n]), node->Run(task_assistor_, inputs, output););
 
         node->RecycleInputs(inputs);
         node->PushOutput(output);
@@ -214,6 +223,9 @@ void Executor::Spawn() {
 
     threads_.emplace_back([this, i, node]() -> void {
 
+      TaskAssistor::ThreadVar &tv = task_assistor_->thread_var();
+      tv.id = i;
+
       Timer *timer = new Timer(i, node->name());
       mutex_.lock();
       node_timers_.push_back(timer);
@@ -235,11 +247,11 @@ void Executor::Spawn() {
 
         // Run.
         if (!lock2serial_) {
-          TIME_DIFF_RECORD((*timer), node->Run(inputs, output););
+          TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
         }
         else {
           std::unique_lock<std::mutex> locker(mutex_);
-          TIME_DIFF_RECORD((*timer), node->Run(inputs, output););
+          TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
         }
 
         { // Recycle inputs & Push output.
@@ -334,7 +346,10 @@ bool Executor::CheckStop(Node *node) {
   return false;
 }
 
-void Executor::Bind(Graph *g, ExecutorMode mode) {
+void Executor::Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor) {
+  graph_ = g;
+  mode_ = mode;
+  task_assistor_ = task_assistor;
 
   for (int i = 0; i < g->buffer_queue_size(); i++) {
     Status *stat = new Status;
@@ -344,10 +359,7 @@ void Executor::Bind(Graph *g, ExecutorMode mode) {
     status_list_.push_back(stat);
   }
 
-  graph_ = g;
-  mode_ = mode;
-
-  if (mode == PARALLEL)
+  if (mode == PARALLEL || mode == PARALLEL_USE_GPU)
     Spawn();
   else if (mode == SERIAL)
     SerialFreeze();
@@ -385,7 +397,7 @@ std::future<void> Executor::Run() {
 
   std::future<void> future = stat->p->promise.get_future();
 
-  if (mode_ == PARALLEL) {
+  if (mode_ == PARALLEL || mode_ == PARALLEL_USE_GPU) {
     // Notify each input nodes.
     for (auto node : input_nodes) {
       for (size_t i = 0; i < node->num_successors(); ++i) {

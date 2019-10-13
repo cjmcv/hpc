@@ -23,10 +23,20 @@ auto PrintArgs(Args&&... args) {
   return tup_data;
 }
 
-void WorkB(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
+class TestClass : public hcs::TaskAssistor {
+public:
+  TestClass() {
+    count_ = 0;
+  }
+  std::atomic<int> count_;
+};
+
+void WorkB(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   if (inputs.size() != 1) {
     std::cout << "inputs.size() != 1" << std::endl;
   }
+  ((TestClass *)assistor)->count_++;
+  printf("tB(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* data = (int *)inputs[0]->data(); // 2 int
@@ -40,10 +50,12 @@ void WorkB(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   inputs[0]->CloneTo(output);
 }
 
-void WorkC(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
+void WorkC(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   if (inputs.size() != 1) {
     std::cout << "inputs.size() != 1" << std::endl;
   }
+  ((TestClass *)assistor)->count_++;
+  printf("tC(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* data = (int *)inputs[0]->data(); // 2 int
@@ -57,10 +69,12 @@ void WorkC(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   inputs[0]->CloneTo(output);
 }
 
-void WorkD(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
+void WorkD(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   if (inputs.size() != 1) {
     std::cout << "dependents.size() != 1" << std::endl;
   }
+  ((TestClass *)assistor)->count_++;
+  printf("tD(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* in_data = (int *)inputs[0]->data(); // 2 int
@@ -78,31 +92,12 @@ void WorkD(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   out_data[2] = 1.1;
 }
 
-void WorkE1(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
-  if (inputs.size() != 1) {
-    std::cout << "dependents.size() != 1" << std::endl;
-  }
-
-  // Fetch input.
-  float* in_data = (float *)inputs[0]->data(); // 2 int
-  // Fetch output.
-  output->SyncParams(1, 1, 1, 3, hcs::ON_HOST, hcs::FLOAT32);
-  float* out_data = (float *)output->data();
-
-  // Pass object id.
-  output->object_id_ = inputs[0]->object_id_;
-
-  // Process.
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  out_data[0] = in_data[0] + 1.1;
-  out_data[1] = in_data[1] + 1.1;
-  out_data[2] = in_data[2] + 1.1;
-}
-
-void WorkE(std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
+void WorkE(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Blob *output) {
   if (inputs.size() != 2) {
     std::cout << "inputs.size() != 2" << std::endl;
   }
+  ((TestClass *)assistor)->count_++;
+  printf("tE(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
   int* in_data = (int *)inputs[0]->data(); // 2 int
@@ -159,7 +154,8 @@ void Add() {
 
   hcs::Executor executor;
   executor.name_ = "Test";
-  executor.Bind(&graph, hcs::PARALLEL); // hcs::SERIAL  hcs::PARALLEL
+  TestClass ass;
+  executor.Bind(&graph, hcs::PARALLEL, &ass); // hcs::SERIAL  hcs::PARALLEL
 
   hcs::Profiler profiler(&executor, &graph);
   int config_flag = hcs::VIEW_NODE | hcs::VIEW_STATUS_RUN_TIME | hcs::VIEW_STATUS;// | hcs::LOCK_RUN_TO_SERIAL
@@ -228,7 +224,7 @@ void Add() {
       }
     }
     get_time = (clock() - time) * 1000.0 / CLOCKS_PER_SEC;
-    printf("time: %f, %f.\n", push_time, get_time);
+    printf("time: %f, %f. ass: %d.\n", push_time, get_time, ass.count_.load());
   }
 
   profiler.Stop();
