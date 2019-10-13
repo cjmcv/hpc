@@ -39,19 +39,16 @@ protected:
 class Timer {
 public:
   Timer() :
-    idx_(-1),
     name_("executor"),
     count_(0), ave_(0),
     min_(FLT_MAX), max_(0) {}
 
-  Timer(int idx, std::string name) :
-    idx_(idx), 
+  Timer(std::string name) :
     name_(name),
     count_(0), ave_(0),
     min_(FLT_MAX), max_(0) {}
 
   inline std::string name() const { return name_; }
-  inline int idx() const { return idx_; }
   inline float min() const { return min_; }
   inline float max() const { return max_; }
   inline float ave() const { return ave_; }

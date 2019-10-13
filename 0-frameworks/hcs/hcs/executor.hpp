@@ -38,10 +38,9 @@ class Executor {
   };
 
 public:
-  std::string name_;
 
-  // constructs the executor with N worker threads
-  explicit Executor(unsigned N = std::thread::hardware_concurrency()) :
+  explicit Executor(std::string name) :
+    name_{name},
     graph_{ nullptr },
     run_count_{ 0 },
     finish_count_{ 0 },
@@ -67,24 +66,37 @@ public:
     }
   }
 
+  // Set some important parameters and do some initialization.
   void Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor);
+  // Run.
   std::future<void> Run();
+  // Notify all of the threads.
   void NotifyAll();
 
 private:
-
+  ///////////////
+  // Serial.
+  ///////////////
+  // Generate serial_nodes_ for serial execution.
   void SerialFreeze();
+  // Serial execute according to serial_nodes_.
   void SerialExec();
 
+  ///////////////
+  // Parallel. 
+  ///////////////
+  // Start all of the threads and waiting for input data.
+  // A thread is bound to a node
   void Spawn();
-
+  // Wait and check whether the input data is ready or not.
   bool WaitCheckInputs(Node *node);
-
+  // Wake up subsequent nodes to tell them that they have new input data.
   void NotifySuccessors(Node *node);
-
+  // Check to see if the Run() has completed, and if it has, respond the promise in Run().
   bool CheckStop(Node* node);
 
 private:
+  std::string name_;
   Graph *graph_;
   // Bring configurable parameters to Task.
   // Memory is controlled from the outside and set via Bind().
@@ -92,16 +104,22 @@ private:
 
   // Record the state of each Run.
   std::vector<Status*> status_list_;
+  // The number of times Run() has been called.
   std::atomic<int> run_count_;
+  // The number of times the Run() completes.
   std::atomic<int> finish_count_;
 
   std::mutex mutex_;
+  // A thread corresponds to a task node.
   std::vector<std::thread> threads_;
+  // A flag bit used to indicate the end of work, and stop the working threads.
   std::atomic<bool> done_{ 0 };
   
-  ExecutorMode mode_; //
-  std::vector<Node *> serial_nodes_; // For serial mode only.
-
+  ExecutorMode mode_;
+  // For serial mode only. 
+  // The order of nodes in serial_nodes_ is the order in which they are called.
+  std::vector<Node *> serial_nodes_; 
+  // For each node, it marks the elapsed time of the node operation.
   std::vector<Timer *> node_timers_;
 
   static bool lock2serial_;
@@ -179,7 +197,7 @@ void Executor::SerialExec() {
   if (node_timers_.size() != serial_nodes_.size()) {
     node_timers_.clear();
     for (int i = 0; i < serial_nodes_.size(); i++) {
-      Timer *timer = new Timer(i, serial_nodes_[i]->name());
+      Timer *timer = new Timer(serial_nodes_[i]->name());
       node_timers_.push_back(timer);
     }
   }
@@ -224,7 +242,7 @@ void Executor::Spawn() {
       TaskAssistor::ThreadVar &tv = task_assistor_->thread_var();
       tv.id = i;
 
-      Timer *timer = new Timer(i, node->name());
+      Timer *timer = new Timer(node->name());
       mutex_.lock();
       node_timers_.push_back(timer);
       mutex_.unlock();
@@ -358,7 +376,7 @@ void Executor::Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor) {
   }
 
   switch (mode) {
-  case PARALLEL_STREAMS:
+  case PARALLEL_MULTI_STREAMS:
     task_assistor->Init4GPU(g->nodes().size());
   case PARALLEL:
     Spawn();
@@ -401,7 +419,7 @@ std::future<void> Executor::Run() {
 
   std::future<void> future = stat->p->promise.get_future();
 
-  if (mode_ == PARALLEL || mode_ == PARALLEL_STREAMS) {
+  if (mode_ == PARALLEL || mode_ == PARALLEL_MULTI_STREAMS) {
     // Notify each input nodes.
     for (auto node : input_nodes) {
       for (size_t i = 0; i < node->num_successors(); ++i) {

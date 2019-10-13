@@ -71,6 +71,9 @@ public:
   int flag_;
 
   BlockingQueue<Blob *> outs_free_;
+  // Note: outs_full_ is an array, each element corresponds to a branch.
+  // If a node has multiple outputs, it has multiple branches.
+  // A branch follows a subsequent node.
   BlockingQueue<Blob *> *outs_full_;
 
 private:
@@ -132,6 +135,7 @@ void Node::Init(int buffer_queue_size) {
 }
 
 void Node::Clean() {
+  // Clean buffer.
   if (outs_.size() > 0) {
     for (int i = 0; i < outs_.size(); i++) {
       if (outs_[i] != nullptr) {
@@ -140,6 +144,7 @@ void Node::Clean() {
       }
     }
   }
+  // Clear branches.
   if (outs_full_ != nullptr) {
     delete[]outs_full_;
   }

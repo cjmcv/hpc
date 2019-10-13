@@ -25,6 +25,9 @@ public:
   }
 
 private:
+  // Show the information of each node.
+  // var - cached output for branch1, cached output for branch2..
+  // (node name: var <Free cache space>, How many times has the node run)
   void ViewNode() {
     std::ostringstream stream;
     for (int i = 0; i < graph_->nodes().size(); i++) {
@@ -40,6 +43,7 @@ private:
     LOG(INFO) << "Profiler->Node: " << stream.str();
   }
 
+  // Show the progress of Run().
   void ViewStatus() {
     bool flag = false;
     std::ostringstream stream;
@@ -59,6 +63,12 @@ private:
       LOG(INFO) << "Profiler->Status: There's no active Status";
   }
 
+  // Show the running time of task in each node.
+  // a - node name.  b - How many times has the node run.
+  // c - The minimum time consuming.   
+  // d - The maximum time consuming.  
+  // e - average.
+  // (a: count-b, min-c, max-d, ave-e)
   void ViewNodeRunTime() {
     Timer::is_record_ = true;
     std::ostringstream stream;
@@ -73,6 +83,7 @@ private:
     LOG(INFO) << "Profiler->NodeRunTime: " << stream.str();
   }
 
+  // Show how long it takes to run() in an executor.
   void ViewStatusRunTime() {
     Timer::is_record_ = true;
     std::ostringstream stream;
@@ -115,6 +126,7 @@ private:
   Graph *graph_;
 
   int mode_;
+  // Query interval time.
   int interval_ms_;
 };
 

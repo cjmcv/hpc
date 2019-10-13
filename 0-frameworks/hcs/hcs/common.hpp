@@ -4,9 +4,12 @@
 namespace hcs {
 
 enum ExecutorMode {
+  // Single thread.
   SERIAL = 0,
+  // Multiple threads.
   PARALLEL,
-  PARALLEL_STREAMS
+  // Multiple threads & multiple streams.
+  PARALLEL_MULTI_STREAMS
 };
 
 enum MemoryMode {
@@ -18,7 +21,8 @@ enum TypeFlag {
   FLOAT32 = 0,
   INT32 = 1,
   INT8 = 2,
-  TYPES_NUM = 3  // Used to mark the total number of elements in TypeFlag.
+  // Used to mark the total number of elements in TypeFlag.
+  TYPES_NUM = 3  
 };
 
 enum ProfilerMode {
@@ -29,7 +33,10 @@ enum ProfilerMode {
   VIEW_STATUS_RUN_TIME = 0x16,
 };
 
-// TODO: task_assistor_可以选择不赋值
+// The main function is to bring in additional parameters to each task.
+// Usage: 1. You need to customize a class and then inherit TaskAssistor.
+//        2. Populate the class with the data you need to use in the tasks.
+//        3. Use Bind() to pass the class into executor, and call it in tasks.
 class TaskAssistor {
 public:
   TaskAssistor() {}
@@ -62,7 +69,6 @@ public:
     streams_ = (cudaStream_t *)malloc(num_streams_ * sizeof(cudaStream_t));
     for (int i = 0; i < num_streams_; i++) {
       cudaStreamCreate(&(streams_[i]));
-      printf("<s-%d, %d>", i, streams_[i]);
     }
   }
   inline cudaStream_t stream() const { return streams_[id()]; }
