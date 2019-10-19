@@ -38,7 +38,9 @@ public:
   void *GetDeviceData();
   
   // Push data from buffer_ to data_.
-  bool CheckPushBuffer(cudaStream_t stream = nullptr);
+  void PushBuffer(cudaStream_t stream = nullptr);
+  void Synchronize(cudaStream_t stream = nullptr);
+
   bool CloneTo(Blob *to);
   bool SyncParams(int num, int channel, int height, int width, int mode, int type);
 
@@ -50,7 +52,7 @@ private:
 public:
   int object_id_;
 
-private:  
+private:
   bool is_created_;
   
   void *data_;
@@ -146,10 +148,11 @@ void *Blob::GetDeviceData() {
   }
 }
 
-bool Blob::CheckPushBuffer(cudaStream_t stream) {
+void Blob::PushBuffer(cudaStream_t stream) {
+  need_push_ = false;
+
   if (buffer_ == nullptr) {
-    //LOG(ERROR) << "This buffer is empty.";
-    return false;
+    LOG(ERROR) << "This buffer is empty.";
   }
   
   if (mode_ == ON_HOST) {
@@ -158,7 +161,6 @@ bool Blob::CheckPushBuffer(cudaStream_t stream) {
     }
     else {
       CUDA_CHECK(cudaMemcpyAsync(data_, buffer_, size_, cudaMemcpyDeviceToHost, stream));
-      CUDA_CHECK(cudaStreamSynchronize(stream));
     }
   }
   else {
@@ -167,10 +169,12 @@ bool Blob::CheckPushBuffer(cudaStream_t stream) {
     }
     else {
       CUDA_CHECK(cudaMemcpyAsync(data_, buffer_, size_, cudaMemcpyHostToDevice, stream));
-      CUDA_CHECK(cudaStreamSynchronize(stream));
     }
   }
-  return true;
+}
+
+void Blob::Synchronize(cudaStream_t stream) {
+  CUDA_CHECK(cudaStreamSynchronize(stream));
 }
 
 bool Blob::SyncParams(int num, int channel, int height, int width, int mode, int type) {

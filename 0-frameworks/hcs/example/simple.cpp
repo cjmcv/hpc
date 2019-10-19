@@ -150,7 +150,7 @@ void Add() {
   executor.Bind(&graph, hcs::PARALLEL, &ass); // hcs::SERIAL  hcs::PARALLEL
 
   hcs::Profiler profiler(&executor, &graph);
-  int config_flag = hcs::VIEW_NODE | hcs::VIEW_STATUS_RUN_TIME | hcs::VIEW_STATUS;// | hcs::LOCK_RUN_TO_SERIAL
+  int config_flag = hcs::VIEW_NODE | hcs::VIEW_STATUS_RUN_TIME | hcs::VIEW_STATUS;// | 
   profiler.Config(config_flag, 200);
   profiler.Start();
 

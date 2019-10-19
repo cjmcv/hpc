@@ -57,6 +57,7 @@ public:
       delete node_timers_[i];
     }
     node_timers_.clear();
+
     // Shut down this scheduler
     done_ = true;
     // Nodtify and join
@@ -74,6 +75,13 @@ public:
   void NotifyAll();
 
 private:
+  // Wake up subsequent nodes to tell them that they have new input data.
+  void NotifySuccessors(Node *node);
+  // Check to see if the Run() has completed, and if it has, respond the promise in Run().
+  bool CheckStop(Node* node);
+  //The main processing function.
+  bool Process(Node *node, Timer *timer);
+
   ///////////////
   // Serial.
   ///////////////
@@ -85,19 +93,16 @@ private:
   ///////////////
   // Parallel. 
   ///////////////
-  // Start all of the threads and waiting for input data.
-  // A thread is bound to a node
-  void Spawn();
   // Wait and check whether the input data is ready or not.
   bool WaitCheckInputs(Node *node);
-  // Wake up subsequent nodes to tell them that they have new input data.
-  void NotifySuccessors(Node *node);
-  // Check to see if the Run() has completed, and if it has, respond the promise in Run().
-  bool CheckStop(Node* node);
+  // Start all of the threads and waiting for input data.
+  // A thread is bound to a node.
+  void Spawn();
 
 private:
   std::string name_;
   Graph *graph_;
+
   // Bring configurable parameters to Task.
   // Memory is controlled from the outside and set via Bind().
   TaskAssistor *task_assistor_; 
@@ -121,12 +126,114 @@ private:
   std::vector<Node *> serial_nodes_; 
   // For each node, it marks the elapsed time of the node operation.
   std::vector<Timer *> node_timers_;
-
-  static bool lock2serial_;
 };
 
-bool Executor::lock2serial_ = false;
+void Executor::NotifySuccessors(Node *node) {
 
+  const auto num_successors = node->num_successors();
+
+  for (int i = 0; i < num_successors; ++i) {
+    // Check that all dependent nodes have cached output data.
+    Node *successor = node->successor(i);
+    bool is_ready = true;
+    for (int j = 0; j < successor->num_dependents(); ++j) {
+      if (successor->IsDependsOutEmpty(j)) {
+        is_ready = false;
+        break;
+      }
+    }
+    // If the dependents are ready, wake up it.
+    // Note: mutex_ in node is a member variable of node. 
+    // So std::unique_lock<std::mutex> locker(mutex_) should only be use for 
+    // std::condition_variable to prevent multiple locks from being invoked 
+    // at the same time and causing unawakes.
+    if (is_ready)
+      successor->cond_.notify_one();
+  }
+}
+
+bool Executor::CheckStop(Node *node) {
+  const auto num_successors = node->num_successors();
+
+  int status_id = finish_count_.load() % status_list_.size();
+  Status *status = status_list_[status_id];
+  // A node without any successor should check the termination of this run.
+  if (num_successors == 0) {
+    if (--(status->num_incomplete_out_nodes) == 0) {
+      // It means that all of the output nodes have been completed.
+      LOG(INFO) << "Stop " << status_id;
+      finish_count_++;
+      status_list_[status_id]->timer.Stop();
+
+      auto p{ std::move(status_list_[status_id]->p->promise) };
+
+      // Delete Promise & Recover status.
+      delete status_list_[status_id]->p;
+      status_list_[status_id]->p = new Promise;
+      status_list_[status_id]->num_incomplete_out_nodes = 0;
+
+      // We set the promise in the end to response the std::future in Run().
+      p.set_value();
+
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Executor::Process(Node *node, Timer *timer) {
+  std::vector<Blob *> inputs;
+  Blob *output = nullptr;
+
+  { // Borrow input & Prepare output.
+    std::unique_lock<std::mutex> locker(mutex_);
+    node->BorrowInputs(inputs);
+    node->PrepareOutput(&output);
+  }
+
+  // Check object_id_.
+  for (int i = 1; i < inputs.size(); i++) {
+    if (inputs[i]->object_id_ != inputs[0]->object_id_) {
+      LOG(ERROR) << "object_id_ is not consistent for all nodes in the same group.";
+    }
+  }
+
+  //////////
+  if (mode_ == PARALLEL_MULTI_STREAMS) {
+    // One stream corresponds to one run.
+    //   Use thread local variables to ensure that 
+    // the id number is not modified when used.
+    TaskAssistor::ThreadVar &tv = task_assistor_->thread_var();
+    tv.stream_id = node->run_count() % task_assistor_->num_streams();
+    // 
+    for (int i = 0; i < inputs.size(); i++) {
+      inputs[i]->Synchronize(task_assistor_->stream());
+    }
+  }
+
+  // Run.
+  TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
+
+  // Push if needed.
+  if (output->need_push()) {
+    output->PushBuffer(task_assistor_->stream());
+  }
+
+  // Pass object_id_.
+  output->object_id_ = inputs[0]->object_id_;
+
+  { // Recycle inputs & Push output.
+    std::unique_lock<std::mutex> locker(mutex_);
+    node->RecycleInputs(inputs);
+    node->PushOutput(output);
+  }
+
+  NotifySuccessors(node);
+
+  return CheckStop(node);
+}
+
+// ----------------- Serial -----------------
 void Executor::SerialFreeze() {
   serial_nodes_.clear();
 
@@ -205,116 +312,12 @@ void Executor::SerialExec() {
   bool stop = false;
   while (!stop) {
     for (int n = 0; n < serial_nodes_.size(); n++) {
-      Node *node = serial_nodes_[n];
-
-      std::vector<Blob *> inputs; 
-      Blob *output = nullptr;
-      {
-        node->BorrowInputs(inputs); 
-        node->PrepareOutput(&output);
-
-        // Check object_id_.
-        for (int i = 1; i < inputs.size(); i++) {
-          if (inputs[i]->object_id_ != inputs[0]->object_id_) {
-            LOG(ERROR) << "object_id_ is not consistent for all nodes in the same group.";
-          }
-        }
-
-        // Run.
-        TIME_DIFF_RECORD((*node_timers_[n]), node->Run(task_assistor_, inputs, output););
-
-        // TODO：将拷贝操作全部挪到CPU线程中（包括输入和输出）？
-        //       使GPU计算完时，不需要同步，在CPU要用到时才进行同步。
-        // Push if needed.
-        if (output->need_push()) {
-          output->CheckPushBuffer(task_assistor_->stream());
-        }
-        // Pass object_id_.
-        output->object_id_ = inputs[0]->object_id_;
-
-        node->RecycleInputs(inputs);
-        node->PushOutput(output);
-      }
-      stop = CheckStop(node);
+      stop = Process(serial_nodes_[n], node_timers_[n]);
     }
   }
 }
 
-void Executor::Spawn() {
-
-  std::vector<std::unique_ptr<Node>> &nodes = graph_->nodes();
-  for (unsigned i = 0; i < nodes.size(); ++i) {
-    Node *node = &(*nodes[i]);
-    if (node->num_dependents() == 0) {
-      continue;
-    }
-    LOG(INFO) << "Spawn " << node->name().c_str();
-    if (!(node->has_task())) {
-      LOG(ERROR) << "No task can be invoked in " << node->name().c_str();
-      continue;
-    }
-
-    threads_.emplace_back([this, i, node]() -> void {
-
-      TaskAssistor::ThreadVar &tv = task_assistor_->thread_var();
-      tv.id = i;
-
-      Timer *timer = new Timer(node->name());
-      mutex_.lock();
-      node_timers_.push_back(timer);
-      mutex_.unlock();
-
-      while (!done_) {
-        // Wait and check intputs from depends.
-        bool is_pass = WaitCheckInputs(node);
-        if (!is_pass) { break; }
-
-        std::vector<Blob *> inputs;
-        Blob *output = nullptr;
-
-        { // Borrow input & Prepare output.
-          std::unique_lock<std::mutex> locker(mutex_);
-          node->BorrowInputs(inputs);
-          node->PrepareOutput(&output);
-        }
-
-        // Check object_id_.
-        for (int i = 1; i < inputs.size(); i++) {
-          if (inputs[i]->object_id_ != inputs[0]->object_id_) {
-            LOG(ERROR) << "object_id_ is not consistent for all nodes in the same group.";
-          }
-        }
-
-        // Run.
-        if (!lock2serial_) {
-          TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
-        }
-        else {
-          std::unique_lock<std::mutex> locker(mutex_);
-          TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
-        }
-
-        // Push if needed.
-        if (output->need_push()) {
-          output->CheckPushBuffer(task_assistor_->stream());
-        }
-        // Pass object_id_.
-        output->object_id_ = inputs[0]->object_id_;
-
-        { // Recycle inputs & Push output.
-          std::unique_lock<std::mutex> locker(mutex_);
-          node->RecycleInputs(inputs);
-          node->PushOutput(output);
-        }
-
-        NotifySuccessors(node);
-
-        CheckStop(node);
-      }
-    });
-  }
-}
-
+// ----------------- Parallel -----------------
 bool Executor::WaitCheckInputs(Node *node) {
 
   std::unique_lock<std::mutex> locker(node->mutex_);
@@ -340,59 +343,42 @@ bool Executor::WaitCheckInputs(Node *node) {
   return true;
 }
 
-void Executor::NotifySuccessors(Node *node) {
+void Executor::Spawn() {
 
-  const auto num_successors = node->num_successors();
- 
-  for (int i = 0; i < num_successors; ++i) {
-    // Check that all dependent nodes have cached output data.
-    Node *successor = node->successor(i);
-    bool is_ready = true;
-    for (int j = 0; j < successor->num_dependents(); ++j) {
-      if (successor->IsDependsOutEmpty(j)) {
-        is_ready = false;
-        break;
+  std::vector<std::unique_ptr<Node>> &nodes = graph_->nodes();
+  for (unsigned i = 0; i < nodes.size(); ++i) {
+    Node *node = &(*nodes[i]);
+    if (node->num_dependents() == 0) {
+      continue;
+    }
+    LOG(INFO) << "Spawn " << node->name().c_str();
+    if (!(node->has_task())) {
+      LOG(ERROR) << "No task can be invoked in " << node->name().c_str();
+      continue;
+    }
+
+    threads_.emplace_back([this, i, node]() -> void {
+
+      TaskAssistor::ThreadVar &tv = task_assistor_->thread_var();
+      tv.thread_id = i;
+
+      Timer *timer = new Timer(node->name());
+      mutex_.lock();
+      node_timers_.push_back(timer);
+      mutex_.unlock();
+
+      while (!done_) {
+        // Wait and check intputs from depends.
+        bool is_pass = WaitCheckInputs(node);
+        if (!is_pass) { break; }
+
+        Process(node, timer);
       }
-    }
-    // If the dependents are ready, wake up it.
-    // Note: mutex_ in node is a member variable of node. 
-    // So std::unique_lock<std::mutex> locker(mutex_) should only be use for 
-    // std::condition_variable to prevent multiple locks from being invoked 
-    // at the same time and causing unawakes.
-    if (is_ready)
-      successor->cond_.notify_one();
+    });
   }
 }
 
-bool Executor::CheckStop(Node *node) {
-  const auto num_successors = node->num_successors();
-
-  int status_id = finish_count_.load() % status_list_.size();
-  Status *status = status_list_[status_id];
-  // A node without any successor should check the termination of this run.
-  if (num_successors == 0) {
-    if (--(status->num_incomplete_out_nodes) == 0) {
-      // It means that all of the output nodes have been completed.
-      LOG(INFO) << "Stop " << status_id;
-      finish_count_++;
-      status_list_[status_id]->timer.Stop();
-
-      auto p{ std::move(status_list_[status_id]->p->promise) };
-
-      // Delete Promise & Recover status.
-      delete status_list_[status_id]->p;
-      status_list_[status_id]->p = new Promise;
-      status_list_[status_id]->num_incomplete_out_nodes = 0;
-
-      // We set the promise in the end to response the std::future in Run().
-      p.set_value();
-
-      return true;
-    }
-  }
-  return false;
-}
-
+// ----------------- Public -----------------
 void Executor::Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor) {
   graph_ = g;
   mode_ = mode;
@@ -408,7 +394,7 @@ void Executor::Bind(Graph *g, ExecutorMode mode, TaskAssistor *task_assistor) {
 
   switch (mode) {
   case PARALLEL_MULTI_STREAMS:
-    task_assistor->Init4GPU(g->nodes().size());
+    task_assistor->EnableMultiStreams(100);
   case PARALLEL:
     Spawn();
     break;

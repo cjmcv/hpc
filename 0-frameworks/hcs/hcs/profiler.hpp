@@ -102,9 +102,6 @@ private:
   void Entry() {
     while (!IsMustStop()) {
       // Note: "==" has a higher priority than "&".
-      if ((mode_ & LOCK_RUN_TO_SERIAL) == LOCK_RUN_TO_SERIAL) {
-        Executor::lock2serial_ = true;
-      }
       if ((mode_ & VIEW_NODE) == VIEW_NODE) {
         ViewNode();
       }
