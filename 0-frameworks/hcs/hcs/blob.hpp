@@ -29,18 +29,23 @@ public:
   inline const std::string &node_name() const { return node_name_; }
   inline std::vector<int> &shape() { return shape_; };
   inline void set_node_name(std::string name) { node_name_ = name; }
+  inline bool need_push() const { return need_push_; }
 
   bool Create(int num, int channel, int height, int width, int mode, int type);
   void Release();
 
-  void ReleaseBuffer();
-  // Get the pointer of buffer_;
-  void *GetOtherSideBuffer();
+  void *GetHostData();
+  void *GetDeviceData();
+  
   // Push data from buffer_ to data_.
   bool CheckPushBuffer(cudaStream_t stream = nullptr);
-  bool CopyTo(Blob *to);
   bool CloneTo(Blob *to);
   bool SyncParams(int num, int channel, int height, int width, int mode, int type);
+
+private:
+  // Get the pointer of buffer_;
+  void *GetOtherSideBuffer();
+  void ReleaseBuffer();
 
 public:
   int object_id_;
@@ -52,6 +57,9 @@ private:
   // buffer_ is the same size as data_, but at different devices.
   // For example, if data_ at host, buffer_ will be at device.
   void *buffer_;
+  // If true, push buffer to data.
+  bool need_push_;
+
   // The number of elements.
   int len_;
   // sizeof(type) * len.
@@ -69,6 +77,8 @@ private:
   std::string node_name_;
 };
 
+///////////
+// Public
 bool Blob::Create(int num, int channel, int height, int width, int mode, int type) {
   object_id_ = -1;
 
@@ -101,7 +111,6 @@ bool Blob::Create(int num, int channel, int height, int width, int mode, int typ
   is_created_ = true;
   return true;
 }
-
 void Blob::Release() {
   if (data_ != nullptr) {
     if (mode_ == ON_HOST)
@@ -116,34 +125,25 @@ void Blob::Release() {
   is_created_ = false;
 }
 
-void Blob::ReleaseBuffer() {
-  if (buffer_ != nullptr) {
-    if (mode_ == ON_HOST) {
-      CUDA_CHECK(cudaFree(buffer_));
-    }
-    else {
-      delete[]buffer_;
-    }
-    buffer_ = nullptr;
+void *Blob::GetHostData() {
+  if (mode_ == ON_HOST) {
+    need_push_ = false;
+    return data_;
+  }
+  else {
+    need_push_ = true;
+    return GetOtherSideBuffer();
   }
 }
-
-void *Blob::GetOtherSideBuffer() {
-  if (!is_created_) {
-    LOG(ERROR) << "GetOtherSideBuffer is not allowed when Blob is not created.";
+void *Blob::GetDeviceData() {
+  if (mode_ == ON_DEVICE) {
+    need_push_ = false; 
+    return data_;
   }
-  // When data_ is on the host side, buffer_ is on the device side.
-  if (buffer_ == nullptr) {
-    if (mode_ == ON_HOST) {
-      TYPE_SWITCH(type_, T,
-        CUDA_CHECK(cudaMalloc(&buffer_, sizeof(T) * len_));
-      );
-    }
-    else {
-      TYPE_SWITCH(type_, T, buffer_ = new T[len_];);
-    }
+  else {
+    need_push_ = true;
+    return GetOtherSideBuffer();
   }
-  return buffer_;
 }
 
 bool Blob::CheckPushBuffer(cudaStream_t stream) {
@@ -213,6 +213,38 @@ bool Blob::CloneTo(Blob *to) {
   // Pass object id.
   to->object_id_ = object_id_;
   return true;
+}
+
+///////////
+// Private
+void Blob::ReleaseBuffer() {
+  if (buffer_ != nullptr) {
+    if (mode_ == ON_HOST) {
+      CUDA_CHECK(cudaFree(buffer_));
+    }
+    else {
+      delete[]buffer_;
+    }
+    buffer_ = nullptr;
+  }
+}
+
+void *Blob::GetOtherSideBuffer() {
+  if (!is_created_) {
+    LOG(ERROR) << "GetOtherSideBuffer is not allowed when Blob is not created.";
+  }
+  // When data_ is on the host side, buffer_ is on the device side.
+  if (buffer_ == nullptr) {
+    if (mode_ == ON_HOST) {
+      TYPE_SWITCH(type_, T,
+        CUDA_CHECK(cudaMalloc(&buffer_, sizeof(T) * len_));
+      );
+    }
+    else {
+      TYPE_SWITCH(type_, T, buffer_ = new T[len_];);
+    }
+  }
+  return buffer_;
 }
 
 }  // namespace hcs.

@@ -222,6 +222,13 @@ void Executor::SerialExec() {
 
         // Run.
         TIME_DIFF_RECORD((*node_timers_[n]), node->Run(task_assistor_, inputs, output););
+
+        // TODO：将拷贝操作全部挪到CPU线程中（包括输入和输出）？
+        //       使GPU计算完时，不需要同步，在CPU要用到时才进行同步。
+        // Push if needed.
+        if (output->need_push()) {
+          output->CheckPushBuffer(task_assistor_->stream());
+        }
         // Pass object_id_.
         output->object_id_ = inputs[0]->object_id_;
 
@@ -287,6 +294,10 @@ void Executor::Spawn() {
           TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
         }
 
+        // Push if needed.
+        if (output->need_push()) {
+          output->CheckPushBuffer(task_assistor_->stream());
+        }
         // Pass object_id_.
         output->object_id_ = inputs[0]->object_id_;
 

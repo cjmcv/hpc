@@ -1,4 +1,4 @@
-#define SIMPLE
+//#define SIMPLE
 #ifdef SIMPLE
 
 #include <thread>
@@ -38,7 +38,7 @@ void WorkB(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
   //printf("tB(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
-  int* data = (int *)inputs[0]->data(); // 2 int
+  int* data = (int *)inputs[0]->GetHostData(); // 2 int
   
   // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -57,7 +57,7 @@ void WorkC(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
   //printf("tC(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
-  int* data = (int *)inputs[0]->data(); // 2 int
+  int* data = (int *)inputs[0]->GetHostData(); // 2 int
   
   // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -76,10 +76,10 @@ void WorkD(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
   //printf("tD(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
-  int* in_data = (int *)inputs[0]->data(); // 2 int
+  int* in_data = (int *)inputs[0]->GetHostData(); // 2 int
   // Fetch output.
   output->SyncParams(1, 1, 1, 3, hcs::ON_HOST, hcs::FLOAT32);  
-  float* out_data = (float *)output->data();
+  float* out_data = (float *)output->GetHostData();
 
   // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -96,11 +96,11 @@ void WorkE(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
   //printf("tE(%d),", ((TestClass *)assistor)->id());
 
   // Fetch input.
-  int* in_data = (int *)inputs[0]->data(); // 2 int
-  float* in2_data = (float *)inputs[1]->data(); // 3 float
+  int* in_data = (int *)inputs[0]->GetHostData(); // 2 int
+  float* in2_data = (float *)inputs[1]->GetHostData(); // 3 float
   // Fetch output.
   output->SyncParams(1, 1, 1, 4, hcs::ON_HOST, hcs::FLOAT32);
-  float* out_data = (float *)output->data();
+  float* out_data = (float *)output->GetHostData();
 
   // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
@@ -115,7 +115,7 @@ void Add() {
   hcs::Blob input("in");
   input.Create(1, 1, 1, 2, hcs::ON_HOST, hcs::INT32);
   input.object_id_ = 1;
-  int *data = (int *)input.data();
+  int *data = (int *)input.GetHostData();
   data[0] = 1;
   data[1] = 1;
 
