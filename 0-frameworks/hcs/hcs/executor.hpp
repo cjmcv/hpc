@@ -213,7 +213,17 @@ void Executor::SerialExec() {
         node->BorrowInputs(inputs); 
         node->PrepareOutput(&output);
 
+        // Check object_id_.
+        for (int i = 1; i < inputs.size(); i++) {
+          if (inputs[i]->object_id_ != inputs[0]->object_id_) {
+            LOG(ERROR) << "object_id_ is not consistent for all nodes in the same group.";
+          }
+        }
+
+        // Run.
         TIME_DIFF_RECORD((*node_timers_[n]), node->Run(task_assistor_, inputs, output););
+        // Pass object_id_.
+        output->object_id_ = inputs[0]->object_id_;
 
         node->RecycleInputs(inputs);
         node->PushOutput(output);
@@ -261,6 +271,13 @@ void Executor::Spawn() {
           node->PrepareOutput(&output);
         }
 
+        // Check object_id_.
+        for (int i = 1; i < inputs.size(); i++) {
+          if (inputs[i]->object_id_ != inputs[0]->object_id_) {
+            LOG(ERROR) << "object_id_ is not consistent for all nodes in the same group.";
+          }
+        }
+
         // Run.
         if (!lock2serial_) {
           TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
@@ -269,6 +286,9 @@ void Executor::Spawn() {
           std::unique_lock<std::mutex> locker(mutex_);
           TIME_DIFF_RECORD((*timer), node->Run(task_assistor_, inputs, output););
         }
+
+        // Pass object_id_.
+        output->object_id_ = inputs[0]->object_id_;
 
         { // Recycle inputs & Push output.
           std::unique_lock<std::mutex> locker(mutex_);

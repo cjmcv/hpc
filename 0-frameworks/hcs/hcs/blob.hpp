@@ -37,8 +37,7 @@ public:
   // Get the pointer of buffer_;
   void *GetOtherSideBuffer();
   // Push data from buffer_ to data_.
-  void PushBuffer(cudaStream_t stream = nullptr);
-
+  bool CheckPushBuffer(cudaStream_t stream = nullptr);
   bool CopyTo(Blob *to);
   bool CloneTo(Blob *to);
   bool SyncParams(int num, int channel, int height, int width, int mode, int type);
@@ -147,9 +146,10 @@ void *Blob::GetOtherSideBuffer() {
   return buffer_;
 }
 
-void Blob::PushBuffer(cudaStream_t stream) {
+bool Blob::CheckPushBuffer(cudaStream_t stream) {
   if (buffer_ == nullptr) {
-    LOG(ERROR) << "This buffer is empty.";
+    //LOG(ERROR) << "This buffer is empty.";
+    return false;
   }
   
   if (mode_ == ON_HOST) {
@@ -170,6 +170,7 @@ void Blob::PushBuffer(cudaStream_t stream) {
       CUDA_CHECK(cudaStreamSynchronize(stream));
     }
   }
+  return true;
 }
 
 bool Blob::SyncParams(int num, int channel, int height, int width, int mode, int type) {

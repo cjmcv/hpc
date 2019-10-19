@@ -81,9 +81,6 @@ void WorkD(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
   output->SyncParams(1, 1, 1, 3, hcs::ON_HOST, hcs::FLOAT32);  
   float* out_data = (float *)output->data();
 
-  // Pass object id.
-  output->object_id_ = inputs[0]->object_id_;
-
   // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   out_data[0] = in_data[0] + 1.1;
@@ -104,9 +101,6 @@ void WorkE(hcs::TaskAssistor *assistor, std::vector<hcs::Blob *> inputs, hcs::Bl
   // Fetch output.
   output->SyncParams(1, 1, 1, 4, hcs::ON_HOST, hcs::FLOAT32);
   float* out_data = (float *)output->data();
-
-  // Pass object id.
-  output->object_id_ = inputs[0]->object_id_;
 
   // Process.
   std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
