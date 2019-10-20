@@ -15,6 +15,7 @@ class Blob {
 public:
   Blob(std::string name) :is_created_(false),
     data_(nullptr), buffer_(nullptr),
+    need_push_(false),
     len_(0), size_(0),
     object_id_(-1), mode_(-1), type_(-1),
     name_(name), node_name_("noname"){
@@ -22,7 +23,7 @@ public:
   }
   ~Blob() { Release(); }
 
-  inline void *data() { return data_; }
+  //inline void *data() { return data_; }
   inline int mode() const { return mode_; }
   inline int len() const { return len_; }
   inline const std::string &name() const { return name_; }

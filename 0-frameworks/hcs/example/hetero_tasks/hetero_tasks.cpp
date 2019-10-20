@@ -1,4 +1,4 @@
-#define HETERO_TASKS
+//#define HETERO_TASKS
 #ifdef HETERO_TASKS
 
 #include <thread>
@@ -110,7 +110,7 @@ void Task() {
   hcs::Blob input("in");
   input.Create(1, 1, 1280, 1280, hcs::ON_HOST, hcs::FLOAT32);
   input.object_id_ = 1;
-  float *data = (float *)input.data();
+  float *data = (float *)input.GetHostData();
   for (int i = 0; i < input.len(); i++) {
     data[i] = 2;
   }
@@ -198,7 +198,7 @@ void Task() {
       bool flag = OUT->Dequeue(&out_blob);
       if (flag == true) {
         count++;
-        float *data = (float *)out_blob.data();
+        float *data = (float *)out_blob.GetHostData();
         printf("< %d , <", out_blob.object_id_);
         for (int i = 0; i < 1; i++) {//out.num_element_
           printf("%f, ", data[i]);

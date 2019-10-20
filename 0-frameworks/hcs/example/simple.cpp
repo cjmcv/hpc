@@ -1,4 +1,4 @@
-//#define SIMPLE
+#define SIMPLE
 #ifdef SIMPLE
 
 #include <thread>
@@ -202,7 +202,7 @@ void Add() {
       bool flag = OUT->Dequeue(&out);
       if (flag == true) {
         count++;
-        float *data = (float *)out.data();
+        float *data = (float *)out.GetHostData();
         printf("< %d , <", out.object_id_);
         for (int i = 0; i < out.len(); i++) {
           printf("%f, ", data[i]);
