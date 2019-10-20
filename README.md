@@ -11,6 +11,14 @@
 </details>
 
 <details>
+  <summary><strong>hcs</strong> -- A heterogeneous computing system for multi-task scheduling optimization.</summary>
+  
+  [https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs](https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs)
+  
+  tag: std::thread / cuda.
+</details>
+
+<details>
   <summary><strong>vky</strong> -- A Vulkan-based computing framework.</summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky](https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky)

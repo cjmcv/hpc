@@ -6,7 +6,7 @@ Heterogeneous computing system.
 
 ## 主要功能
 
-用于多任务的调度优化。
+异构计算系统，主要多任务的调度优化，支持X86 CPU + Nvidia GPU的异构计算。
 
 在应用中，一般存在多个具有一定依赖关系的任务需要被执行。该框架可根据这些任务的依赖关系自动构建计算图，以较优的方式对任务进行自动调度，实现调度逻辑的自动优化。
 
@@ -16,17 +16,17 @@ Heterogeneous computing system.
 
 测试环境：六核 I7-8750H + GTX1050，VS2017，CUDA10.
 
-1. 测试example/simple.cpp，含四个有依赖关系的CPU任务。
+一、测试example/simple.cpp，含四个有依赖关系的CPU任务。
 
-普通串行；耗时-平均 4300ms；CPU-7%.
+普通串行：耗时-平均 4300ms；CPU-7%.
 
 调度优化：耗时-平均 1100ms；CPU-13%.
 
-2. 测试example/hetero_tasks/hetero_tasks.cpp，含三个GPU任务与四个CPU任务。
+二、测试example/hetero_tasks/hetero_tasks.cpp，含三个GPU任务与四个CPU任务。
 
-普通串行；耗时-平均 13500ms；CPU-15%；GPU-40%
+普通串行：耗时-平均 13500ms；CPU-15%；GPU-40%.
 
-调度优化：耗时-平均 6600ms；CPU-30%；GPU-88%
+调度优化：耗时-平均 6600ms；CPU-30%；GPU-88%.
 
 ## 设计思路
 
@@ -52,7 +52,7 @@ Heterogeneous computing system.
 
 ## 工具模块
 
-1. BlockingQueue：堵塞队列，主要用于数据预取，同时防止内存碎片。
+1. BlockingQueue：堵塞队列，主要用于数据预取，同时减少内存碎片。
 2. InternalThread：内部线程，在堵塞队列和异步调试器中有使用。
 3. LogMessage：日志管理。
 4. Timer：计时函数封装。
