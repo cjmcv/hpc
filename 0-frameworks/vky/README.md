@@ -3,7 +3,21 @@ A small computing framework based on vulkan.
 
 This framework is designed to help you quickly call vulkan's computing API to do the calculations you need.
 
-## Compute shaders
+## 主要功能
+
+该框架旨在帮助你快速调用vulkan的计算API来完成所需的计算，简化vulkan计算的使用过程。
+
+## 编译
+
+```bash
+cd hpc\0-frameworks\vky
+。。。
+```
+
+## 相关资料
+
+### Compute shaders
+
 Vulkan is a new generation graphics and compute API that provides high-efficiency, cross-platform access to modern GPUs used in a wide variety of devices from PCs and consoles to mobile phones and embedded platforms.
 
 Compute shaders in Vulkan have first class support in the API. Compute shaders give applications the ability to perform non-graphics related tasks on the GPU.
