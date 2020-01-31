@@ -45,10 +45,11 @@ public:
         //  throw asio::system_error(error); // Some other error.
 
         message_.HeaderUnpack();
-        size_t body_length = message_.body_length();
-        char *body = new char[body_length];
-        length = socket_.read_some(asio::buffer(body, body_length), error);
-        std::string body_str = std::string(body, length);
+
+        length = socket_.read_some(asio::buffer(message_.body(), message_.body_length()), error);
+
+        message_.Process(RpcMessage::Mode::RESULT);
+        std::string body_str = std::string(message_.body(), length);
         std::cout << "receive body_str :" << body_str << std::endl;
       }
     }

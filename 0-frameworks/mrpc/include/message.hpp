@@ -76,7 +76,6 @@ protected:
       // Reset.
       setp(data_, data_, data_ + capacity_);
     }
-
     // Write.
     sputc(c);
 
@@ -141,17 +140,28 @@ protected:
 };
 
 class RpcMessage :public Message{
-  enum { HeaderLength = 5 };
+public:
+  enum Mode {
+    CALCULATION = 1,
+    RESULT = 2
+  };
+private:
+  enum { HEADER_LENGTH = 5 };
 
 public:
   RpcMessage() { }
-
+  ~RpcMessage() {
+    if (body_buffer4reading_ != nullptr) {
+      delete[]body_buffer4reading_;
+      body_buffer4reading_ = nullptr;
+    }
+  }
 public:
-  inline const char *body() const { return body_.c_str(); }
+  inline char *body() const { return body_; }
   inline std::size_t body_length() const { return body_length_; }
 
   inline char *header() { return header_; }
-  inline std::size_t header_length() const { return HeaderLength; }
+  inline std::size_t header_length() const { return HEADER_LENGTH; }
 
   template <class... Args>
   void Pack(std::string func_name, Args&... args) {
@@ -161,60 +171,75 @@ public:
       buffer_.capacity() << ", " << buffer_.size() << "," << 
       buffer_.str().length();
 
-    body_ = buffer_.str();
-    body_length_ = body_.length();
+    body_str_ = buffer_.str(); // Saved as a member string.
+
+    body_ = (char *)body_str_.c_str();
+    body_length_ = body_str_.length();
 
     std::sprintf(header_, "%4d", buffer_.size());
   }
 
   bool HeaderUnpack() {
-    header_[HeaderLength - 1] = '\0';
+    header_[HEADER_LENGTH - 1] = '\0';
+
     body_length_ = std::atoi(header_);
+    if (body_buffer4reading_ != nullptr) {
+      delete[]body_buffer4reading_;
+      body_buffer4reading_ = nullptr;
+    }
+    body_buffer4reading_ = new char[body_length_];
+
+    body_ = body_buffer4reading_;
+
     std::cout << "Unpack body_len:" << body_length_;
+
 
     buffer_.GrowTo(body_length_);
     return true;
   }
 
   bool HeaderUnpack(const char *header) {
-    memcpy(header_, header, sizeof(char) * HeaderLength);
+    memcpy(header_, header, sizeof(char) * HEADER_LENGTH);
     return HeaderUnpack();
   }
 
-  void GetFuncRet(std::string &str) {
-    Message::UnpackReady(str.c_str(), str.length());
-    //// Skip the header.
-    //for (int i = 0; i < header_length; i++) {
-    //  buffer_.stossc();
-    //}
-    // Get function name.
+  void Process(Mode mode) {
+    // Save body to buffer.
+    Message::UnpackReady(body(), body_length());
+    // Unpack function name.
     std::string func_name;
     Serializer::ForVector<std::string, char>::Load(*istream_, func_name);
 
+    // Unpack params according to function name.
     if (func_name == "add") {
-      std::string A;
-      int B;
-      char C;
-      Message::Unpack(A, B, C);
+      if (mode == CALCULATION) {
+        std::string A;
+        int B;
+        char C;
+        Message::Unpack(A, B, C);
 
-      std::cout << "unpack: " << func_name << ", A: " << A << ",B : " << B << ", C :" << C << std::endl;
+        std::cout << "unpack: " << func_name << ", A: " << A << ",B : " << B << ", C :" << C << std::endl;
 
-      int res = B + B;
-      Pack(func_name, res);
-
-      std::string head_str = std::string(header(), header_length());
-      std::cout << "after head_str :" << head_str << std::endl;
-      std::string body_str2 = std::string(body(), body_length());
-      std::cout << "after body_str2 :" << body_str2 << std::endl;
+        int res = B + B;
+        Pack(func_name, res);
+      }
+      else {
+        int A;
+        Message::Unpack(A);
+        std::cout << "Receive result(" << func_name << ") : " << A << std::endl;
+      }
     }
   }
 
 private:
   std::string func_name_;
   
-  char header_[HeaderLength];
+  char header_[HEADER_LENGTH];
   
-  std::string body_;
+  char *body_;
+  std::string body_str_; // Saved for packing.
+  char *body_buffer4reading_ = nullptr; // Saved for unpacking.
+
   size_t body_length_;
 };
 

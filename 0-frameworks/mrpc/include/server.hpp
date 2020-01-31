@@ -23,9 +23,11 @@ private:
     socket_.async_read_some(asio::buffer(message_.header(), message_.header_length()),
       [this, self](std::error_code ec, std::size_t length) {
       if (!ec) {
-        std::cout << "do_read_header in" << std::endl;
-        std::string header_str(message_.header(), message_.header_length());
-        std::cout << "header_str:" << header_str << std::endl;
+        message_.HeaderUnpack();
+
+        //std::cout << "do_read_header in" << std::endl;
+        //std::string header_str(message_.header(), message_.header_length());
+        //std::cout << "header_str:" << header_str << std::endl;
 
         if (length != message_.header_length())
           std::cout << "length != message.header_length()" << std::endl;
@@ -36,20 +38,17 @@ private:
   }
 
   void do_read_body() {
-    std::cout << "do_read_body" << std::endl;
-    message_.HeaderUnpack();
-    size_t body_length = message_.body_length();
-    char *body = new char[body_length];
-
     auto self(shared_from_this());
-    socket_.async_read_some(asio::buffer(body, message_.body_length()),
-      [this, self, body](std::error_code ec, std::size_t length) {
+    socket_.async_read_some(asio::buffer(message_.body(), message_.body_length()),
+      [this, self](std::error_code ec, std::size_t length) {
       if (!ec) {
-        std::cout << "do_read_body in" << std::endl;
-        std::string body_str = std::string(body, length);
+        if (length != message_.body_length())
+          std::cout << "length != message.header_length()" << std::endl;
+
+        std::string body_str = std::string(message_.body(), message_.body_length());
         std::cout << "body_str :" << body_str << std::endl;
 
-        message_.GetFuncRet(body_str);
+        message_.Process(RpcMessage::Mode::CALCULATION);
 
         do_write_head();
       }
