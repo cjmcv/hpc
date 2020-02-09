@@ -106,6 +106,7 @@ public:
     delete ostream_;
     delete istream_;
   }
+  inline std::string &buffer_str() { return buffer_str_; }
 
   inline void PackReady() {
     buffer_.Reset();
@@ -114,9 +115,11 @@ public:
   template <class... Args>
   inline void Pack(Args&... args) {
     Serializer::Dump(*ostream_, args...);
+    buffer_str_ = buffer_.str();
   }
 
   inline void UnpackReady(const char *data, const int size) {
+    buffer_.GrowTo(size);
     buffer_.Reset();
     // Write string to buffer.
     ostream_->set_rdbuf(&buffer_);
@@ -134,6 +137,9 @@ public:
   }
 
 protected:
+  std::string buffer_str_;
+
+private:   
   std::ostream *ostream_;
   std::istream *istream_; 
   MessageBuf buffer_;
@@ -167,16 +173,12 @@ public:
   void Pack(std::string func_name, Args&... args) {
     Message::PackReady();
     Message::Pack(func_name, args...);
-    std::cout << "buffer_: " << buffer_.str() << ".(" << 
-      buffer_.capacity() << ", " << buffer_.size() << "," << 
-      buffer_.str().length();
 
-    body_str_ = buffer_.str(); // Saved as a member string.
+    body_ = (char *)buffer_str().c_str();
+    body_length_ = buffer_str().length();
 
-    body_ = (char *)body_str_.c_str();
-    body_length_ = body_str_.length();
-
-    std::sprintf(header_, "%4d", buffer_.size());
+    std::cout << "body_length_: " << body_length_ << std::endl;
+    std::sprintf(header_, "%4d", body_length_);
   }
 
   bool HeaderUnpack() {
@@ -192,9 +194,6 @@ public:
     body_ = body_buffer4reading_;
 
     std::cout << "Unpack body_len:" << body_length_;
-
-
-    buffer_.GrowTo(body_length_);
     return true;
   }
 
@@ -208,8 +207,10 @@ public:
     Message::UnpackReady(body(), body_length());
     // Unpack function name.
     std::string func_name;
-    Serializer::ForVector<std::string, char>::Load(*istream_, func_name);
+    Message::Unpack(func_name);
 
+    // TODO: 1. 使用工厂去管理操作。
+    //       2. 简化注册新算子的流程。
     // Unpack params according to function name.
     if (func_name == "add") {
       if (mode == CALCULATION) {
@@ -226,6 +227,7 @@ public:
       else {
         int A;
         Message::Unpack(A);
+
         std::cout << "Receive result(" << func_name << ") : " << A << std::endl;
       }
     }
@@ -237,7 +239,7 @@ private:
   char header_[HEADER_LENGTH];
   
   char *body_;
-  std::string body_str_; // Saved for packing.
+  // TODO: 固定为较大的长度，一次过开辟空间，发送时则紧跟body的len，当len超过时进行一次扩容。
   char *body_buffer4reading_ = nullptr; // Saved for unpacking.
 
   size_t body_length_;

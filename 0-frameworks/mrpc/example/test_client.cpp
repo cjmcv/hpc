@@ -9,7 +9,12 @@ int main(int argc, char* argv[]) {
   io_context.run();
 
   while (1) {
-    client.Call();
+    std::string func_name = "add";
+    std::string A = "rpc hello world again";
+    int B = 30;
+    char C = 'c';
+
+    client.Call(func_name, A, B, C);
     Sleep(1000);
   }
 

@@ -75,9 +75,6 @@ private:
 
   tcp::socket socket_;
   RpcMessage message_;  
-
-  enum { max_length = 1024 };
-  char data_[max_length];
 };
 
 class Server {
