@@ -1,5 +1,5 @@
 #include <iostream>
-#include "server.hpp"
+#include "server.h"
 
 int main(int argc, char* argv[]) {
   try {

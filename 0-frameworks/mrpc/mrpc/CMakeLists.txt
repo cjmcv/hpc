@@ -5,17 +5,16 @@ project(mrpc_lib)
 set(PROJECT_NAME mrpc_lib)
 
 # Include 
-SET(LIB_INCLUDE_DIR ${MRPC_INCLUDE_DIR} ${3RDPARTY_INCLUDE_DIR})
+SET(LIB_INCLUDE_DIR ${3RDPARTY_INCLUDE_DIR})
 include_directories(${LIB_INCLUDE_DIR})
 message(STATUS "include: ${LIB_INCLUDE_DIR}")
 
 # Source
 file(GLOB_RECURSE SRC_LIST 
     "${PROJECT_SOURCE_DIR}/*.cpp"
-    "${PROJECT_SOURCE_DIR}/*.cc"
     # Include.
-    "${MRPC_INCLUDE_DIR}/*.hpp"
-    "${MRPC_INCLUDE_DIR}/*.h"
+    "${PROJECT_SOURCE_DIR}/*.hpp"
+    "${PROJECT_SOURCE_DIR}/*.h"
 )
 message(STATUS "src: ${SRC_LIST}")
 

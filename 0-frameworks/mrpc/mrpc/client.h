@@ -1,12 +1,8 @@
 #ifndef MRPC_CLIENT_H_
 #define MRPC_CLIENT_H_
 
-#include <iostream>
-#include <sstream>
-#include <streambuf>
 #include "asio.hpp"
-
-#include "message.hpp"
+#include "message.h"
 
 class Client {
 public:

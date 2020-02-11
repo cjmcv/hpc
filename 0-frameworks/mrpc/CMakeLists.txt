@@ -45,8 +45,8 @@ set(ASIO_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/asio/asio/include)
 
 set(3RDPARTY_INCLUDE_DIR ${3RDPARTY_BASE_INCLUDE_DIR} ${ASIO_INCLUDE_DIR})
 
-set(MRPC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
-add_subdirectory(src)
+set(MRPC_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mrpc)
+add_subdirectory(mrpc)
 
 ############################################
 # example
