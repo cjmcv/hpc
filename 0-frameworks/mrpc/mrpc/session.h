@@ -3,6 +3,7 @@
 
 #include "asio.hpp"
 #include "message.h"
+#include "processor.h"
 
 class Session : public std::enable_shared_from_this<Session> {
 public:
@@ -17,6 +18,8 @@ private:
   void do_write_head();
   void do_write_body();
 
+private:
+  Processor processor_;
   asio::ip::tcp::socket socket_;
   RpcMessage message_;  
 };
