@@ -10,11 +10,10 @@ int main(int argc, char* argv[]) {
 
   while (1) {
     std::string func_name = "add";
-    std::string A = "rpc hello world again";
-    int B = 30;
-    char C = 'c';
+    double A = 30.1;
+    double B = 21.2;
 
-    client.Call(func_name, A, B, C);
+    client.Call(func_name, A, B);
     Sleep(1000);
   }
 

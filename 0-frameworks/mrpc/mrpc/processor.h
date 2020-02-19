@@ -6,9 +6,11 @@
 #include <tuple>
 #include <map>
 
+#include "message.h"
+
 class ArgsRecorderBase {
 public:
-  virtual void Apply(void* functor, std::string &params) = 0;
+  virtual void Apply(void* functor, RpcMessage &params) = 0;
 };
 
 template<typename... Args>
@@ -18,27 +20,28 @@ class ArgsRecorder : public ArgsRecorderBase {
 
 public:
   template<typename T>
-  static void ParamsRecover(std::string &params, T& t) {
+  static void ParamsRecover(RpcMessage &params, T& t) {
+    params.GetArgs(t);
     std::string ts = typeid(T).name();
-    int id = typeid(T).hash_code();
-    t = 1.0;
-    std::cout << "<" << ts << "," << id << ">" << t << ".." << params << std::endl;
+    //int id = typeid(T).hash_code();
+    std::cout << "GetArgs" << t << "<" << ts << ">" << std::endl;
   }
 
-  virtual void Apply(void* functor, std::string &params) {
+  virtual void Apply(void* functor, RpcMessage &params) {
     // note: std::apply and "fold expression" require c++17 support.
     std::apply([&params](auto&&... args) {
       ((ParamsRecover(params, args)), ...);
-    }, request);
+    }, request_);
 
     FuncT* f = (FuncT*)(functor);
-    std::apply(*f, request);
+    std::apply(*f, request_);
   }
 
 private:
-  std::tuple<Args...> request;
+  std::tuple<Args...> request_;
 };
 
+// TODO: 1. 封装Response作为统一输出。
 // Request & Response.
 class Processor {
 
@@ -47,7 +50,7 @@ class Processor {
     Item() {}
     Item(ArgsRecorderBase *rec, void* s, std::function<void(void)> t)
       : recorder_(rec), handler_(s), handler_delete_(t) {}
-    void Execute(std::string &params) {
+    void Execute(RpcMessage &params) {
       recorder_->Apply(handler_, params);
     }
 
@@ -65,6 +68,11 @@ class Processor {
   };
 
 public:
+  static Processor& Get() {
+    static Processor instance;
+    return instance;
+  }
+
   template<typename... Args>
   void Bind(std::string func_name,
     typename _identity<std::function<void(Args&...)>>::type func) {
@@ -83,15 +91,21 @@ public:
         [=]() {delete fp; });
   }
 
-  void Run(std::string func_name) {
-    Item item = items_[func_name];
+  void Run(RpcMessage &message) {
 
-    std::string abc = "abc";
-    item.Execute(abc);
+    std::string func_name;
+    message.GetFuncName(func_name);
+    
+    Item item = items_[func_name];
+    item.Execute(message);
   }
 
 private:
   std::map<std::string, Item > items_;
 };
+
+////////////////
+
+#define MRPC_BIND Processor::Get().Bind
 
 #endif // MRPC_PROCESSOR_H_

@@ -19,7 +19,6 @@ private:
   void do_write_body();
 
 private:
-  Processor processor_;
   asio::ip::tcp::socket socket_;
   RpcMessage message_;  
 };

@@ -86,18 +86,16 @@ void RpcMessage::Process(Mode mode) {
   // Unpack params according to function name.
   if (func_name == "add") {
     if (mode == CALCULATION) {
-      std::string A;
-      int B;
-      char C;
-      Message::Unpack(A, B, C);
+      double A, B;
+      Message::Unpack(A, B);
 
-      std::cout << "unpack: " << func_name << ", A: " << A << ",B : " << B << ", C :" << C << std::endl;
+      std::cout << "unpack: " << func_name << ", A: " << A << ",B : " << B << std::endl;
 
-      int res = B + B;
+      double res = A + B;
       Pack(func_name, res);
     }
     else {
-      int A;
+      double A;
       Message::Unpack(A);
 
       std::cout << "Receive result(" << func_name << ") : " << A << std::endl;
