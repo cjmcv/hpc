@@ -33,8 +33,7 @@ void Session::do_read_body() {
       std::string body_str = std::string(message_.body(), message_.body_length());
       std::cout << "body_str :" << body_str << std::endl;
 
-      //message_.Process(RpcMessage::Mode::CALCULATION);
-      Processor::Get().Run(message_);
+      proc_->Run(message_);
 
       do_write_head();
     }

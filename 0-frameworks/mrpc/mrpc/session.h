@@ -7,7 +7,8 @@
 
 class Session : public std::enable_shared_from_this<Session> {
 public:
-  Session(asio::ip::tcp::socket socket): socket_(std::move(socket)) {}
+  Session(asio::ip::tcp::socket socket, Processor *proc)
+    : socket_(std::move(socket)), proc_(proc) {}
 
   inline void start() { do_read_header(); }
 
@@ -20,7 +21,9 @@ private:
 
 private:
   asio::ip::tcp::socket socket_;
-  RpcMessage message_;  
+  RpcMessage message_;
+
+  Processor *proc_;
 };
 
 #endif // MRPC_SESSION_H_

@@ -42,7 +42,7 @@ public:
         // Given the length of body, read body.
         length = socket_.read_some(asio::buffer(message_.body(), message_.body_length()), error);
 
-        message_.Process(RpcMessage::Mode::RESULT);
+        message_.Process();
       }
     }
     catch (std::exception& e) {

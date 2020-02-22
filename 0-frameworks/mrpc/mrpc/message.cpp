@@ -74,7 +74,7 @@ bool RpcMessage::HeaderUnpack() {
   return true;
 }
 
-void RpcMessage::Process(Mode mode) {
+void RpcMessage::Process() {
   // Save body to buffer.
   Message::UnpackReady(body(), body_length());
   // Unpack function name.
@@ -85,20 +85,13 @@ void RpcMessage::Process(Mode mode) {
   //       2. 简化注册新算子的流程。
   // Unpack params according to function name.
   if (func_name == "add") {
-    if (mode == CALCULATION) {
-      double A, B;
-      Message::Unpack(A, B);
-
-      std::cout << "unpack: " << func_name << ", A: " << A << ",B : " << B << std::endl;
-
-      double res = A + B;
-      Pack(func_name, res);
-    }
-    else {
-      double A;
-      Message::Unpack(A);
-
-      std::cout << "Receive result(" << func_name << ") : " << A << std::endl;
-    }
+    double A;
+    Message::Unpack(A);
+    std::cout << "Receive add result(" << func_name << ") : " << A << std::endl;
+  }
+  else if (func_name == "mul") {
+    int A;
+    Message::Unpack(A);
+    std::cout << "Receive mul result(" << func_name << ") : " << A << std::endl;
   }
 }

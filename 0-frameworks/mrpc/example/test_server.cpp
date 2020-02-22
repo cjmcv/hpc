@@ -5,14 +5,13 @@ int main(int argc, char* argv[]) {
   try {
     asio::io_context io_context;
     Server server(io_context, 8080);
-
-    MRPC_BIND<double, double, double>("add",
+    server.Bind<double, double, double>("add",
       [](double a, double b) -> double {
       double c = a + b;
       printf("add = %f\n", c);
       return c;
     });
-    MRPC_BIND<int, int>("mul",
+    server.Bind<int, int>("mul",
       [](int a) -> int {
       int c = a * a;
       printf("mul = %d\n", c);

@@ -90,12 +90,6 @@ private:
 };
 
 class RpcMessage :public Message{
-public:
-  enum Mode {
-    CALCULATION = 1,
-    RESULT = 2
-  };
-private:
   enum { 
     HEADER_LENGTH = 5,
     BASE_BODY_LENGTH = 1024,
@@ -135,7 +129,7 @@ public:
     return HeaderUnpack();
   }
 
-  void Process(Mode mode);
+  void Process();
 
   void GetFuncName(std::string &func_name) {
     // Save body to buffer.

@@ -11,18 +11,25 @@ public:
     do_accept();
   }
 
+  template<typename Response, typename... Args>
+  inline void Bind(std::string func_name,
+      typename _identity<std::function<Response(Args&...)>>::type func) {
+    proc_.Bind<Response, Args...>(func_name, func);
+  }
+
 private:
   inline void do_accept() {
     acceptor_.async_accept(
       [this](std::error_code ec, asio::ip::tcp::socket socket) {
       if (!ec) {
-        std::make_shared<Session>(std::move(socket))->start();
+        std::make_shared<Session>(std::move(socket), &proc_)->start();
       }
       do_accept();
     });
   }
 
 private:
+  Processor proc_;
   asio::ip::tcp::acceptor acceptor_;
 };
 

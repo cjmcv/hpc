@@ -23,7 +23,9 @@ template<typename Response, typename... Args>
 class DerivedItem : public Item {
 
 public:
-  DerivedItem(typename _identity<std::function<Response(Args&...)>>::type func) {
+  DerivedItem(std::string &func_name, 
+    typename _identity<std::function<Response(Args&...)>>::type func) {
+    func_name_ = func_name;
     handle_ = new std::function<Response(Args&...)>(func);
   }
   ~DerivedItem() { delete handle_; }
@@ -42,11 +44,12 @@ public:
 
     // Calculate.
     auto response = std::apply(*handle_, request_);
-    params.Pack("add", response); // TODO: pack function name.
+    params.Pack(func_name_, response); // TODO: pack function name.
     std::cout << "response: " << response << std::endl;
   }
 
 private:
+  std::string func_name_;
   std::tuple<Args...> request_;
   std::function<Response(Args&...)> *handle_;
 };
@@ -55,10 +58,6 @@ private:
 class Processor {
 
 public:
-  static Processor& Get() {
-    static Processor instance;
-    return instance;
-  }
   ~Processor() {
     std::map<std::string, Item* >::iterator iter;
     for (iter = items_.begin(); iter != items_.end(); iter++) {
@@ -76,7 +75,7 @@ public:
       return;
     }
 
-    items_[func_name] = new DerivedItem<Response, Args...>(func);
+    items_[func_name] = new DerivedItem<Response, Args...>(func_name, func);
   }
 
   void Run(RpcMessage &message) {
@@ -92,8 +91,8 @@ private:
   std::map<std::string, Item* > items_;
 };
 
-////////////////
-
-#define MRPC_BIND Processor::Get().Bind
+//////////////////
+//
+//#define MRPC_BIND Processor::Get().Bind
 
 #endif // MRPC_PROCESSOR_H_
