@@ -6,13 +6,17 @@ int main(int argc, char* argv[]) {
     asio::io_context io_context;
     Server server(io_context, 8080);
 
-    MRPC_BIND<double, double>("add",
-      [](double a, double b) {
-          printf("add = %f\n", a+b); 
-        });
-    MRPC_BIND<int>("mul",
-      [](int a) {
-      printf("mul = %d\n", a * a);
+    MRPC_BIND<double, double, double>("add",
+      [](double a, double b) -> double {
+      double c = a + b;
+      printf("add = %f\n", c);
+      return c;
+    });
+    MRPC_BIND<int, int>("mul",
+      [](int a) -> int {
+      int c = a * a;
+      printf("mul = %d\n", c);
+      return c;
     });
 
     io_context.run();

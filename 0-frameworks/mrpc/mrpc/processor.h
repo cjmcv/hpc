@@ -8,74 +8,67 @@
 
 #include "message.h"
 
-class ArgsRecorderBase {
-public:
-  virtual void Apply(void* functor, RpcMessage &params) = 0;
+template <typename T>
+struct _identity {
+  typedef T type;
 };
 
-template<typename... Args>
-class ArgsRecorder : public ArgsRecorderBase {
+class Item {
+public:
+  virtual ~Item() {}
+  virtual void Apply(RpcMessage &params) = 0;
+};
 
-  using FuncT = std::function<void(Args&...)>;
+template<typename Response, typename... Args>
+class DerivedItem : public Item {
 
 public:
+  DerivedItem(typename _identity<std::function<Response(Args&...)>>::type func) {
+    handle_ = new std::function<Response(Args&...)>(func);
+  }
+  ~DerivedItem() { delete handle_; }
+
   template<typename T>
   static void ParamsRecover(RpcMessage &params, T& t) {
     params.GetArgs(t);
-    std::string ts = typeid(T).name();
-    //int id = typeid(T).hash_code();
-    std::cout << "GetArgs" << t << "<" << ts << ">" << std::endl;
   }
 
-  virtual void Apply(void* functor, RpcMessage &params) {
+  virtual void Apply(RpcMessage &params) {
+    // Fill params.
     // note: std::apply and "fold expression" require c++17 support.
     std::apply([&params](auto&&... args) {
       ((ParamsRecover(params, args)), ...);
     }, request_);
 
-    FuncT* f = (FuncT*)(functor);
-    std::apply(*f, request_);
+    // Calculate.
+    auto response = std::apply(*handle_, request_);
+    params.Pack("add", response); // TODO: pack function name.
+    std::cout << "response: " << response << std::endl;
   }
 
 private:
   std::tuple<Args...> request_;
+  std::function<Response(Args&...)> *handle_;
 };
 
-// TODO: 1. 封装Response作为统一输出。
 // Request & Response.
 class Processor {
-
-  class Item {
-  public:
-    Item() {}
-    Item(ArgsRecorderBase *rec, void* s, std::function<void(void)> t)
-      : recorder_(rec), handler_(s), handler_delete_(t) {}
-    void Execute(RpcMessage &params) {
-      recorder_->Apply(handler_, params);
-    }
-
-  private:
-    ArgsRecorderBase* recorder_;
-    /** handler to handle a protocol */
-    void* handler_;
-    /** handler free function */
-    std::function<void(void)> handler_delete_;
-  };
-
-  template <typename T>
-  struct _identity {
-    typedef T type;
-  };
 
 public:
   static Processor& Get() {
     static Processor instance;
     return instance;
   }
+  ~Processor() {
+    std::map<std::string, Item* >::iterator iter;
+    for (iter = items_.begin(); iter != items_.end(); iter++) {
+      delete iter->second;
+    }
+  }
 
-  template<typename... Args>
+  template<typename Response, typename... Args>
   void Bind(std::string func_name,
-    typename _identity<std::function<void(Args&...)>>::type func) {
+    typename _identity<std::function<Response(Args&...)>>::type func) {
 
     if (items_.find(func_name) != items_.end()) {
       // Ignore it.
@@ -83,12 +76,7 @@ public:
       return;
     }
 
-    using FuncT = std::function<void(Args&...)>;
-    FuncT* fp = new FuncT(func);
-    items_[func_name] =
-      Item(new ArgsRecorder<Args...>(),
-      (void*)fp,
-        [=]() {delete fp; });
+    items_[func_name] = new DerivedItem<Response, Args...>(func);
   }
 
   void Run(RpcMessage &message) {
@@ -96,12 +84,12 @@ public:
     std::string func_name;
     message.GetFuncName(func_name);
     
-    Item item = items_[func_name];
-    item.Execute(message);
+    Item *item = items_[func_name];
+    item->Apply(message);
   }
 
 private:
-  std::map<std::string, Item > items_;
+  std::map<std::string, Item* > items_;
 };
 
 ////////////////
