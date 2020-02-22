@@ -74,12 +74,10 @@ public:
       printf("Duplicate: %s.", func_name.c_str());
       return;
     }
-
     items_[func_name] = new DerivedItem<Response, Args...>(func_name, func);
   }
 
   void Run(RpcMessage &message) {
-
     std::string func_name;
     message.GetFuncName(func_name);
     
@@ -90,9 +88,5 @@ public:
 private:
   std::map<std::string, Item* > items_;
 };
-
-//////////////////
-//
-//#define MRPC_BIND Processor::Get().Bind
 
 #endif // MRPC_PROCESSOR_H_

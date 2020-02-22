@@ -1,22 +1,17 @@
 #include <iostream>
 #include "server.h"
 
+double Add(double a, double b) {
+  return a + b;
+}
+
 int main(int argc, char* argv[]) {
   try {
     asio::io_context io_context;
     Server server(io_context, 8080);
-    server.Bind<double, double, double>("add",
-      [](double a, double b) -> double {
-      double c = a + b;
-      printf("add = %f\n", c);
-      return c;
-    });
+    server.Bind<double, double, double>("add", Add);
     server.Bind<int, int>("mul",
-      [](int a) -> int {
-      int c = a * a;
-      printf("mul = %d\n", c);
-      return c;
-    });
+      [](int a) -> int { return a * a; });
 
     io_context.run();
     std::cout << "pass" << std::endl;

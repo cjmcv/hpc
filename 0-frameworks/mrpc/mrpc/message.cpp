@@ -73,25 +73,3 @@ bool RpcMessage::HeaderUnpack() {
   std::cout << "Unpack body_len:" << body_length_;
   return true;
 }
-
-void RpcMessage::Process() {
-  // Save body to buffer.
-  Message::UnpackReady(body(), body_length());
-  // Unpack function name.
-  std::string func_name;
-  Message::Unpack(func_name);
-
-  // TODO: 1. 使用工厂去管理操作。
-  //       2. 简化注册新算子的流程。
-  // Unpack params according to function name.
-  if (func_name == "add") {
-    double A;
-    Message::Unpack(A);
-    std::cout << "Receive add result(" << func_name << ") : " << A << std::endl;
-  }
-  else if (func_name == "mul") {
-    int A;
-    Message::Unpack(A);
-    std::cout << "Receive mul result(" << func_name << ") : " << A << std::endl;
-  }
-}

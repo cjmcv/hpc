@@ -131,7 +131,7 @@ public:
 
   void Process();
 
-  void GetFuncName(std::string &func_name) {
+  inline void GetFuncName(std::string &func_name) {
     // Save body to buffer.
     Message::UnpackReady(body(), body_length());
     // Unpack function name.
@@ -139,9 +139,7 @@ public:
   }
 
   template <typename T>
-  void GetArgs(T &t) {
-    Message::Unpack(t);
-  }
+  inline void GetArgs(T &t) { Message::Unpack(t); }
 
 private:
   std::string func_name_;

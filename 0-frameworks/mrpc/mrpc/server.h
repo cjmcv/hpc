@@ -4,6 +4,8 @@
 #include "asio.hpp"
 #include "session.h"
 
+// TODO: namespace
+
 class Server {
 public:
   Server(asio::io_context& io_context, short port)
@@ -29,8 +31,9 @@ private:
   }
 
 private:
-  Processor proc_;
   asio::ip::tcp::acceptor acceptor_;
+
+  Processor proc_;
 };
 
 #endif // MRPC_SESSION_H_

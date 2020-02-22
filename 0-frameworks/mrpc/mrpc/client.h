@@ -14,8 +14,13 @@ public:
   }
   ~Client() {}
 
-  template <class... Args>
-  void Call(Args&... args) {
+  template<typename Response>
+  inline void Bind(std::string func_name) {
+    proc_.RespBind<Response>(func_name);
+  }
+
+  template <typename Response, typename... Args>
+  Response Call(Args&... args) {
     try {
       // Send.
       {
@@ -42,7 +47,14 @@ public:
         // Given the length of body, read body.
         length = socket_.read_some(asio::buffer(message_.body(), message_.body_length()), error);
 
-        message_.Process();
+        //message_.Process();
+        //proc_.Run2(message_);
+        std::string func_name;
+        message_.GetFuncName(func_name);
+
+        Response ret;
+        message_.GetArgs(ret);
+        return ret;
       }
     }
     catch (std::exception& e) {
