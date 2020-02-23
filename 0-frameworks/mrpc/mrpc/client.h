@@ -30,12 +30,11 @@ public:
         asio::error_code error;
         // Read header according to the given length.
         socket_.read_some(asio::buffer(message_.header(), message_.header_length()));
-
         // Unpack the header to get the length of body.
-        message_.HeaderUnpack();
+        message_.UnpackHeader();
         // Given the length of body, read body.
         socket_.read_some(asio::buffer(message_.body(), message_.body_length()));
-
+        // Unpack Body.
         std::string ret_func_name;
         message_.GetFuncName(ret_func_name);
         if (ret_func_name != func_name) {

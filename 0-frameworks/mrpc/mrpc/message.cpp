@@ -22,8 +22,8 @@ MessageBuf::~MessageBuf() {
 
 void MessageBuf::Reset() {
   memset(data_, 0, sizeof(char) * capacity_);
-  setp(data_, data_ + capacity_);
-  setg(data_, data_, data_ + capacity_);
+  setp(data_, data_ + capacity_); // For writer buffer.(put)
+  setg(data_, data_, data_ + capacity_); // For Read buffer.(get)
 }
 
 void MessageBuf::Grow(int grow_size, bool is_from_tail) {
@@ -44,8 +44,9 @@ void MessageBuf::Grow(int grow_size, bool is_from_tail) {
   capacity_ = new_size;
 }
 
+// Override.
+// It is called when the data overflows. 
 int MessageBuf::overflow(int c) {
-  std::cout << "overflow" << std::endl;
   // Grow.
   if (capacity_ + GROW_SIZE <= MAX_SIZE)
     Grow(GROW_SIZE);
@@ -68,43 +69,26 @@ Message::~Message() {
   delete istream_;
 }
 
-void Message::PackReady() {
+void Message::Ready4Pack() {
   buffer_.Reset();
   ostream_->set_rdbuf(&buffer_);
 }
-void Message::UnpackReady(const char *data, const int size) {
-  buffer_.GrowTo(size);
-  buffer_.Reset();
-  // Write string to buffer.
-  ostream_->set_rdbuf(&buffer_);
-  ostream_->write(data, size);
-  // Read buffer by type.
+void Message::Ready4Unpack() {
+  //ostream_->set_rdbuf(&buffer_);
+  //ostream_->write(data, size);
   istream_->set_rdbuf(&buffer_);
 }
 
 ///////////////
 // RpcMessage
 ///////////////
-bool RpcMessage::HeaderUnpack() {
+bool RpcMessage::UnpackHeader() {
   header_[HEADER_LENGTH - 1] = '\0';
-
   body_length_ = std::atoi(header_);
-  if (body_buffer_ != nullptr) {
-    delete[]body_buffer_;
-    body_buffer_ = nullptr;
-  }
-  body_buffer_ = new char[body_length_];
-
-  body_ =  body_buffer_; // TODO: 使用buffer_.data()代替，核对错误原因。
-  memset(body_, 0, body_length_);
-
-  //std::cout << "Unpack body_len:" << body_length_;
+  //buffer_.Reset();
+  buffer_.GrowTo(body_length_);
+  body_ = buffer_.data();
   return true;
-}
-
-bool RpcMessage::HeaderUnpack(const char *header) {
-  memcpy(header_, header, sizeof(char) * HEADER_LENGTH);
-  return HeaderUnpack();
 }
 
 } // namespace mrpc

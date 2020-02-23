@@ -84,6 +84,10 @@ public:
     message.GetFuncName(func_name);
     
     Item *item = items_[func_name];
+    if (item == nullptr) {
+      printf("Can not find the function [%s].\n", func_name.c_str());
+      // TODO: 如何返回结果到client.
+    }
     item->Apply(message);
   }
 

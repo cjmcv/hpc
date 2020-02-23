@@ -10,7 +10,7 @@ void Session::do_read_header() {
   socket_.async_read_some(asio::buffer(message_.header(), message_.header_length()),
     [this, self](std::error_code ec, std::size_t length) {
     if (!ec) {
-      message_.HeaderUnpack();
+      message_.UnpackHeader();
 
       //std::cout << "do_read_header in" << std::endl;
       //std::string header_str(message_.header(), message_.header_length());
