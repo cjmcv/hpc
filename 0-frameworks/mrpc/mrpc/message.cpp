@@ -1,5 +1,7 @@
 #include "message.h"
 
+namespace mrpc {
+
 ///////////////
 // MessageBuf
 ///////////////
@@ -57,6 +59,32 @@ int MessageBuf::overflow(int c) {
 ///////////////
 // Message
 ///////////////
+Message::Message() {
+  ostream_ = new std::ostream(&buffer_);
+  istream_ = new std::istream(&buffer_);
+}
+Message::~Message() {
+  delete ostream_;
+  delete istream_;
+}
+
+void Message::PackReady() {
+  buffer_.Reset();
+  ostream_->set_rdbuf(&buffer_);
+}
+void Message::UnpackReady(const char *data, const int size) {
+  buffer_.GrowTo(size);
+  buffer_.Reset();
+  // Write string to buffer.
+  ostream_->set_rdbuf(&buffer_);
+  ostream_->write(data, size);
+  // Read buffer by type.
+  istream_->set_rdbuf(&buffer_);
+}
+
+///////////////
+// RpcMessage
+///////////////
 bool RpcMessage::HeaderUnpack() {
   header_[HEADER_LENGTH - 1] = '\0';
 
@@ -70,6 +98,13 @@ bool RpcMessage::HeaderUnpack() {
   body_ =  body_buffer_; // TODO: 使用buffer_.data()代替，核对错误原因。
   memset(body_, 0, body_length_);
 
-  std::cout << "Unpack body_len:" << body_length_;
+  //std::cout << "Unpack body_len:" << body_length_;
   return true;
 }
+
+bool RpcMessage::HeaderUnpack(const char *header) {
+  memcpy(header_, header, sizeof(char) * HEADER_LENGTH);
+  return HeaderUnpack();
+}
+
+} // namespace mrpc

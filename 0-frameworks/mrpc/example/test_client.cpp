@@ -4,11 +4,11 @@
 
 int main(int argc, char* argv[]) {
 
-  // Message format for sending: function name, arg1, arg2...
-  // Message format for receiving: function name, ret arg
+  // Send: function name, arg1, arg2...
+  // Receive: function name, ret arg
 
   asio::io_context io_context;
-  Client client(io_context, "localhost", "8080");
+  mrpc::Client client(io_context, "localhost", "8080");
   io_context.run();
 
   while (1) {

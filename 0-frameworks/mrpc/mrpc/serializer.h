@@ -3,6 +3,8 @@
 
 #include <iostream>
 
+namespace mrpc {
+
 class Serializer {
 public:
   template<class T, typename E = void>
@@ -86,4 +88,5 @@ template <> class Serializer::Base<std::string> : public Serializer::ForVector<s
     Serializer::Load(in, __VA_ARGS__);                  \
   }
 
+} // namespace mrpc
 #endif // MRPC_SERIALIZER_H_

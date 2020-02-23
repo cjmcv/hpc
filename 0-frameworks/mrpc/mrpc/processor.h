@@ -8,6 +8,8 @@
 
 #include "message.h"
 
+namespace mrpc {
+
 template <typename T>
 struct _identity {
   typedef T type;
@@ -44,7 +46,7 @@ public:
 
     // Calculate.
     auto response = std::apply(*handle_, request_);
-    params.Pack(func_name_, response); // TODO: pack function name.
+    params.Pack(func_name_, response);
     std::cout << "response: " << response << std::endl;
   }
 
@@ -88,5 +90,7 @@ public:
 private:
   std::map<std::string, Item* > items_;
 };
+
+} // namespace mrpc
 
 #endif // MRPC_PROCESSOR_H_

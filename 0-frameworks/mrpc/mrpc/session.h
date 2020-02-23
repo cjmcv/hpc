@@ -5,6 +5,8 @@
 #include "message.h"
 #include "processor.h"
 
+namespace mrpc {
+
 class Session : public std::enable_shared_from_this<Session> {
 public:
   Session(asio::ip::tcp::socket socket, Processor *proc)
@@ -26,4 +28,5 @@ private:
   Processor *proc_;
 };
 
+} // namespace mrpc
 #endif // MRPC_SESSION_H_

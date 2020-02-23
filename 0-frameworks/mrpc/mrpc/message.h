@@ -7,6 +7,8 @@
 
 #include "serializer.h"
 
+namespace mrpc {
+
 class MessageBuf : public std::stringbuf {
   const static size_t GROW_SIZE = 5;
   const static size_t MAX_SIZE = 55;
@@ -42,35 +44,20 @@ private:
 
 class Message {
 public:
-  Message() {
-    ostream_ = new std::ostream(&buffer_);
-    istream_ = new std::istream(&buffer_);
-  }
-  ~Message() {
-    delete ostream_;
-    delete istream_;
-  }
+  Message();
+  ~Message();
+
   inline std::string &buffer_str() { return buffer_str_; }
 
-  inline void PackReady() {
-    buffer_.Reset();
-    ostream_->set_rdbuf(&buffer_);
-  }
+  void PackReady();
+
   template <class... Args>
   inline void Pack(Args&... args) {
     Serializer::Dump(*ostream_, args...);
     buffer_str_ = buffer_.str();
   }
 
-  inline void UnpackReady(const char *data, const int size) {
-    buffer_.GrowTo(size);
-    buffer_.Reset();
-    // Write string to buffer.
-    ostream_->set_rdbuf(&buffer_);
-    ostream_->write(data, size);
-    // Read buffer by type.
-    istream_->set_rdbuf(&buffer_);
-  }
+  void UnpackReady(const char *data, const int size);
   inline void UnpackReady(std::string &str) {
     UnpackReady(str.c_str(), str.length());
   }
@@ -118,23 +105,16 @@ public:
     body_ = (char *)buffer_str().c_str();
     body_length_ = buffer_str().length();
 
-    std::cout << "body_length_: " << body_length_ << std::endl;
+    //std::cout << "body_length_: " << body_length_ << std::endl;
     std::sprintf(header_, "%4d", body_length_);
   }
 
   bool HeaderUnpack();
-
-  inline bool HeaderUnpack(const char *header) {
-    memcpy(header_, header, sizeof(char) * HEADER_LENGTH);
-    return HeaderUnpack();
-  }
-
-  void Process();
+  bool HeaderUnpack(const char *header);
 
   inline void GetFuncName(std::string &func_name) {
-    // Save body to buffer.
+    // Save body to the buffer first.
     Message::UnpackReady(body(), body_length());
-    // Unpack function name.
     Message::Unpack(func_name);
   }
 
@@ -153,4 +133,5 @@ private:
   size_t body_buffer_length_;
 };
 
+} //namespace mrpc
 #endif // MRPC_MESSAGE_H_

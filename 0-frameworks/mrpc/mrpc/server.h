@@ -4,7 +4,7 @@
 #include "asio.hpp"
 #include "session.h"
 
-// TODO: namespace
+namespace mrpc {
 
 class Server {
 public:
@@ -35,5 +35,7 @@ private:
 
   Processor proc_;
 };
+
+} // namespace mrpc 
 
 #endif // MRPC_SESSION_H_

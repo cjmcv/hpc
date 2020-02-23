@@ -4,6 +4,8 @@
 #include "asio.hpp"
 #include "message.h"
 
+namespace mrpc {
+
 class Client {
 public:
   Client(asio::io_context& io_context, std::string host, std::string service):
@@ -14,43 +16,32 @@ public:
   }
   ~Client() {}
 
-  template<typename Response>
-  inline void Bind(std::string func_name) {
-    proc_.RespBind<Response>(func_name);
-  }
-
   template <typename Response, typename... Args>
-  Response Call(Args&... args) {
+  Response Call(std::string func_name, Args&... args) {
     try {
       // Send.
       {
-        message_.Pack(args...);
-
-        std::string header_str(message_.header(), message_.header_length());
-        std::cout << "header_str:" << header_str << std::endl;
-
+        message_.Pack(func_name, args...);
         asio::write(socket_, asio::buffer(message_.header(), message_.header_length()));
         asio::write(socket_, asio::buffer(message_.body(), message_.body_length()));
       }
       // Receive.
       {
         asio::error_code error;
-        // Given the length of header, read header.
-        size_t length = socket_.read_some(asio::buffer(message_.header(), message_.header_length()), error);
-        //if (error == asio::error::eof)
-        //  break; // Connection closed cleanly by peer.
-        //else if (error)
-        //  throw asio::system_error(error); // Some other error.
+        // Read header according to the given length.
+        socket_.read_some(asio::buffer(message_.header(), message_.header_length()));
 
         // Unpack the header to get the length of body.
         message_.HeaderUnpack();
         // Given the length of body, read body.
-        length = socket_.read_some(asio::buffer(message_.body(), message_.body_length()), error);
+        socket_.read_some(asio::buffer(message_.body(), message_.body_length()));
 
-        //message_.Process();
-        //proc_.Run2(message_);
-        std::string func_name;
-        message_.GetFuncName(func_name);
+        std::string ret_func_name;
+        message_.GetFuncName(ret_func_name);
+        if (ret_func_name != func_name) {
+          std::cout << "The Received function name is not matched." << std::endl;
+          return -1;
+        }
 
         Response ret;
         message_.GetArgs(ret);
@@ -68,5 +59,7 @@ private:
   
   RpcMessage message_;
 };
+
+} // namespace mrpc
 
 #endif // MRPC_CLIENT_H_

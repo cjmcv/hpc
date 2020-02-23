@@ -2,6 +2,8 @@
 #include <iostream>
 #include "session.h"
 
+namespace mrpc {
+
 void Session::do_read_header() {
   std::cout << "do_read_header" << std::endl;
   auto self(shared_from_this());
@@ -59,3 +61,5 @@ void Session::do_write_body() {
     }
   });
 }
+
+} // namespace mrpc
