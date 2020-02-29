@@ -32,11 +32,6 @@ public:
   }
   ~DerivedItem() { delete handle_; }
 
-  template<typename T>
-  static void ParamsRecover(RpcMessage &params, T& t) {
-    params.GetArgs(t);
-  }
-
   virtual void Apply(RpcMessage &params) {
     // Fill params.
     // note: std::apply and "fold expression" require c++17 support.
@@ -48,6 +43,12 @@ public:
     auto response = std::apply(*handle_, request_);
     params.Pack(func_name_, response);
     std::cout << "response: " << response << std::endl;
+  }
+
+private:
+  template<typename T>
+  static void ParamsRecover(RpcMessage &params, T& t) {
+    params.GetArgs(t);
   }
 
 private:
@@ -85,10 +86,12 @@ public:
     
     Item *item = items_[func_name];
     if (item == nullptr) {
-      printf("Can not find the function [%s].\n", func_name.c_str());
-      // TODO: 如何返回结果到client.
+      std::string msg = "Can not find the function [" + func_name + "]";
+      message.Pack(msg);
     }
-    item->Apply(message);
+    else {
+      item->Apply(message);
+    }
   }
 
 private:

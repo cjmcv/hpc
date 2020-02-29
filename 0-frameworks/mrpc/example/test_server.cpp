@@ -1,4 +1,3 @@
-#include <iostream>
 #include "server.h"
 
 double Add(double a, double b) {
@@ -21,6 +20,5 @@ int main(int argc, char* argv[]) {
   }
 
   system("pause");
-
   return 0;
 }

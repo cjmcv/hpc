@@ -38,7 +38,7 @@ public:
         std::string ret_func_name;
         message_.GetFuncName(ret_func_name);
         if (ret_func_name != func_name) {
-          std::cout << "The Received function name is not matched." << std::endl;
+          std::cout << "Received message: " << ret_func_name << std::endl;
           return -1;
         }
 

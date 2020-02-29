@@ -4,8 +4,9 @@
 
 int main(int argc, char* argv[]) {
 
-  // Send: function name, arg1, arg2...
-  // Receive: function name, ret arg
+  // Send: "function name", arg1, arg2...
+  // Receive: "function name", ret arg
+  // Receive-Failed: "NotFound"
 
   asio::io_context io_context;
   mrpc::Client client(io_context, "localhost", "8080");
