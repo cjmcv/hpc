@@ -15,19 +15,21 @@ int main(int argc, char* argv[]) {
   while (1) {
     {
       std::string func_name = "add";
-      double A = 30.1;
-      double B = 21.2;
-      double ret = client.Call<double>(func_name, A, B);
-      std::cout << "client.Call add: " << ret << std::endl;
+      float A = 30.1;
+      float B = 21.2;
+      float ret = client.Call<float>(func_name, A, B);
+      std::cout << "client.Call: A + B = " << 
+        A << " + " << B << " = " << ret << std::endl;
     }
-    //
+    // 
     {
-      std::string func_name = "mul";
-      int C = 15;
-      int ret = client.Call<int>(func_name, C);
-      std::cout << "client.Call mul: " << ret << std::endl;
+      std::string func_name = "multiply";
+      int A = 15;
+      int B = 12;
+      int ret = client.Call<int>(func_name, A, B);
+      std::cout << "client.Call: A * B = " << 
+        A << " * " << B << " = " << ret << std::endl;
     }
-
     Sleep(1000);
   }
 

@@ -18,37 +18,32 @@ public:
 
   template <typename Response, typename... Args>
   Response Call(std::string func_name, Args&... args) {
-    try {
-      // Send.
-      {
-        message_.Pack(func_name, args...);
-        asio::write(socket_, asio::buffer(message_.header(), message_.header_length()));
-        asio::write(socket_, asio::buffer(message_.body(), message_.body_length()));
-      }
-      // Receive.
-      {
-        asio::error_code error;
-        // Read header according to the given length.
-        socket_.read_some(asio::buffer(message_.header(), message_.header_length()));
-        // Unpack the header to get the length of body.
-        message_.UnpackHeader();
-        // Given the length of body, read body.
-        socket_.read_some(asio::buffer(message_.body(), message_.body_length()));
-        // Unpack Body.
-        std::string ret_func_name;
-        message_.GetFuncName(ret_func_name);
-        if (ret_func_name != func_name) {
-          std::cout << "Received message: " << ret_func_name << std::endl;
-          return -1;
-        }
-
-        Response ret;
-        message_.GetArgs(ret);
-        return ret;
-      }
+    // Send.
+    {
+      message_.Pack(func_name, args...);
+      asio::write(socket_, asio::buffer(message_.header(), message_.header_length()));
+      asio::write(socket_, asio::buffer(message_.body(), message_.body_length()));
     }
-    catch (std::exception& e) {
-      std::cerr << "Exception: " << e.what() << "\n";
+    // Receive.
+    {
+      asio::error_code error;
+      // Read header according to the given length.
+      socket_.read_some(asio::buffer(message_.header(), message_.header_length()));
+      // Unpack the header to get the length of body.
+      message_.UnpackHeader();
+      // Given the length of body, read body.
+      socket_.read_some(asio::buffer(message_.body(), message_.body_length()));
+      // Unpack Body.
+      std::string ret_func_name;
+      message_.GetFuncName(ret_func_name);
+      if (ret_func_name != func_name) {
+        std::cout << "Received message: " << ret_func_name << std::endl;
+        return -1;
+      }
+
+      Response ret;
+      message_.GetArgs(ret);
+      return ret;
     }
   }
 

@@ -5,19 +5,16 @@ double Add(double a, double b) {
 }
 
 int main(int argc, char* argv[]) {
-  try {
-    asio::io_context io_context;
-    mrpc::Server server(io_context, 8080);
-    server.Bind<double, double, double>("add", Add);
-    server.Bind<int, int>("mul",
-      [](int a) -> int { return a * a; });
 
-    io_context.run();
-    std::cout << "pass" << std::endl;
-  }
-  catch (std::exception& e) {
-    std::cerr << "Exception: " << e.what() << "\n";
-  }
+  asio::io_context io_context;
+  mrpc::Server server(io_context, 8080);
+  // Bind functions.
+  server.Bind<float, float, float>("add", Add);
+  server.Bind<int, int, int>("multiply",
+    [](int a, int b) -> int { return a * b; });
+
+  io_context.run();
+  std::cout << "pass" << std::endl;
 
   system("pause");
   return 0;

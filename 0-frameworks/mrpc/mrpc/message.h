@@ -98,13 +98,13 @@ public:
 
   bool UnpackHeader();
 
+  template <typename T>
+  inline void GetArgs(T &t) { Message::Unpack(t); }
+
   inline void GetFuncName(std::string &func_name) {
     Ready4Unpack();
-    Unpack(func_name);
+    GetArgs(func_name);
   }
-
-  template <typename T>
-  inline void GetArgs(T &t) { Unpack(t); }
 
 private:
   std::string func_name_;
