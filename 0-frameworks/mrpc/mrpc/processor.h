@@ -42,7 +42,6 @@ public:
     // Calculate.
     auto response = std::apply(*handle_, request_);
     params.Pack(func_name_, response);
-    std::cout << "response: " << response << std::endl;
   }
 
 private:
@@ -61,38 +60,20 @@ private:
 class Processor {
 
 public:
-  ~Processor() {
-    std::map<std::string, Item* >::iterator iter;
-    for (iter = items_.begin(); iter != items_.end(); iter++) {
-      delete iter->second;
-    }
-  }
+  Processor();
+  ~Processor();
 
   template<typename Response, typename... Args>
   void Bind(std::string func_name,
     typename _identity<std::function<Response(Args&...)>>::type func) {
-
     if (items_.find(func_name) != items_.end()) {
-      // Ignore it.
       printf("Duplicate: %s.", func_name.c_str());
       return;
     }
     items_[func_name] = new DerivedItem<Response, Args...>(func_name, func);
   }
 
-  void Run(RpcMessage &message) {
-    std::string func_name;
-    message.GetFuncName(func_name);
-    
-    Item *item = items_[func_name];
-    if (item == nullptr) {
-      std::string msg = "Can not find the function [" + func_name + "]";
-      message.Pack(msg);
-    }
-    else {
-      item->Apply(message);
-    }
-  }
+  void Run(RpcMessage &message);
 
 private:
   std::map<std::string, Item* > items_;
