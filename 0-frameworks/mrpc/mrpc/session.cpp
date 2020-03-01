@@ -11,9 +11,6 @@ void Session::do_read_header() {
     [this, self](std::error_code ec, std::size_t length) {
     if (!ec) {
       message_.UnpackHeader();
-      if (length != message_.header_length())
-        std::cout << "length != message.header_length()" << std::endl;
-
       do_read_body();
     }
   });
@@ -24,9 +21,8 @@ void Session::do_read_body() {
   socket_.async_read_some(asio::buffer(message_.body(), message_.body_length()),
     [this, self](std::error_code ec, std::size_t length) {
     if (!ec) {
-      if (length != message_.body_length())
-        std::cout << "length != message.header_length()" << std::endl;
-
+      //if (length != message_.body_length())
+      //  std::cout << "length != message.header_length()" << std::endl;
       proc_->Run(message_);
       do_write_head();
     }
