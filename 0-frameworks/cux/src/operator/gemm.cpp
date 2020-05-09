@@ -24,7 +24,7 @@ void GemmHostV0(const int M, const int N,
   }
   for (i = 0; i < M; ++i) {
     for (j = 0; j < N; ++j) {
-      float temp = C[i*ldc + j];
+      register float temp = C[i*ldc + j];
       for (k = 0; k < K; ++k) {
         temp += alpha * A[i*lda + k] * B[k*ldb + j];
       }
@@ -75,7 +75,7 @@ void GemmHostV2(const int M, const int N,
   for (; i < N; i++) {
     C[i] *= beta;
   }
-
+  
   for (i = 0; i < M; ++i) {
     for (k = 0; k < K; ++k) {
       const float aA0 = alpha*A[i*lda + k];
@@ -227,7 +227,7 @@ void GemmHostV5(const int M, const int N,
                 float *C, const int ldc) {
   int bi, bj, bk;
   int i, j, k;
-  const int block_size = 32;
+  const int block_size = 1;
   int block_num_M = M / block_size;
   int block_num_N = N / block_size;
   int block_num_K = K / block_size;
@@ -238,21 +238,40 @@ void GemmHostV5(const int M, const int N,
     }
   }
 
-  // Loop over all of the blocks.
-  for (bi = 0; bi < block_num_M; ++bi) {
-    for (bj = 0; bj < block_num_N; ++bj) {
-      for (bk = 0; bk < block_num_K; ++bk) {
-        // Loop over all of the elements in a block.
-        for (i = bi*block_size; i < (bi + 1)*block_size; ++i) {
-          for (k = bk*block_size; k < (bk + 1)*block_size; ++k) {
-            for (j = bj*block_size; j < (bj + 1)*block_size; ++j) { 
-              C[i*ldc + j] += alpha * A[i*lda + k] * B[k*ldb + j];
-            }
+  for (i = 0; i < M; i += block_size) {
+    for (j = 0; j < N; j += block_size) {
+
+      for (int bi = i; bi < i + block_size; bi++) {
+        for (int bj = j; bj < j + block_size; bj++) {
+
+          for (k = 0; k < K; k++) {
+            C[bi*ldc + bj] += alpha*A[bi*lda + k] * B[k*ldb + bj];
           }
+
         }
       }
+
     }
   }
+
+  //// Loop through each block of a matrix.
+  //for (bi = 0; bi < block_num_M; ++bi) { 
+  //  for (bk = 0; bk < block_num_K; ++bk) {
+  //    for (bj = 0; bj < block_num_N; ++bj) {
+  //      // Loops through all the elements in a block.
+  //      for (i = bi*block_size; i < (bi + 1)*block_size; ++i) {
+  //        for (k = bk*block_size; k < (bk + 1)*block_size; ++k) {
+  //          register float aA = alpha*A[i*lda + k];
+  //          for (j = bj*block_size; j < (bj + 1)*block_size; ++j) { 
+  //            C[i*ldc + j] += aA * B[k*ldb + j];
+  //          }
+  //        }
+  //      }
+  //    }
+  //  }
+  //}
+
+
 }
 
 //////////
