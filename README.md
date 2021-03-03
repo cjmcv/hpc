@@ -26,6 +26,14 @@
   tag: vulkan.
 </details>
 
+<details>
+  <summary><strong>mrpc</strong> -- Mini-RPC, based on asio.</summary>
+  
+  [https://github.com/cjmcv/hpc/tree/master/0-frameworks/mrpc](https://github.com/cjmcv/hpc/tree/master/0-frameworks/mrpc)
+  
+  tag: distributed computing.
+</details>
+
 ---
 
 ## Learning
