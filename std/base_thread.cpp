@@ -21,10 +21,9 @@ void Function(int index) {
 
 int main() {
   int num_threads = 5;
+  std::thread *threads = new std::thread[num_threads];
 
   std::cout << "(index, thread_id, iter)" << std::endl;
-
-  std::thread *threads = new std::thread[num_threads];
   for (int i = 0; i < num_threads; i++) {
     threads[i] = std::thread(Function, i);
   }
@@ -32,5 +31,7 @@ int main() {
   for (int i = 0; i < num_threads; i++) {
     threads[i].join();
   }
+
+  delete[]threads;
   return 0;
 }
