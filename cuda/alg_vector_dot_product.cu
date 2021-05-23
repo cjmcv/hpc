@@ -58,7 +58,7 @@ __global__ void VectorDotProductKernelv2(const float *vec_a, const float *vec_b,
     i < len / 2;
     i += blockDim.x * gridDim.x) {
     __shared__ float smem[BLOCK_SIZE];
-    smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];  // Mainly in here.
+    smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + len / 2] * vec_b[i + len / 2];  // Mainly in here.
     __syncthreads();
 
     int count = BLOCK_SIZE >> 1;
@@ -86,8 +86,9 @@ __global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b,
   for (int i = blockIdx.x * blockDim.x + threadIdx.x;
     i < len / 2;
     i += blockDim.x * gridDim.x) {
+
     __shared__ float smem[BLOCK_SIZE];
-    smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + gridDim.x / 2] * vec_b[i + gridDim.x / 2];
+    smem[threadIdx.x] = vec_a[i] * vec_b[i] + vec_a[i + len / 2] * vec_b[i + len / 2];
     __syncthreads();
 
     for (int count = BLOCK_SIZE >> 1; count > 32; count >>= 1) {
@@ -97,14 +98,29 @@ __global__ void VectorDotProductKernelv3(const float *vec_a, const float *vec_b,
       __syncthreads();
     }
 
-    // Mainly in here. Unroll the last warp. (It still need __syncthreads() in a warp ?)
+    ////// Mainly in here. Unroll the last warp. (It still need __syncthreads() in a warp ?)
+    //if (threadIdx.x < 32) {
+    //  smem[threadIdx.x] += smem[threadIdx.x + 32]; __syncthreads();
+    //  smem[threadIdx.x] += smem[threadIdx.x + 16]; __syncthreads();
+    //  smem[threadIdx.x] += smem[threadIdx.x + 8];  __syncthreads();
+    //  smem[threadIdx.x] += smem[threadIdx.x + 4];  __syncthreads();
+    //  smem[threadIdx.x] += smem[threadIdx.x + 2];  __syncthreads();
+    //  smem[threadIdx.x] += smem[threadIdx.x + 1];  __syncthreads();
+    //}
+
+    // 针对上面的最后一个warp仍需要加__syncthreads()的情况，需要注意：
+    // 编写线程束同步代码时，必须对共享内存的指针使用volatile关键字修饰，
+    // 否则可能会由于编译器的优化行为改变内存的操作顺序从而使结果不正确。
     if (threadIdx.x < 32) {
-      smem[threadIdx.x] += smem[threadIdx.x + 32]; __syncthreads();
-      smem[threadIdx.x] += smem[threadIdx.x + 16]; __syncthreads();
-      smem[threadIdx.x] += smem[threadIdx.x + 8];  __syncthreads();
-      smem[threadIdx.x] += smem[threadIdx.x + 4];  __syncthreads();
-      smem[threadIdx.x] += smem[threadIdx.x + 2];  __syncthreads();
-      smem[threadIdx.x] += smem[threadIdx.x + 1];  __syncthreads();
+      volatile float *smem_t = smem;
+      if (blockDim.x > 32) {
+        smem_t[threadIdx.x] += smem_t[threadIdx.x + 32];
+      }
+      smem_t[threadIdx.x] += smem_t[threadIdx.x + 16];
+      smem_t[threadIdx.x] += smem_t[threadIdx.x + 8];
+      smem_t[threadIdx.x] += smem_t[threadIdx.x + 4];
+      smem_t[threadIdx.x] += smem_t[threadIdx.x + 2];
+      smem_t[threadIdx.x] += smem_t[threadIdx.x + 1];
     }
 
     if (threadIdx.x == 0)
@@ -144,13 +160,13 @@ int main() {
   }
 
   const int loops = 100;
-  const int data_len = 10240000; // data_len % threads_per_block == 0
+  const int data_len = 1024000; // data_len % threads_per_block == 0
   const int data_mem_size = sizeof(float) * data_len;
   float *h_vector_a = (float *)malloc(data_mem_size);
   float *h_vector_b = (float *)malloc(data_mem_size);
   if (h_vector_a == NULL || h_vector_b == NULL) {
     printf("Fail to malloc.\n");
-    return 1;
+    return -1;
   }
   
   // Initialize 
@@ -163,7 +179,7 @@ int main() {
   float h_result = 0;
   for (int i = 0; i < loops; i++)
     h_result = VectorDotProductCPU(h_vector_a, h_vector_b, data_len);
-  printf("\nIn cpu version 1, msec_total = %lld, h_result = %f\n", clock() - t, h_result);
+  printf("\nIn cpu, msec_total = %lld, h_result = %f\n", clock() - t, h_result);
 
   // GPU
   // Allocate memory in host. 
@@ -181,7 +197,7 @@ int main() {
   msec_total = VectorDotProductCUDA(loops, d_vector_a, d_vector_b, data_len, *d_result);
   
   CUDA_CHECK(cudaMemcpy(&h_result, d_result, sizeof(float), cudaMemcpyDeviceToHost));
-  printf("\nIn gpu version 1, msec_total = %f, h_result = %f\n", msec_total, h_result);
+  printf("\nIn gpu, msec_total = %f, h_result = %f\n", msec_total, h_result);
 
   free(h_vector_a);
   free(h_vector_b);
