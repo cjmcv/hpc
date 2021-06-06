@@ -10,29 +10,25 @@ int main() {
   // Sections
   ////////////////////////////////////////
   printf("\nTest sections: \n");
-  #pragma omp parallel num_threads(3)
-  {
-    printf("%d(%d), ", omp_get_thread_num(), omp_get_num_threads());
-    
-    #pragma omp sections
+  #pragma omp parallel sections num_threads(3)
+  {  
+    // Each section has a thread to call.
+    printf("thread_num = %d, num_threads = %d.\n",
+      omp_get_thread_num(), omp_get_num_threads());
+
+    #pragma omp section
     {
-      printf("section -1,tid=%ld\n", omp_get_thread_num());
-      // Each section has a thread to call.
-      #pragma omp section
-      {
-        printf("section 0,tid=%ld\n", omp_get_thread_num());
-      }
-      #pragma omp section
-      {
-        printf("section 1,tid=%ld\n", omp_get_thread_num());
-      }
-      #pragma omp section
-      {
-        printf("section 2,tid=%ld\n", omp_get_thread_num());
-      }
+      printf("section 0,tid=%ld\n", omp_get_thread_num());
+    }
+    #pragma omp section
+    {
+      printf("section 1,tid=%ld\n", omp_get_thread_num());
+    }
+    #pragma omp section
+    {
+      printf("section 2,tid=%ld\n", omp_get_thread_num());
     }
   }
-
   ////////////////////////////////////////
   // Single
   //////////////////////////////////////// 
