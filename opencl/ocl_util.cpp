@@ -152,6 +152,18 @@ void PrintPlatBasicInfo(cl_platform_id &platform) {
   free(version);
 }
 
+// Get a multiple that's rounded up.
+size_t GetRoundUpMultiple(size_t dividend, size_t divisor) {
+  return (dividend + divisor - 1) / divisor;
+}
+
+void PrintCommandElapsedTime(cl_event event) {
+  cl_ulong start_time = 0, end_time = 0;
+  OCL_CHECK(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start_time, NULL));
+  OCL_CHECK(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end_time, NULL));
+  printf("Command elapsed time: %f ms\n", (end_time - start_time)*1e-6);
+}
+
 ////////////////
 // Class.
 ////////////////

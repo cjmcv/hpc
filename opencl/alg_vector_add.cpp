@@ -12,21 +12,21 @@ void VectorAddHost(const float* src1, const float* src2, float* h_dst, size_t nu
 
 int main(int argc, char **argv) {
   cl_int err_code;
+  size_t num_elements = 65537;
   // set and log Global and Local work size dimensions
   size_t local_work_size = 256;
   // 1D var for Total # of work items
-  size_t global_work_size = local_work_size * 256;
-  size_t num_elements = global_work_size + 200;
+  size_t global_work_size = cjmcv_ocl_util::GetRoundUpMultiple(num_elements, local_work_size) * local_work_size;
 
   printf("Global Work Size = %zu, Local Work Size = %zu, # of Work Groups = %zu\n\n",
-    global_work_size, local_work_size, (global_work_size % local_work_size + global_work_size / local_work_size));
+    global_work_size, local_work_size, global_work_size / local_work_size);
 
   // Allocate and initialize host arrays.
-  float *h_src1 = (float *)malloc(sizeof(cl_float) * global_work_size);
-  float *h_src2 = (float *)malloc(sizeof(cl_float) * global_work_size);
+  float *h_src1 = (float *)malloc(sizeof(cl_float) * num_elements);
+  float *h_src2 = (float *)malloc(sizeof(cl_float) * num_elements);
   float *h_dst = (float *)malloc(sizeof(cl_float) * num_elements);
-  float *h_dst4cl = (float *)malloc(sizeof(cl_float) * global_work_size);
-  for (size_t i = 0; i < global_work_size; i++) {
+  float *h_dst4cl = (float *)malloc(sizeof(cl_float) * num_elements);
+  for (size_t i = 0; i < num_elements; i++) {
     h_src1[i] = i;
     h_src2[i] = i;
   }
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
   for (cl_uint i = 0; i < num_platforms; i++) {
     cjmcv_ocl_util::PrintPlatBasicInfo(platforms[i]);
 
-    //Get the devices
+    // Get the devices
     cl_device_id device;
     OCL_CHECK(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, 1, &device, NULL));
 
@@ -60,11 +60,11 @@ int main(int argc, char **argv) {
     loader->GetKernel("VectorAdd", &kernel);
 
     // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
-    cl_mem d_src1 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * global_work_size, NULL, &err_code);
+    cl_mem d_src1 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * num_elements, NULL, &err_code);
     OCL_CHECK(err_code);
-    cl_mem d_src2 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * global_work_size, NULL, &err_code);
+    cl_mem d_src2 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * num_elements, NULL, &err_code);
     OCL_CHECK(err_code);
-    cl_mem d_dst = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * global_work_size, NULL, &err_code);
+    cl_mem d_dst = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * num_elements, NULL, &err_code);
     OCL_CHECK(err_code);
 
     // Set the Argument values
@@ -80,30 +80,27 @@ int main(int argc, char **argv) {
     OCL_CHECK(err_code);
     
     // Asynchronous write of data to GPU device
-    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src1, CL_FALSE, 0, sizeof(cl_float) * global_work_size, h_src1, 0, NULL, NULL));
-    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src2, CL_FALSE, 0, sizeof(cl_float) * global_work_size, h_src2, 0, NULL, NULL));
+    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src1, CL_FALSE, 0, sizeof(cl_float) * num_elements, h_src1, 0, NULL, NULL));
+    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src2, CL_FALSE, 0, sizeof(cl_float) * num_elements, h_src2, 0, NULL, NULL));
 
     // Launch kernel
     cl_event ev;
     OCL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, &ev));
 
     // Synchronous/blocking read of results, and check accumulated errors
-    OCL_CHECK(clEnqueueReadBuffer(command_queue, d_dst, CL_TRUE, 0, sizeof(cl_float) * global_work_size, h_dst4cl, 0, NULL, NULL));
+    OCL_CHECK(clEnqueueReadBuffer(command_queue, d_dst, CL_TRUE, 0, sizeof(cl_float) * num_elements, h_dst4cl, 0, NULL, NULL));
     
     // Block until all tasks in command_queue have been completed.
     clFinish(command_queue);
   
     // Gets the running time of the kernel function.
-    cl_ulong start_time = 0, end_time = 0;
-    OCL_CHECK(clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start_time, NULL));
-    OCL_CHECK(clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end_time, NULL));
-    printf("kernel exec time: %f ms\n", (end_time - start_time)*1e-6);
+    cjmcv_ocl_util::PrintCommandElapsedTime(ev);
     //--------------------------------------------------------
 
     // Compute and compare results on host.
     VectorAddHost(h_src1, h_src2, h_dst, num_elements);
     bool is_equal = true;
-    for (int ni = 0; ni < global_work_size; ni++) {
+    for (int ni = 0; ni < num_elements; ni++) {
       if (h_dst[ni] != h_dst4cl[ni]) {
         is_equal = false;
         break;
@@ -128,4 +125,6 @@ int main(int argc, char **argv) {
   if (h_src2) free(h_src2);
   if (h_dst) free(h_dst);
   if (h_dst4cl) free(h_dst4cl);
+
+  return 0;
 }

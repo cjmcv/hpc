@@ -1,5 +1,5 @@
-#ifndef CJMCV_CUDA_UTIL_HPP_
-#define CJMCV_CUDA_UTIL_HPP_
+#ifndef CJMCV_OCL_UTIL_HPP_
+#define CJMCV_OCL_UTIL_HPP_
 
 #include <iostream>
 #include <CL/cl.h>
@@ -28,6 +28,16 @@ const char* GetErrorString(cl_int error);
 
 // Print the name and version of the platform.
 void PrintPlatBasicInfo(cl_platform_id &platform);
+
+// Get a multiple that's rounded up.
+size_t GetRoundUpMultiple(size_t dividend, size_t divisor);
+
+void PrintCommandElapsedTime(cl_event ev);
+
+////////////////
+// Structure.
+////////////////
+
 
 ////////////////
 // Class.
@@ -59,4 +69,4 @@ private:
 
 } //namespace cjmcv_ocl_util
 
-#endif //CJMCV_CUDA_UTIL_HPP_
+#endif //CJMCV_OCL_UTIL_HPP_
