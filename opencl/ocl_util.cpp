@@ -159,6 +159,7 @@ size_t GetRoundUpMultiple(size_t dividend, size_t divisor) {
 
 void PrintCommandElapsedTime(cl_event event) {
   cl_ulong start_time = 0, end_time = 0;
+  // It requires that the CL_QUEUE_PROFILING_ENABLE flag is set in the clCreateCommandQueue function.
   OCL_CHECK(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start_time, NULL));
   OCL_CHECK(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end_time, NULL));
   printf("Command elapsed time: %f ms\n", (end_time - start_time)*1e-6);

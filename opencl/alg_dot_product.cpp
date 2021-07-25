@@ -13,20 +13,21 @@ void DotProductHost(const int* src1, const int* src2, int* dst, size_t num_eleme
 
 int main(int argc, char **argv) {
   cl_int err_code;
+  size_t num_elements = 1000000;
   // set and log Global and Local work size dimensions
   size_t local_work_size = 256;
   // 1D var for Total # of work items
-  size_t global_work_size = local_work_size * 2;
+  size_t global_work_size = cjmcv_ocl_util::GetRoundUpMultiple(num_elements, local_work_size) * local_work_size;
 
   printf("Global Work Size = %zu, Local Work Size = %zu, # of Work Groups = %zu\n\n",
-    global_work_size, local_work_size, (global_work_size % local_work_size + global_work_size / local_work_size));
+    global_work_size, local_work_size, global_work_size / local_work_size);
 
   // Allocate and initialize host arrays.
-  int *h_src1 = (int *)malloc(sizeof(cl_int) * global_work_size);
-  int *h_src2 = (int *)malloc(sizeof(cl_int) * global_work_size);
+  int *h_src1 = (int *)malloc(sizeof(cl_int) * num_elements);
+  int *h_src2 = (int *)malloc(sizeof(cl_int) * num_elements);
   int h_dst = 0;
   int h_dst4cl = 0;
-  for (int i = 0; i < global_work_size; i++) {
+  for (int i = 0; i < num_elements; i++) {
     h_src1[i] = i;
     h_src2[i] = i;
   }
@@ -60,9 +61,9 @@ int main(int argc, char **argv) {
     loader->GetKernel("DotProductDevice", &kernel);
 
     // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
-    cl_mem d_src1 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_int) * global_work_size, NULL, &err_code);
+    cl_mem d_src1 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_int) * num_elements, NULL, &err_code);
     OCL_CHECK(err_code);
-    cl_mem d_src2 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_int) * global_work_size, NULL, &err_code);
+    cl_mem d_src2 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_int) * num_elements, NULL, &err_code);
     OCL_CHECK(err_code);
     cl_mem d_dst = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_int), NULL, &err_code);
     OCL_CHECK(err_code);
@@ -74,25 +75,31 @@ int main(int argc, char **argv) {
 
     //--------------------------------------------------------
     // Create a command-queue
-    cl_command_queue command_queue = clCreateCommandQueue(context, device, 0, &err_code);
+    cl_command_queue command_queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err_code);
+    //cl_command_queue command_queue = clCreateCommandQueue(context, device, 0, &err_code);
     OCL_CHECK(err_code);
 
     // Asynchronous write of data to GPU device
-    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src1, CL_FALSE, 0, sizeof(cl_int) * global_work_size, h_src1, 0, NULL, NULL));
-    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src2, CL_FALSE, 0, sizeof(cl_int) * global_work_size, h_src2, 0, NULL, NULL));
+    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src1, CL_FALSE, 0, sizeof(cl_int) * num_elements, h_src1, 0, NULL, NULL));
+    OCL_CHECK(clEnqueueWriteBuffer(command_queue, d_src2, CL_FALSE, 0, sizeof(cl_int) * num_elements, h_src2, 0, NULL, NULL));
 
     // Launch kernel
-    OCL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL));
+    cl_event ev;
+    OCL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, &ev));
+    //OCL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL));
 
     // Synchronous/blocking read of results, and check accumulated errors
     OCL_CHECK(clEnqueueReadBuffer(command_queue, d_dst, CL_TRUE, 0, sizeof(cl_int), &h_dst4cl, 0, NULL, NULL));
 	
-	// Block until all tasks in command_queue have been completed.
-	clFinish(command_queue);
+	  // Block until all tasks in command_queue have been completed.
+    clFinish(command_queue);
+
+    // Gets the running time of the kernel function.
+    cjmcv_ocl_util::PrintCommandElapsedTime(ev);
     //--------------------------------------------------------
 
     // Compute and compare results on host.
-    DotProductHost(h_src1, h_src2, &h_dst, global_work_size);
+    DotProductHost(h_src1, h_src2, &h_dst, num_elements);
     printf("Test: %s (%d, %d)\n \n", (h_dst4cl == h_dst ? "PASS" : "FAILED"), h_dst4cl, h_dst);
 
     // Cleanup
