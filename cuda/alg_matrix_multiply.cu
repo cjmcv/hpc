@@ -93,25 +93,44 @@ void MatrixMulCPUv2(const int M, const int N, const int K, const float ALPHA,
 // for bk -> bk_num_per_grid
 //     for k -> k_num_per_block
 //         C[bi*bs + ty, bj*bs + tx] = A[bi*bs + ty, bk*bs + k] * B[k*bs + k, bj*bs + tx]
-template <int BLOCK_SIZE>
 __global__ void MatrixMulKernelv1(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
   const float *B, const int ldb,
   float *C, const int ldc) {
 
-  float c_sub_acc = 0;
-  for (int bk = 0; bk < K / BLOCK_SIZE; bk++) {
-    for (int k = 0;k < BLOCK_SIZE; k++) {
-      c_sub_acc += A[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * lda + (bk * BLOCK_SIZE + k)] *
-        B[(bk * BLOCK_SIZE + k) * ldb + (blockIdx.x * BLOCK_SIZE + threadIdx.x)];
-    }
-  }
+  //// 由MatrixMulCPUv2去掉块内线程i/j和块的bi/bj。每个线程并行，所以直接忽略。
+  //float c_sub_acc = 0;
+  //for (int bk = 0; bk < K / BLOCK_SIZE; bk++) {
+  //  for (int k = bk * BLOCK_SIZE; k < (bk + 1)* BLOCK_SIZE; k++) {
+  //    c_sub_acc += A[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * lda + k] *
+  //      B[k * ldb + (blockIdx.x * BLOCK_SIZE + threadIdx.x)];
+  //  }
+  //}
 
-  C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
+  //C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
+
+  // 索引调整后如下，一个线程负责输出矩阵的一个元素
+  for (int i = blockIdx.y * blockDim.y + threadIdx.y, 
+           j = blockIdx.x * blockDim.x + threadIdx.x;
+       i < M && j < N; 
+       i += gridDim.y * blockDim.y, 
+       j += gridDim.x * blockDim.x) {
+
+    int gid_x = blockIdx.x * blockDim.x + threadIdx.x;
+    int gid_y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    float c_sub_acc = 0;
+    for (int k = 0; k < K; k++) {
+      c_sub_acc += A[gid_y * lda + k] * B[k * ldb + gid_x];
+    }
+
+    C[gid_y * ldc + gid_x] = c_sub_acc;
+  }
 }
 
 // CUDA version 2.
 // Use shared memory.
+// Block based. The length and width can only be an integral multiple of BLOCK_SIZE.
 template <int BLOCK_SIZE>
 __global__ void MatrixMulKernelv2(const int M, const int N, const int K, const float ALPHA,
   const float *A, const int lda,
@@ -130,15 +149,16 @@ __global__ void MatrixMulKernelv2(const int M, const int N, const int K, const f
     __syncthreads();
 
     // For elements in a block.
-    for (int k = 0;k < BLOCK_SIZE; k++) {
+    for (int k = 0; k < BLOCK_SIZE; k++) {
       c_sub_acc += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
     }
-	  // To prevent the case from happening:
-	  // The next round of data is loaded when the data in share memory is not used up.
+    // To prevent the case from happening:
+    // The next round of data is loaded when the data in share memory is not used up.
     __syncthreads();
   }
 
   C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
+
 }
 
 //#define TEST_CUDA_V1
@@ -148,22 +168,22 @@ float MatrixMulCUDA(const int M, const int N, const int K, const float ALPHA,
   float *C, const int ldc) {
   cjmcv_cuda_util::GpuTimer gpu_timer;
 
-  const int block_size = 32;
-  dim3 threads_per_block(block_size, block_size);
-  dim3 blocks_per_grid(N / threads_per_block.x, M / threads_per_block.y);
+  const int block_side_size = 32;
+  dim3 threads_per_block(block_side_size, block_side_size);
+  dim3 blocks_per_grid((N + threads_per_block.x - 1) / threads_per_block.x, (M + threads_per_block.y - 1) / threads_per_block.y);
   
   // Warm up.
-  MatrixMulKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
+  MatrixMulKernelv1<< <blocks_per_grid, threads_per_block >> >
     (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
   cudaMemset(C, 0, sizeof(float) * M * N);
 
   // Record the start event
   gpu_timer.Start();
 #ifdef TEST_CUDA_V1
-  MatrixMulKernelv1<block_size> << <blocks_per_grid, threads_per_block >> >
+  MatrixMulKernelv1<< <blocks_per_grid, threads_per_block >> >
     (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
 #else
-  MatrixMulKernelv2<block_size> << <blocks_per_grid, threads_per_block >> >
+  MatrixMulKernelv2<block_side_size> << <blocks_per_grid, threads_per_block >> >
     (M, N, K, 1.0, A, lda, B, ldb, C, ldc);
 #endif
 
