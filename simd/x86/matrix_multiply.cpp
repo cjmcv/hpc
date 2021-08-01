@@ -5,6 +5,7 @@
 #include "time.h"
 
 #include "xmmintrin.h"
+#include "immintrin.h"
 
 // Initialize the input data.
 void GenMatrix(const int height, const int width, float *mat) {
@@ -94,6 +95,36 @@ void MatrixMulSIMDv2(const int M, const int N, const int K, const float ALPHA,
         _mm256_storeu_ps(C + i*ldc + j, c);
       }
       for (;j < N; j++) {
+        C[i*ldc + j] += apart.m256_f32[0] * B[k*ldb + j];
+      }
+    }
+  }
+}
+
+// Use _mm_prefetch.
+// It takes the same amount of time as v2. _mm_prefetch doesn't work£¿
+void MatrixMulSIMDv2P(const int M, const int N, const int K, const float ALPHA,
+  const float *A, const int lda,
+  const float *B, const int ldb,
+  float *C, const int ldc) {
+  int i, j, k;
+  memset(C, 0, sizeof(float) * ldc * M);
+  for (i = 0; i < M; ++i) {
+    for (k = 0; k < K; ++k) {
+      _mm_prefetch((char *)B + (k + 1) * ldb, _MM_HINT_T0);
+      _mm_prefetch((char *)C + (i + 1) * ldc, _MM_HINT_T0);
+
+      __m256 apart = _mm256_set1_ps(ALPHA*A[i*lda + k]);
+      for (j = 0; j < N - 7; j += 8) {
+        const float *b_addr = B + k * ldb + j;
+        float *c_addr = C + i * ldc + j;
+
+        __m256 b = _mm256_loadu_ps(b_addr);
+        __m256 c = _mm256_loadu_ps(c_addr);
+        c = _mm256_fmadd_ps(apart, b, c); // apart * b + c
+        _mm256_storeu_ps(c_addr, c);
+      }
+      for (; j < N; j++) {
         C[i*ldc + j] += apart.m256_f32[0] * B[k*ldb + j];
       }
     }
@@ -237,6 +268,13 @@ int main() {
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
+    MatrixMulSIMDv2P(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v2, width_ret);
+  }
+  std::cout << "SIMDv2P ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_simd_v2, height_ret, width_ret) << std::endl;
+
+
+  stime = clock();
+  for (int i = 0; i < 100; i++) {
     MatrixMulSIMDv3(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v3, width_ret);
   }
   std::cout << "SIMDv3 ->  time: " << clock() - stime << ", mean value: " << GetMean(mat_ret_simd_v3, height_ret, width_ret) << std::endl;
@@ -262,5 +300,6 @@ int main() {
   delete[] mat_ret_simd_v3;
   _aligned_free(mat_ret_simd_v4);
 
+  system("pause");
   return 0;
 }
