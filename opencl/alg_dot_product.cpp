@@ -13,7 +13,7 @@ void DotProductHost(const int* src1, const int* src2, int* dst, size_t num_eleme
 
 int main(int argc, char **argv) {
   cl_int err_code;
-  size_t num_elements = 1000000;
+  size_t num_elements = 1000000; 
   // set and log Global and Local work size dimensions
   size_t local_work_size = 256;
   // 1D var for Total # of work items
@@ -28,8 +28,8 @@ int main(int argc, char **argv) {
   int h_dst = 0;
   int h_dst4cl = 0;
   for (int i = 0; i < num_elements; i++) {
-    h_src1[i] = i;
-    h_src2[i] = i;
+    h_src1[i] = 1;
+    h_src2[i] = 2;
   }
 
   // Load CL source.
@@ -37,19 +37,13 @@ int main(int argc, char **argv) {
   loader->Load("../../alg_dot_product.cl");
 
   // Get an OpenCL platform.
-  cl_uint num_platforms;
-  OCL_CHECK(clGetPlatformIDs(5, NULL, &num_platforms));
-  printf("There are ( %d ) platforms that support OpenCL.\n\n", num_platforms);
+  cjmcv_ocl_util::PlatformSelector ps;
+  ps.QueryPlatforms();
 
-  cl_platform_id *platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * num_platforms);
-  OCL_CHECK(clGetPlatformIDs(num_platforms, platforms, NULL));
-
-  for (cl_uint i = 0; i < num_platforms; i++) {
-    cjmcv_ocl_util::PrintPlatBasicInfo(platforms[i]);
-
+  {
     // Get the devices
     cl_device_id device;
-    OCL_CHECK(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, 1, &device, NULL));
+    ps.GetDeviceId("NVIDIA CUDA", &device); // "NVIDIA CUDA" / "Intel(R) OpenCL"
 
     // Create the context
     cl_context context = clCreateContext(0, 1, &device, NULL, NULL, &err_code);
@@ -71,7 +65,8 @@ int main(int argc, char **argv) {
     // Set the Argument values
     OCL_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&d_src1));
     OCL_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&d_src2));
-    OCL_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&d_dst));
+    OCL_CHECK(clSetKernelArg(kernel, 2, sizeof(int), &num_elements)); // sizeof(size_t): CL_INVALID_ARG_SIZE
+    OCL_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&d_dst));
 
     //--------------------------------------------------------
     // Create a command-queue

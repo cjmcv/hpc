@@ -66,7 +66,29 @@ private:
   cl_program program_;
 };
 
+class PlatformSelector {
 
+public:
+  PlatformSelector();
+  ~PlatformSelector();
+
+  void QueryPlatforms();
+
+  inline cl_platform_id *platforms() {
+    return platforms_;
+  }
+
+  // platform_name: "NVIDIA CUDA" / "Intel(R) OpenCL"
+  // device_order: Serial number of the same platform.
+  bool GetDeviceId(std::string platform_name, cl_device_id* device_id, int device_order = 0);
+
+private:
+  cl_platform_id *platforms_;
+  cl_uint num_;
+
+  char **names_;
+  char **versions_;
+};
 } //namespace cjmcv_ocl_util
 
 #endif //CJMCV_OCL_UTIL_HPP_

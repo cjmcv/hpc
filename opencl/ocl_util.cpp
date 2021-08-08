@@ -257,4 +257,78 @@ char* KernelLoader::LoadProgSource(const char* file_name, const char* preamble, 
   return source_string;
 }
 
+//////////////////////////////////
+
+// PlatformSelector
+PlatformSelector::PlatformSelector() {
+  platforms_ = nullptr;
+  names_ = nullptr;
+  versions_ = nullptr;
+}
+
+PlatformSelector::~PlatformSelector() {
+  if (platforms_) {
+    free(platforms_);
+    platforms_ = nullptr;
+  }
+  if (names_) {
+    for (int i = 0; i < num_; i++) {
+      if (names_[i])
+        free(names_[i]);
+    }
+    free(names_);
+  }
+  if (versions_) {
+    for (int i = 0; i < num_; i++) {
+      if (versions_[i])
+        free(versions_[i]);
+    }
+    free(versions_);
+  }
+}
+
+void PlatformSelector::QueryPlatforms() {
+  // Get an OpenCL platform.
+  OCL_CHECK(clGetPlatformIDs(5, NULL, &num_));
+  printf("There are ( %d ) platforms that support OpenCL.\n\n", num_);
+
+  platforms_ = (cl_platform_id*)malloc(sizeof(cl_platform_id) * num_);
+  OCL_CHECK(clGetPlatformIDs(num_, platforms_, NULL));
+
+  names_ = (char **)malloc(num_ * sizeof(char *));
+  versions_ = (char **)malloc(num_ * sizeof(char *));
+  for (int i = 0; i < num_; i++) {
+    size_t ext_size;
+    OCL_CHECK(clGetPlatformInfo(platforms_[i], CL_PLATFORM_EXTENSIONS,
+      0, NULL, &ext_size));
+    names_[i] = (char*)malloc(ext_size);
+    OCL_CHECK(clGetPlatformInfo(platforms_[i], CL_PLATFORM_NAME,
+      ext_size, names_[i], NULL));
+
+    versions_[i] = (char*)malloc(ext_size);
+    OCL_CHECK(clGetPlatformInfo(platforms_[i], CL_PLATFORM_VERSION,
+      ext_size, versions_[i], NULL));
+
+    printf("The name of the platform is <%s> with version <%s>.\n", names_[i], versions_[i]);
+  }
+}
+
+bool PlatformSelector::GetDeviceId(std::string platform_name, cl_device_id* device_id, int device_order) {
+  if (device_order < 0) {
+    return false;
+  }
+  for (int i = 0; i < num_; i++) {
+    if (platform_name == std::string(names_[i])) {
+      if (device_order == 0) {
+        OCL_CHECK(clGetDeviceIDs(platforms_[i], CL_DEVICE_TYPE_GPU, 1, device_id, NULL));
+        return true;
+      }
+      else {
+        device_order--;
+      }
+    }
+  }
+  return false;
+}
+
 } //namespace cjmcv_ocl_util
