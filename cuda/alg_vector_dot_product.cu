@@ -33,6 +33,14 @@ __global__ void VectorDotProductKernelv1(const float *vec_a, const float *vec_b,
     smem[threadIdx.x] = vec_a[i] * vec_b[i];
     __syncthreads();
 
+    //// Very slow ?
+    //if (threadIdx.x == 0) {
+    //  int sum = 0;
+    //  for (int i = 0; i < BLOCK_SIZE; i++)
+    //    sum += smem[i];
+    //  atomicAdd(&res, sum);
+    //}
+
     int count = BLOCK_SIZE / 2;
     while (count >= 1) {
       if(threadIdx.x < count) {
