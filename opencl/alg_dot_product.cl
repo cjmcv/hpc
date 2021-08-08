@@ -20,14 +20,26 @@ __kernel void DotProductDevice(__global int *src1, __global int *src2, const int
     // Make sure all working groups are done.
     barrier(CLK_LOCAL_MEM_FENCE);
 
+    // V1. 1.1ms
     // The first item of each group is responsible for
     // aggregating the group's results, and add to the dst.
     if (lid == 0) {
       int sum = 0;
-      
       for (int i = 0; i < WORKGROUP_SIZE; i++)
         sum += buffer[i];
       atomic_add(dst, sum);
     }
+
+    //// V2. 1.8ms
+    //int count = WORKGROUP_SIZE / 2;
+    //while (count >= 1) {
+    //  if (lid < count) {
+    //    buffer[lid] += buffer[count + lid];
+    //  }  
+    //  barrier(CLK_LOCAL_MEM_FENCE);
+    //  count = count / 2;
+    //}
+    //if(lid == 0)
+    //  atomic_add(dst, buffer[lid]);
   }
 }

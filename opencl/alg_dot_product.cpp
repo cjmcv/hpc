@@ -13,7 +13,7 @@ void DotProductHost(const int* src1, const int* src2, int* dst, size_t num_eleme
 
 int main(int argc, char **argv) {
   cl_int err_code;
-  size_t num_elements = 1000000; 
+  size_t num_elements = 10000000; 
   // set and log Global and Local work size dimensions
   size_t local_work_size = 256;
   // 1D var for Total # of work items
