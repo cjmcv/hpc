@@ -116,15 +116,12 @@ __global__ void MatrixMulKernelv1(const int M, const int N, const int K, const f
        i += gridDim.y * blockDim.y, 
        j += gridDim.x * blockDim.x) {
 
-    int gid_x = blockIdx.x * blockDim.x + threadIdx.x;
-    int gid_y = blockIdx.y * blockDim.y + threadIdx.y;
-
     float c_sub_acc = 0;
     for (int k = 0; k < K; k++) {
-      c_sub_acc += A[gid_y * lda + k] * B[k * ldb + gid_x];
+      c_sub_acc += A[i * lda + k] * B[k * ldb + j];
     }
 
-    C[gid_y * ldc + gid_x] = c_sub_acc;
+    C[i * ldc + j] = c_sub_acc;
   }
 }
 
@@ -137,29 +134,65 @@ __global__ void MatrixMulKernelv2(const int M, const int N, const int K, const f
   const float *B, const int ldb,
   float *C, const int ldc) {
 
+  for (int i = blockIdx.y * blockDim.y + threadIdx.y,
+    j = blockIdx.x * blockDim.x + threadIdx.x;
+    i < M && j < N;
+    i += gridDim.y * blockDim.y,
+    j += gridDim.x * blockDim.x) {
+
+    __shared__ float a_shared[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float b_shared[BLOCK_SIZE][BLOCK_SIZE];
+
+    float c_sub_acc = 0;
+    // For blocks in grid.
+    for (int bk = 0; bk < K / BLOCK_SIZE; bk++) {
+      a_shared[threadIdx.y][threadIdx.x] = A[i * lda + (bk * BLOCK_SIZE + threadIdx.x)];
+      b_shared[threadIdx.y][threadIdx.x] = B[(bk * BLOCK_SIZE + threadIdx.y) * ldb + j];
+      // Wait for data to complete loading to Shared memory.
+      __syncthreads();
+
+      // For elements in a block.
+      for (int k = 0; k < BLOCK_SIZE; k++) {
+        c_sub_acc += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
+      }
+      // To prevent the case from happening:
+      // The next round of data is loaded when the data in share memory is not used up.
+      __syncthreads();
+    } 
+    
+    C[i * ldc + j] += c_sub_acc;
+  }
+}
+
+template <int BLOCK_SIZE>
+__global__ void MatrixMulKernelv3(const int M, const int N, const int K, const float ALPHA,
+  const float *A, const int lda,
+  const float *B, const int ldb,
+  float *C, const int ldc) {
+
   __shared__ float a_shared[BLOCK_SIZE][BLOCK_SIZE];
   __shared__ float b_shared[BLOCK_SIZE][BLOCK_SIZE];
 
-  float c_sub_acc = 0;
-  // For blocks in grid.
-  for (int bk = 0; bk < K / BLOCK_SIZE; bk++) {
-    a_shared[threadIdx.y][threadIdx.x] = A[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * lda + (bk * BLOCK_SIZE + threadIdx.x)];
-    b_shared[threadIdx.y][threadIdx.x] = B[(bk * BLOCK_SIZE + threadIdx.y) * ldb + (blockIdx.x * BLOCK_SIZE + threadIdx.x)];
-    // Wait for data to complete loading to Shared memory.
-    __syncthreads();
+  for (int i = blockIdx.y * blockDim.y + threadIdx.y,
+    j = blockIdx.x * blockDim.x + threadIdx.x;
+    i < M && j < N;
+    i += gridDim.y * blockDim.y,
+    j += gridDim.x * blockDim.x) {
 
-    // For elements in a block.
-    for (int k = 0; k < BLOCK_SIZE; k++) {
-      c_sub_acc += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
-    }
-    // To prevent the case from happening:
-    // The next round of data is loaded when the data in share memory is not used up.
+    a_shared[threadIdx.y][threadIdx.x] = A[i * lda + j];
+    b_shared[threadIdx.y][threadIdx.x] = B[i * ldb + j];
     __syncthreads();
+   
+    float c_sub_acc = 0;
+    //for (int k = 0; k < BLOCK_SIZE; k++) {
+    //  c_sub_acc += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
+    //}
+    //__syncthreads();
+
+    C[i * ldc + j] += c_sub_acc;
   }
-
-  C[(blockIdx.y * BLOCK_SIZE + threadIdx.y) * ldc + (blockIdx.x * BLOCK_SIZE + threadIdx.x)] += c_sub_acc;
-
 }
+
 
 //#define TEST_CUDA_V1
 float MatrixMulCUDA(const int M, const int N, const int K, const float ALPHA,
@@ -251,7 +284,11 @@ int main() {
 
   // Copy memory back to host.
   CUDA_CHECK(cudaMemcpy(h_c, d_c, mem_size_c, cudaMemcpyDeviceToHost));
+#ifdef TEST_CUDA_V1
   printf("In gpu version 1, msec_total = %f, mean = %f\n", msec_total, GetMean(h_c, height_a, width_b));
+#else
+  printf("In gpu version 2, msec_total = %f, mean = %f\n", msec_total, GetMean(h_c, height_a, width_b));
+#endif
   //MatrixPrint(h_c, height_a, width_b);
 
   free(h_a);
