@@ -31,7 +31,7 @@ int TestExecutor() {
   devm->PrintDevicesInfo();
 
   int physical_device_id = 0;
-  std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/shaders/";
+  std::string shaders_dir_path = "../../shaders/";
 
   vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
 
@@ -106,13 +106,16 @@ void TestVkyData() {
   for (int i = 0; i < len; i++) {
     x[i] = i;
   }
+  for (int i = 0; i < len; i++) {
+    std::cout << x[i] << ", ";
+  }
 
   vky::DeviceManager *devm = new vky::DeviceManager();
   devm->Initialize(true);
   devm->PrintDevicesInfo();
 
   int physical_device_id = 0;
-  std::string shaders_dir_path = "D:/projects/github/hpc/vulkan/vky/";
+  std::string shaders_dir_path = "../../shaders/";
 
   vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
 
@@ -125,12 +128,12 @@ void TestVkyData() {
   float *vdata_host = vdata->host_data();
   vky::BufferMemory *data_device = vdata->get_device_data();
 
-  memset(vdata_host, 0, sizeof(float) * len);
+  //memset(vdata_host, 0, sizeof(float) * len);
   for (int i = 0; i < len; i++) {
     std::cout << vdata_host[i] << ", ";
   }
-  std::cout << std::endl << "cleaned." << std::endl;
 
+  std::cout << std::endl << "host -> device, device -> host :" << std::endl;
   vdata_host = vdata->get_host_data();
   for (int i = 0; i < len; i++) {
     std::cout << vdata_host[i] << ", ";
@@ -149,9 +152,9 @@ void TestVkyData() {
 
 int main(int argc, char* argv[]) {
 
-  TestExecutor();
+  //TestExecutor();
 
-  //TestVkyData();
+  TestVkyData();
 
   return 0;
 }

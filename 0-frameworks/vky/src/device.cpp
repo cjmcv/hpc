@@ -10,9 +10,11 @@ int DeviceManager::Initialize(bool is_enable_validation) {
   std::vector<const char*> layers = std::vector<const char*>{};
   std::vector<const char*> extensions = std::vector<const char*>{};
   if (is_enable_validation) {
-    // "=" in vector is deep copy.
-    layers = EnabledLayers({ "VK_LAYER_LUNARG_standard_validation" });
-    extensions = EnabledExtensions({ VK_EXT_DEBUG_REPORT_EXTENSION_NAME });
+    // "=" in vector is deep copy. 
+    // Note: VK_LAYER_LUNARG_standard_validation is deprecated.
+    layers = EnabledLayers({ "VK_LAYER_KHRONOS_validation" });
+    // The same as VK_EXT_DEBUG_REPORT_EXTENSION_NAME
+    extensions = EnabledExtensions({ "VK_EXT_debug_report" }); 
   }
 
   CreateInstance(layers, extensions);
@@ -30,7 +32,7 @@ int DeviceManager::UnInitialize() {
 }
 
 void DeviceManager::PrintDevicesInfo() const {
-  std::cout << "device count: " << devices_count_ << std::endl;
+  std::cout << "Number of devices: " << devices_count_ << std::endl;
 
   for (int i = 0; i < devices_count_; i++) {
     DeviceInfo &info = devices_info_[i];
@@ -82,14 +84,27 @@ void DeviceManager::PrintDevicesInfo() const {
 std::vector<const char*> DeviceManager::EnabledExtensions(const std::vector<const char*>& extensions) const {
   auto ret = std::vector<const char*>{};
   auto instance_extensions = vk::enumerateInstanceExtensionProperties();
+
   for (auto e : extensions) {
-    auto it = std::find_if(instance_extensions.begin(), instance_extensions.end()
-      , [=](auto& p) { return strcmp(p.extensionName, e); });
-    if (it != end(instance_extensions)) {
-      ret.push_back(e);
+    bool is_exist = false;
+    for (auto ie : instance_extensions) {
+      if (!strcmp(ie.extensionName, e)) {
+        ret.push_back(e);
+        is_exist = true;
+        break;
+      }
     }
-    else {
-      std::cerr << "[WARNING]: extension " << e << " is not found" "\n";
+
+    if (!is_exist) {
+      std::cerr << "[WARNING] extension " << e << " can not be found. \n";
+    }
+  }
+
+  // Not all extension are supported.
+  if (ret.size() != extensions.size()) {
+    std::cout << "Supported extensions: " << std::endl;
+    for (auto ie : instance_extensions) {
+      std::cout << ie.extensionName << std::endl;
     }
   }
   return ret;
@@ -99,22 +114,35 @@ std::vector<const char*> DeviceManager::EnabledLayers(const std::vector<const ch
   auto ret = std::vector<const char*>{};
   auto instance_layers = vk::enumerateInstanceLayerProperties();
   for (auto l : layers) {
-    auto it = std::find_if(instance_layers.begin(), instance_layers.end()
-      , [=](auto& p) { return strcmp(p.layerName, l); });
-    if (it != end(instance_layers)) {
-      ret.push_back(l);
+    bool is_exist = false;
+    for (auto il : instance_layers) {
+      if (!strcmp(il.layerName, l)) {
+        ret.push_back(l);
+        is_exist = true;
+        break;
+      }
     }
-    else {
-      std::cerr << "[WARNING] layer " << l << " is not found" "\n";
+
+    if (!is_exist) {
+      std::cerr << "[WARNING] layer " << l << " can not be found. \n";
     }
   }
+
+  // Not all layers are supported.
+  if (ret.size() != layers.size()) {
+    std::cout << "Supported layers: " << std::endl;
+    for (auto il : instance_layers) {
+      std::cout << il.layerName << std::endl;
+    }
+  }
+
   return ret;
 }
 
 int DeviceManager::CreateInstance(std::vector<const char*> &layers,
   std::vector<const char*> &extensions) {
 
-  auto app_info = vk::ApplicationInfo("Example Filter", 0, "no_engine",
+  auto app_info = vk::ApplicationInfo("Vulkan Compute Example", 0, "no_engine",
     0, VK_API_VERSION_1_0); // The only important field here is apiVersion
   auto create_info = vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &app_info,
     layers.size(), layers.data(), 
@@ -152,7 +180,7 @@ uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physic
 
 int DeviceManager::QueryPhysicalDevices() {
 
-  vkEnumeratePhysicalDevices(instance_, &devices_count_, nullptr);
+  instance_.enumeratePhysicalDevices(&devices_count_, nullptr);
   if (devices_count_ == 0) {
     throw std::runtime_error("could not find a device with vulkan support");
   }

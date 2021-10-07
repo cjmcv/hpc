@@ -48,6 +48,7 @@ public:
 
   int Initialize(bool is_enable_validation);
   int UnInitialize();
+
   void PrintDevicesInfo() const;
 
 private: 

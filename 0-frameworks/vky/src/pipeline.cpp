@@ -156,7 +156,8 @@ int Pipeline::CreatePipeline(const vk::ShaderModule shader, const uint32_t *loca
     stage_create_info,
     pipeline_layout_);
 
-  pipeline_ = device_.createComputePipeline(pipe_cache_, pipeline_create_info, nullptr);
+  vk::ResultValue<vk::Pipeline> ret = device_.createComputePipeline(pipe_cache_, pipeline_create_info, nullptr);
+  pipeline_ = ret.value;
 
   return 0;
 }

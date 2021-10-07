@@ -12,6 +12,9 @@
 #include "device.h"
 #include "command.h"
 
+#include<chrono>
+#include<thread>
+
 namespace vky {
 
 class Allocator {
@@ -31,7 +34,7 @@ public:
   BufferMemory *GetOutBufferMemory(int size);
 
   /// Copy device buffers using the transient command pool.
-  /// Fully sync, no latency hiding whatsoever.
+  /// Fully sync, no latency hiding.
   void CopyBuf(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size) {
     command_->Submit(src, dst, size);
   }
@@ -77,6 +80,7 @@ public:
 
     len_ = channels_ * height_ * width_;
 
+    // TODO: 重新分析host_data_的内存管理。直接使用外面指针是否合理
     if (data == nullptr) {
       host_data_ = new float[len_];
       is_host_data_hold_ = true;
@@ -118,6 +122,7 @@ public:
       // Copy data from device to host.
       // 1. Copy data to staging buffer; 
       // 2. Copy the data from staging buffer to host.
+      // staging_out_data_->buffer_ is created by eTransferDst can be used as the dst buffer of transfer command.
       allocator_->CopyBuf(device_data_->buffer_, staging_out_data_->buffer_, sizeof(float) * len_);
       // It shouldn't be multiplied by sizeof(float).
       std::copy(staging_out_data_->mapped_ptr_, staging_out_data_->mapped_ptr_ + len_, host_data_);
@@ -135,7 +140,8 @@ public:
       // Copy data from host to device.
       // 1. Copy data to staging buffer; 
       // 2. Copy the data from staging buffer to normal buffer.
-      std::copy(host_data_, host_data_ + sizeof(float) * len_, staging_in_data_->mapped_ptr_);
+      std::copy(host_data_, host_data_ + len_, staging_in_data_->mapped_ptr_);
+      // staging_in_data_->buffer_ is created by eTransferSrc can be used as the src buffer of transfer command.
       allocator_->CopyBuf(staging_in_data_->buffer_, device_data_->buffer_, sizeof(float) * len_);
 
       memory_head_ = AT_DEVICE;

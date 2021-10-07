@@ -23,9 +23,9 @@ BufferMemory* Allocator::Malloc(size_t size,
   device_.bindBufferMemory(bm->buffer_, bm->memory_, 0);
 
   bm->mapped_ptr_ = nullptr;
-  if (properties == vk::MemoryPropertyFlagBits::eHostVisible)
+  if (properties == vk::MemoryPropertyFlagBits::eHostVisible) {
     bm->mapped_ptr_ = (float *)device_.mapMemory(bm->memory_, 0, size);
-
+  }
   return bm;
 }
 
