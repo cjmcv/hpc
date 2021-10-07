@@ -7,12 +7,16 @@ This framework is designed to help you quickly call vulkan's computing API to do
 
 该框架旨在帮助你快速调用vulkan的计算API来完成所需的计算，简化vulkan计算的使用过程。
 
+## 编译前
+
+* 自行安装好显卡驱动；
+* 自行安装vulkan sdk；
+* 修改vs2015-build-sample.bat中VULKAN_SDK安装路径，如：set VULKAN_SDK=D:/software/VulkanSDK/1.2.189.2/;
+
 ## 编译
 
-```bash
-cd hpc\0-frameworks\vky
-。。。
-```
+* 双击vs2015-build-sample.bat，生成VS2015工程；
+* 进入windows文件夹，进入main_vky.sln编译；
 
 ## 相关资料
 
