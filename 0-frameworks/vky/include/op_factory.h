@@ -51,28 +51,12 @@ public:
 
     OpParams *op_params = (OpParams *)OpHub::GetInstance().GetOpParamsByName(name);
 
-    if (op_params->sub_op_count_ == 1) {
-      NormalOp *op = new NormalOp();
-      op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, 
-        (NormalOpParams *)op_params, shader(name, ((NormalOpParams *)op_params)->shader_file_));
+    Op *op = new Op();
+    op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_,
+      (OpParams *)op_params, shader(name, ((OpParams *)op_params)->shader_file_));
 
-      ops_list_[name] = op; 
-      return op;
-    }
-    else {
-      std::vector<vk::ShaderModule> shader_vec;
-      for (int i = 0; i < op_params->sub_op_count_; i++) {
-        shader_vec.push_back(shader(((HybridOpParams *)op_params)->op_params_[i]->name_, 
-          ((HybridOpParams *)op_params)->op_params_[i]->shader_file_));
-      }
-      
-      HybridOp *op = new HybridOp();
-      op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_, ((HybridOpParams *)op_params)->op_params_, shader_vec);
-
-      ops_list_[name] = op;
-      return op;
-    }
-
+    ops_list_[name] = op;
+    return op;
   }
 
 private:
@@ -88,6 +72,7 @@ private:
   }
 
   inline uint32_t div_up(uint32_t x, uint32_t y) { return (x + y - 1u) / y; }
+
   vk::ShaderModule CreateShaderModule(const std::string &filename) {
     // Read binary shader file into array of uint32_t. little endian assumed.
     auto fin = std::ifstream(filename.c_str(), std::ios::binary);

@@ -47,15 +47,15 @@ protected:
   uint32_t group_count_xyz_[3];
 };
 
-class NormalOp :public Operator {
+class Op :public Operator {
 public:
   int Initialize(const vk::Device device, 
     const uint32_t *max_workgroup_size,
     const uint32_t max_workgroup_invocations,
-    const NormalOpParams *op_params,
+    const OpParams *op_params,
     const vk::ShaderModule shader) {
 
-    op_params_ = op_params; // Only one for NormalOp.
+    op_params_ = op_params; // Only one for Op.
 
     pipe_ = new Pipeline();
     uint32_t buffer_count = op_params_->buffer_count_;
@@ -92,44 +92,7 @@ public:
 
 private:
   Pipeline *pipe_;
-  const NormalOpParams *op_params_;
-}; // class NormalOp
-
-// TODO: A combination of multiple operators.
-class HybridOp :public Operator {
-public:
-  int Initialize(const vk::Device device,
-    const uint32_t *max_workgroup_size,
-    const uint32_t max_workgroup_invocations,
-    const std::vector<NormalOpParams *> &op_params,
-    const std::vector<vk::ShaderModule> &shader) {
-    
-    num_sub_ops_ = op_params.size();
-    for (int i = 0; i < num_sub_ops_; i++) {
-      ops_.push_back(new NormalOp());
-      ops_[i]->Initialize(device, max_workgroup_size, max_workgroup_invocations, op_params[i], shader[i]);
-    }
-    return 0;
-  }
-  void UnInitialize() {
-    for (int i = 0; i < num_sub_ops_; i++) {
-      ops_[i]->UnInitialize();
-    }
-  }
-
-  int Run(Command *command,
-    const std::vector<vky::BufferMemory *> &buffer_memorys,
-    const void *push_params,
-    const int push_params_size) {
-
-    //for (int i = 0; i < num_sub_ops_; i++) {
-    //  ops_[i]->Run(command, buffer_memorys, push_params, push_params_size);
-    //}
-    return 0;
-  }
-
-  std::vector<NormalOp *> ops_;
-  int num_sub_ops_;
+  const OpParams *op_params_;
 }; // class NormalOp
 
 } // namespace vky

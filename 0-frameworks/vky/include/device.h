@@ -55,9 +55,10 @@ private:
   // filter list of desired extensions to include only those supported by current Vulkan instance.
   std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const;
 
-  // filter list of desired extensions to include only those supported by current Vulkan instance
+  // filter list of desired layers to include only those supported by current Vulkan instance
   std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const;
 
+  // 
   int CreateInstance(std::vector<const char*> &layers, std::vector<const char*> &extensions);
 
   // @return the index of a queue family that supports compute operations.
