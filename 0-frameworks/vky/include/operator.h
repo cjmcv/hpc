@@ -14,40 +14,44 @@
 #include "command.h"
 #include "pipeline.h"
 
-#include "op_hub.h"
-
 namespace vky {
-// TODO: Operator -> GeneralOp => One Pipeline, manual setup IO
-//                -> CustomizedOp -> COp1 => 1.Pipeline and IO are fixed.
-//                                -> COp2... 2.Can be designed externally.
-class Operator {
+
+//////////////////////////////////////
+// OpParams: object accessible.
+class OpParams {
 public:
-  virtual void UnInitialize() { return; }
-  virtual int Run(Command *command,
-                  const std::vector<vky::BufferMemory *> &buffer_memorys,
-                  const void *params,
-                  const int params_size) {
-    return -1;
-  }
+  OpParams(
+    std::string name,
+    std::string shader_file,
+    uint32_t buffer_count,
+    uint32_t push_constant_count,
+    uint32_t local_width,
+    uint32_t local_height,
+    uint32_t local_channels,
+    uint32_t group_depends_id) :
+    name_(name),
+    shader_file_(shader_file),
+    buffer_count_(buffer_count),
+    push_constant_count_(push_constant_count),
+    local_width_(local_width),
+    local_height_(local_height),
+    local_channels_(local_channels),
+    group_depends_id_(group_depends_id) {
+  };
 
-protected:
-  void GetOptimalLocalSizeXYZ(const uint32_t *max_workgroup_size,
-                              const uint32_t max_workgroup_invocations,
-                              const uint32_t width = 32,
-                              const uint32_t height = 32,
-                              const uint32_t channels = 32);
+  std::string name_;
+  std::string shader_file_;
 
-  void GetGroupCount(const uint32_t width, 
-                     const uint32_t height, 
-                     const uint32_t channels);
+  uint32_t buffer_count_;
+  uint32_t push_constant_count_;
 
-protected:
-  DeviceInfo *device_info_;
-  uint32_t local_size_xyz_[3];
-  uint32_t group_count_xyz_[3];
+  uint32_t local_width_;
+  uint32_t local_height_;
+  uint32_t local_channels_;
+  uint32_t group_depends_id_;
 };
 
-class Op :public Operator {
+class Operator {
 public:
   int Initialize(const vk::Device device, 
     const uint32_t *max_workgroup_size,
@@ -69,6 +73,7 @@ public:
 
     return 0;
   }
+
   void UnInitialize() {
     if (pipe_ != nullptr) {
       pipe_->UnInitialize();
@@ -91,6 +96,21 @@ public:
   }
 
 private:
+  void GetOptimalLocalSizeXYZ(const uint32_t *max_workgroup_size,
+    const uint32_t max_workgroup_invocations,
+    const uint32_t width = 32,
+    const uint32_t height = 32,
+    const uint32_t channels = 32);
+
+  void GetGroupCount(const uint32_t width,
+    const uint32_t height,
+    const uint32_t channels);
+
+private:
+  DeviceInfo *device_info_;
+  uint32_t local_size_xyz_[3];
+  uint32_t group_count_xyz_[3];
+
   Pipeline *pipe_;
   const OpParams *op_params_;
 }; // class NormalOp

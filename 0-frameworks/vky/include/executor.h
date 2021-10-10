@@ -31,7 +31,7 @@ public:
 
   int Initialize(const DeviceInfo *device_info, const std::string &shaders_dir_path) {
     // Init Device.
-    device_ = CreateDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
+    device_ = CreateLogicalDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
 
     // Init command.
     command_ = new Command();
@@ -82,7 +82,7 @@ public:
 
 private:
 
-  vk::Device CreateDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
+  vk::Device CreateLogicalDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
     // create logical device to interact with the physical one
     // When creating the device specify what queues it has
     // TODO: when physical device is a discrete gpu, transfer queue needs to be included

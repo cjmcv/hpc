@@ -17,6 +17,62 @@
 
 namespace vky { 
 
+// Hub
+class OpHub {
+public:
+  OpParams *GetOpParamsByName(std::string name) {
+    std::map<std::string, OpParams*>::iterator iter = op_name_params_.find(name);
+    if (iter == op_name_params_.end()) {
+      PrintNameList();
+      throw std::runtime_error(std::string("could not find op name: ") + name);
+    }
+    return iter->second;
+  }
+
+  void PrintNameList() {
+    std::map<std::string, OpParams*>::iterator iter = op_name_params_.begin();
+    std::cout << "Registered: ";
+    while (iter != op_name_params_.end()) {
+      std::cout << iter->first << ", ";
+      iter++;
+    }
+    std::cout << std::endl;
+  }
+
+  // Singleton mode. Only one instance exist.
+  static OpHub& GetInstance() {
+    static OpHub ins;
+    return ins;
+  }
+
+private:
+  // TODO: Use callback function to register new op by user.(Only for NormalOp).
+  OpHub() {
+    // saxpy.
+    OpParams *saxpy = new OpParams("saxpy", "saxpy.spv", 2, 3,
+      32, 32, 1, 0);
+
+    // add.
+    OpParams *add = new OpParams("add", "add.spv", 2, 2,
+      32, 32, 1, 0);
+
+    ///
+    op_name_params_["saxpy"] = saxpy;
+    op_name_params_["add"] = add;
+  }
+
+  ~OpHub() {
+    std::map<std::string, vky::OpParams *>::iterator iter_op = op_name_params_.begin();
+    while (iter_op != op_name_params_.end()) {
+      delete iter_op->second;
+      iter_op++;
+    }
+  }
+
+  std::map<std::string, OpParams*> op_name_params_;
+}; // class OpHub
+
+// Factory
 class OpFactory {
 public:
   OpFactory(const vk::Device device,
@@ -51,7 +107,7 @@ public:
 
     OpParams *op_params = (OpParams *)OpHub::GetInstance().GetOpParamsByName(name);
 
-    Op *op = new Op();
+    Operator *op = new Operator();
     op->Initialize(device_, max_workgroup_size_, max_workgroup_invocations_,
       (OpParams *)op_params, shader(name, ((OpParams *)op_params)->shader_file_));
 
@@ -99,7 +155,6 @@ private:
   const uint32_t max_workgroup_invocations_;
   const std::string shaders_dir_;
 };
-
 
 }	//namespace vky
 #endif

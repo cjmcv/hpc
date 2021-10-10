@@ -37,6 +37,7 @@ public:
   uint32_t compute_queue_familly_id_;
 };
 
+// TODO: 部分内容与device无关，应跟环境有关
 class DeviceManager {
 public:
   DeviceManager():devices_count_(0) {}
