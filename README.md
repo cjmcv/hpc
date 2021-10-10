@@ -72,6 +72,7 @@
 * [base_bank_conflict](https://github.com/cjmcv/hpc/blob/master/cuda/base_bank_conflict.cu) ： An experiment on Bank Conflict in Shared Memory.
 * [base_coalesced_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/base_coalesced_memory_access.cu) ： An experiment on coalesced memory access.
 * [base_float2half](https://github.com/cjmcv/hpc/blob/master/cuda/base_float2half.cu) ： Record the basic usage of float2half.
+* [base_graph](https://github.com/cjmcv/hpc/blob/master/cuda/base_graph.cu) ： Record the basic usage of cuda graph.
 * [base_hyperQ](https://github.com/cjmcv/hpc/blob/master/cuda/base_hyperQ.cu) ： Demonstrate how HyperQ allows supporting devices to avoid false dependencies between kernels in different streams.
 * [base_kernel_layout](https://github.com/cjmcv/hpc/blob/master/cuda/base_kernel_layout.cu) ： Record the basic execution configuration of kernel.
 * [base_occupancy](https://github.com/cjmcv/hpc/blob/master/cuda/base_occupancy.cu) ： Record the basic usage of cudaOccupancyMaxPotentialBlockSize.
@@ -111,10 +112,11 @@
 <details>
   <summary>std</summary>
   
+* [alg_quick_sort](https://github.com/cjmcv/hpc/blob/master/std/alg_quick_sort.cpp)： Quick sort using std::thread.
 * [alg_vector_dot_product](https://github.com/cjmcv/hpc/tree/master/std/alg_vector_dot_product.cpp)： Vector dot product: h_result = SUM(A * B). Record the basic usage of std::tread and std::sync.
 * [base_async](https://github.com/cjmcv/hpc/tree/master/std/base_async.cpp)： Record the basic usage of std::async.
 * [util_blocking_queue](https://github.com/cjmcv/hpc/tree/master/std/util_blocking_queue.cpp)： Blocking queue. Mainly implemented by thread, queue and condition_variable.
-* [util_internal_thread](https://github.com/cjmcv/hpc/tree/master/std/util_internal_thread.cpp)： Internal Thread. Mainly implemented by thread.
+* [util_internal_thread](https://github.com/cjmcv/hpc/tree/master/std/util_internal_thread.cpp)： Internal Thread. Mainly implemented by std::thread.
 * [util_thread_pool](https://github.com/cjmcv/hpc/tree/master/std/util_thread_pool.cpp)： Thread Pool. Mainly implemented by thread, queue, future and condition_variable.
 </details>
 
@@ -167,15 +169,18 @@
 
 <details>
   <summary>sse/avx</summary>
-  
-* [x86_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_multiply.cpp) ： Matrix Multiplication.
-* [x86_vector_dot_product](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_dot_product.cpp) ： Vector dot product: result = SUM(A * B).
-* [x86_vector_scan](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_scan.cpp) ： Scan. Prefix Sum.
+ 
+* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_multiply.cpp) ： Matrix Multiplication. 
+* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_transpose.cpp) ： Matrix Transpose.
+* [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_dot_product.cpp) ： Vector dot product: result = SUM(A * B).
+* [vector_scan](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_scan.cpp) ： Scan. Prefix Sum.
 </details>
 
 <details>
   <summary>neon</summary>
 
+* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/arm/matrix_multiply.cpp) ： Matrix Multiplication. 
+* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/arm/matrix_transpose.cpp) ： Matrix Transpose.
 </details>
 
 ---
