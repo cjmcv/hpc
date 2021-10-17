@@ -39,57 +39,61 @@ int TestExecutor() {
   executor->Initialize(selected_device_info, shaders_dir_path);
 
   vky::Allocator *allocator = executor->allocator();
-  vky::VkyData *vdata_x = new vky::VkyData(allocator, width*height, x);
-  vky::VkyData *vdata_y = new vky::VkyData(allocator, width*height, y);
 
-  std::vector<vky::BufferMemory *> buffer_mems;
-  buffer_mems.push_back(vdata_y->get_device_data());
-  buffer_mems.push_back(vdata_x->get_device_data());
+  for (int r = 0; r < 10; r++) {
+    vky::VkyData *vdata_x = new vky::VkyData(allocator, width*height, x);
+    vky::VkyData *vdata_y = new vky::VkyData(allocator, width*height, y);
 
-  // Saxpy;
-  //{
-  //  PushParamsSaxpy params;
-  //  params.width = width;
-  //  params.height = height;
-  //  params.a = a;
+    std::vector<vky::BufferMemory *> buffer_mems;
+    buffer_mems.push_back(vdata_y->get_device_data());
+    buffer_mems.push_back(vdata_x->get_device_data());
 
-  //  // Warm up.
-  //  executor->Run("saxpy", buffer_mems, &params, sizeof(params)); 
-  //
-  //  clock_t time = clock();
-  //  for (int i = 0; i < 2; i++) {
-  //    executor->Run("saxpy", buffer_mems, &params, sizeof(params));
-  //  }
-  //  printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
-  //}
-  // Add.
-  {
-    PushParamsAdd params;
-    params.width = width;
-    params.height = height;
+    // Saxpy;
+    //{
+    //  PushParamsSaxpy params;
+    //  params.width = width;
+    //  params.height = height;
+    //  params.a = a;
 
-    // Warm up.
-    executor->Run("add", buffer_mems, &params, sizeof(params));
-
-    //clock_t time = clock();
-    //for (int i = 0; i < 2; i++) {
-    //  executor->Run("add", buffer_mems, &params, sizeof(params));
+    //  // Warm up.
+    //  executor->Run("saxpy", buffer_mems, &params, sizeof(params)); 
+    //
+    //  clock_t time = clock();
+    //  for (int i = 0; i < 2; i++) {
+    //    executor->Run("saxpy", buffer_mems, &params, sizeof(params));
+    //  }
+    //  printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
     //}
-    //printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
+    // Add.
+    {
+      PushParamsAdd params;
+      params.width = width;
+      params.height = height;
+
+      // Warm up.
+      executor->Run("add", buffer_mems, &params, sizeof(params));
+
+      //clock_t time = clock();
+      //for (int i = 0; i < 2; i++) {
+      //  executor->Run("add", buffer_mems, &params, sizeof(params));
+      //}
+      //printf("%f seconds\n", (double)(clock() - time) / CLOCKS_PER_SEC);
+    }
+
+    float *vdata_cpu = vdata_y->get_host_data();
+
+    printf("Round %d: \n", r);
+    for (int i = 0; i < width * height; i++) {
+      std::cout << vdata_cpu[i] << ", ";
+    }
+
+    delete vdata_x;
+    delete vdata_y;
   }
-
-  float *vdata_cpu = vdata_y->get_host_data();
-
-  for (int i = 0; i < width * height; i++) {
-    std::cout << vdata_cpu[i] << ", ";
-  }
-
+  
   // Release.
   delete[]x;
   delete[]y;
-
-  delete vdata_x;
-  delete vdata_y;
 
   executor->UnInitialize();
   delete executor;
@@ -153,8 +157,6 @@ void TestVkyData() {
 int main(int argc, char* argv[]) {
 
   //TestExecutor();
-
   TestVkyData();
-
   return 0;
 }

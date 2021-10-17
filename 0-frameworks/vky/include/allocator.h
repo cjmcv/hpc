@@ -35,8 +35,8 @@ public:
 
   /// Copy device buffers using the transient command pool.
   /// Fully sync, no latency hiding.
-  void CopyBuf(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size) {
-    command_->Submit(src, dst, size);
+  inline void CopyBuf(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size) {
+    command_->CopyBuffer(src, dst, size);
   }
 
 private:
@@ -80,14 +80,11 @@ public:
 
     len_ = channels_ * height_ * width_;
 
-    // TODO: 重新分析host_data_的内存管理。直接使用外面指针是否合理
-    if (data == nullptr) {
-      host_data_ = new float[len_];
-      is_host_data_hold_ = true;
-    }
-    else {
-      host_data_ = data;
-      is_host_data_hold_ = false;
+    host_data_ = nullptr;
+    host_data_ = new float[len_];
+
+    if (data != nullptr) {
+      memcpy(host_data_, data, sizeof(float) * height * width);
     }
     memory_head_ = MemoryHead::AT_HOST;
 
@@ -98,7 +95,7 @@ public:
     : VkyData(allocator, 1, 1, len, data) {};
 
   ~VkyData() {
-    if (is_host_data_hold_) {
+    if (host_data_ != nullptr) {
       delete[]host_data_;
       host_data_ = nullptr;
     }
@@ -167,7 +164,6 @@ private:
 private:
   Allocator *allocator_;
   float *host_data_;
-  bool is_host_data_hold_;
 
   MemoryHead memory_head_;
 

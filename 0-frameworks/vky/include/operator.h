@@ -91,7 +91,7 @@ public:
     int index = op_params_->group_depends_id_;
     GetGroupCount(buffer_memorys[index]->width_, buffer_memorys[index]->height_, buffer_memorys[index]->channels_);
 
-    command->Submit(pipe_, group_count_xyz_, push_params, push_params_size);
+    command->ComputeShader(pipe_, group_count_xyz_, push_params, push_params_size);
     return 0;
   }
 

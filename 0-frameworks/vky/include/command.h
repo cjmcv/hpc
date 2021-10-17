@@ -11,11 +11,6 @@ namespace vky {
 
 class Command {
 
-enum CommandType {
-  COPY = 0,
-  COMPUTE = 1
-};
-
 public:
   Command() {}
   ~Command() {}
@@ -23,13 +18,9 @@ public:
   int Initialize(const vk::Device device, const uint32_t compute_queue_familly_id);
   void UnInitialize();
 
-  void Begin(CommandType type);
-  void End(CommandType type);
+  void Begin();
+  void End();
 
-  void Submit(Pipeline *pipeline, const uint32_t *group_count_xyz, const void *params, const int params_size);
-  void Submit(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size);
-
-private:  
   void ComputeShader(Pipeline *pipeline, const uint32_t *group_count_xyz, const void *params, const int params_size);
   void CopyBuffer(const vk::Buffer& src, vk::Buffer& dst, const uint32_t size);
 
