@@ -26,23 +26,16 @@ int TestExecutor() {
     x[i] = 2.5f;
     y[i] = 1.3f;
   }
-  vky::DeviceManager *devm = new vky::DeviceManager();
-  devm->Initialize(true);
-  devm->PrintDevicesInfo();
 
   int physical_device_id = 0;
   std::string shaders_dir_path = "../../shaders/";
 
-  vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
-
   vky::Executor *executor = new vky::Executor();
-  executor->Initialize(selected_device_info, shaders_dir_path);
-
-  vky::Allocator *allocator = executor->allocator();
+  executor->Initialize(physical_device_id, shaders_dir_path);
 
   for (int r = 0; r < 10; r++) {
-    vky::VkyData *vdata_x = new vky::VkyData(allocator, width*height, x);
-    vky::VkyData *vdata_y = new vky::VkyData(allocator, width*height, y);
+    vky::VkyData *vdata_x = new vky::VkyData(executor->allocator(), width*height, x);
+    vky::VkyData *vdata_y = new vky::VkyData(executor->allocator(), width*height, y);
 
     std::vector<vky::BufferMemory *> buffer_mems;
     buffer_mems.push_back(vdata_y->get_device_data());
@@ -98,9 +91,6 @@ int TestExecutor() {
   executor->UnInitialize();
   delete executor;
 
-  devm->UnInitialize();
-  delete devm;
-
   return 0;
 }
 
@@ -114,17 +104,12 @@ void TestVkyData() {
     std::cout << x[i] << ", ";
   }
 
-  vky::DeviceManager *devm = new vky::DeviceManager();
-  devm->Initialize(true);
-  devm->PrintDevicesInfo();
 
   int physical_device_id = 0;
   std::string shaders_dir_path = "../../shaders/";
 
-  vky::DeviceInfo *selected_device_info = devm->device_info(physical_device_id);
-
   vky::Executor *executor = new vky::Executor();
-  executor->Initialize(selected_device_info, shaders_dir_path);
+  executor->Initialize(physical_device_id, shaders_dir_path);
 
   vky::Allocator *allocator = executor->allocator();
   vky::VkyData *vdata = new vky::VkyData(allocator, len, x);
@@ -149,14 +134,11 @@ void TestVkyData() {
 
   executor->UnInitialize();
   delete executor;
-
-  devm->UnInitialize();
-  delete devm;
 }
 
 int main(int argc, char* argv[]) {
 
-  //TestExecutor();
-  TestVkyData();
+  TestExecutor();
+  //TestVkyData();
   return 0;
 }

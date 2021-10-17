@@ -3,7 +3,51 @@
 namespace vky {
 
 /////////////////////////
-// Operator <protected
+// Operator <private
+int Operator::Initialize(const vk::Device device,
+  const uint32_t *max_workgroup_size,
+  const uint32_t max_workgroup_invocations,
+  const OpParams *op_params,
+  const vk::ShaderModule shader) {
+
+  op_params_ = op_params; // Only one for Op.
+
+  pipe_ = new Pipeline();
+  uint32_t buffer_count = op_params_->buffer_count_;
+  uint32_t push_constant_count = op_params_->push_constant_count_;
+  GetOptimalLocalSizeXYZ(max_workgroup_size,
+    max_workgroup_invocations,
+    op_params_->local_width_,
+    op_params_->local_height_,
+    op_params_->local_channels_);
+  pipe_->Initialize(device, shader, buffer_count, push_constant_count, local_size_xyz_);
+
+  return 0;
+}
+
+void Operator::UnInitialize() {
+  if (pipe_ != nullptr) {
+    pipe_->UnInitialize();
+    pipe_ = nullptr;
+  }
+}
+
+int Operator::Run(Command *command,
+  const std::vector<vky::BufferMemory *> &buffer_memorys,
+  const void *push_params,
+  const int push_params_size) {
+
+  pipe_->UpdateDescriptorSet(buffer_memorys);
+
+  int index = op_params_->group_depends_id_;
+  GetGroupCount(buffer_memorys[index]->width_, buffer_memorys[index]->height_, buffer_memorys[index]->channels_);
+
+  command->ComputeShader(pipe_, group_count_xyz_, push_params, push_params_size);
+  return 0;
+}
+
+/////////////////////////
+// Operator <private
 void Operator::GetOptimalLocalSizeXYZ(const uint32_t *max_workgroup_size,
                                       const uint32_t max_workgroup_invocations,
                                       const uint32_t width,

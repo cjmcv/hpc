@@ -4,39 +4,63 @@ namespace vky {
 
 ///////////////
 // <Public
-int DeviceManager::Initialize(bool is_enable_validation) {
-  devices_info_ = nullptr;
 
-  std::vector<const char*> layers = std::vector<const char*>{};
-  std::vector<const char*> extensions = std::vector<const char*>{};
-  if (is_enable_validation) {
-    // "=" in vector is deep copy. 
-    // Note: VK_LAYER_LUNARG_standard_validation is deprecated.
-    layers = EnabledLayers({ "VK_LAYER_KHRONOS_validation" });
-    // The same as VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-    extensions = EnabledExtensions({ "VK_EXT_debug_report" }); 
+int DeviceManager::QueryDeviceInfo(vk::Instance &instance) {
+
+  uint32_t device_count;
+  instance.enumeratePhysicalDevices(&device_count, nullptr);
+  if (device_count == 0) {
+    throw std::runtime_error("could not find a device with vulkan support");
   }
 
-  CreateInstance(layers, extensions);
-  QueryDeviceInfo();
+  std::vector<vk::PhysicalDevice> physical_devices;
+  physical_devices.resize(device_count);
+  instance.enumeratePhysicalDevices(&device_count, physical_devices.data());
 
-  return 0;
-}
+  devices_info_.resize(device_count);
+  for (uint32_t i = 0; i < device_count; i++) {
+    const vk::PhysicalDevice& physical_device = physical_devices[i];
+    DeviceInfo &info = devices_info_[i];
 
-int DeviceManager::UnInitialize() {
-  if (devices_info_ != nullptr) {
-    delete[]devices_info_;
-    devices_info_ = nullptr;
+    vk::PhysicalDeviceProperties device_properties;
+    physical_device.getProperties(&device_properties);
+
+    info.physical_device_ = physical_device;
+
+    // info
+    memcpy(info.device_name_, device_properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
+    info.api_version_ = device_properties.apiVersion;
+    info.driver_version_ = device_properties.driverVersion;
+    info.vendor_id_ = device_properties.vendorID;
+    info.device_id_ = device_properties.deviceID;
+    info.type_ = device_properties.deviceType;
+
+    // capability
+    info.max_shared_memory_size_ = device_properties.limits.maxComputeSharedMemorySize;
+
+    info.max_workgroup_count_[0] = device_properties.limits.maxComputeWorkGroupCount[0];
+    info.max_workgroup_count_[1] = device_properties.limits.maxComputeWorkGroupCount[1];
+    info.max_workgroup_count_[2] = device_properties.limits.maxComputeWorkGroupCount[2];
+
+    info.max_workgroup_invocations_ = device_properties.limits.maxComputeWorkGroupInvocations;
+
+    info.max_workgroup_size_[0] = device_properties.limits.maxComputeWorkGroupSize[0];
+    info.max_workgroup_size_[1] = device_properties.limits.maxComputeWorkGroupSize[1];
+    info.max_workgroup_size_[2] = device_properties.limits.maxComputeWorkGroupSize[2];
+
+    info.memory_map_alignment_ = device_properties.limits.minMemoryMapAlignment;
+    info.buffer_offset_alignment_ = device_properties.limits.minStorageBufferOffsetAlignment;
+
+    info.compute_queue_familly_id_ = GetComputeQueueFamilyId(physical_device);
   }
-  DestroyInstance();
   return 0;
 }
 
 void DeviceManager::PrintDevicesInfo() const {
-  std::cout << "Number of devices: " << devices_count_ << std::endl;
+  std::cout << "Number of devices: " << devices_info_.size() << std::endl;
 
-  for (int i = 0; i < devices_count_; i++) {
-    DeviceInfo &info = devices_info_[i];
+  for (int i = 0; i < devices_info_.size(); i++) {
+    const DeviceInfo &info = devices_info_[i];
 
     ///////////////////////////////////
     //  Information.
@@ -80,84 +104,24 @@ void DeviceManager::PrintDevicesInfo() const {
   std::cout << std::endl << "//////////////////////////////////////////" << std::endl;
 }
 
+vk::Device DeviceManager::CreateLogicalDevice(int physical_device_id) {
+  uint32_t compute_queue_familly_id = devices_info_[physical_device_id].compute_queue_familly_id_;
+  vk::PhysicalDevice &physical_device = devices_info_[physical_device_id].physical_device_;
+
+  // create logical device to interact with the physical one
+  // When creating the device specify what queues it has
+  // TODO: when physical device is a discrete gpu, transfer queue needs to be included
+  float p = float(1.0); // queue priority
+  vk::DeviceQueueCreateInfo queue_create_info =
+    vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id, 1, &p);
+  vk::DeviceCreateInfo device_create_info =
+    vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//layers_.size(), layers_.data()
+
+  return physical_device.createDevice(device_create_info, nullptr);
+}
+
 ///////////////
 // <Private.
-std::vector<const char*> DeviceManager::EnabledExtensions(const std::vector<const char*>& extensions) const {
-  auto ret = std::vector<const char*>{};
-  auto instance_extensions = vk::enumerateInstanceExtensionProperties();
-
-  for (auto e : extensions) {
-    bool is_exist = false;
-    for (auto ie : instance_extensions) {
-      if (!strcmp(ie.extensionName, e)) {
-        ret.push_back(e);
-        is_exist = true;
-        break;
-      }
-    }
-
-    if (!is_exist) {
-      std::cerr << "[WARNING] extension " << e << " can not be found. \n";
-    }
-  }
-
-  // Not all extension are supported.
-  if (ret.size() != extensions.size()) {
-    std::cout << "Supported extensions: " << std::endl;
-    for (auto ie : instance_extensions) {
-      std::cout << ie.extensionName << std::endl;
-    }
-  }
-  return ret;
-}
-
-std::vector<const char*> DeviceManager::EnabledLayers(const std::vector<const char*>& layers) const {
-  auto ret = std::vector<const char*>{};
-  auto instance_layers = vk::enumerateInstanceLayerProperties();
-  for (auto l : layers) {
-    bool is_exist = false;
-    for (auto il : instance_layers) {
-      if (!strcmp(il.layerName, l)) {
-        ret.push_back(l);
-        is_exist = true;
-        break;
-      }
-    }
-
-    if (!is_exist) {
-      std::cerr << "[WARNING] layer " << l << " can not be found. \n";
-    }
-  }
-
-  // Not all layers are supported.
-  if (ret.size() != layers.size()) {
-    std::cout << "Supported layers: " << std::endl;
-    for (auto il : instance_layers) {
-      std::cout << il.layerName << std::endl;
-    }
-  }
-
-  return ret;
-}
-
-int DeviceManager::CreateInstance(std::vector<const char*> &layers,
-  std::vector<const char*> &extensions) {
-
-  auto app_info = vk::ApplicationInfo("Vulkan Compute Example", 0, "no_engine",
-    0, VK_API_VERSION_1_0); // The only important field here is apiVersion
-  auto create_info = vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &app_info,
-    layers.size(), layers.data(), 
-    extensions.size(), extensions.data());
-
-  instance_ = vk::createInstance(create_info);
-  return 0;
-}
-
-int DeviceManager::DestroyInstance() {
-  instance_.destroy();
-  return 0;
-}
-
 uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const {
   auto queue_families = physical_device.getQueueFamilyProperties();
 
@@ -182,61 +146,6 @@ uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physic
   }
 
   throw std::runtime_error("could not find a queue family that supports compute operations");
-}
-
-int DeviceManager::QueryDeviceInfo() {
-
-  instance_.enumeratePhysicalDevices(&devices_count_, nullptr);
-  if (devices_count_ == 0) {
-    throw std::runtime_error("could not find a device with vulkan support");
-  }
-
-  std::vector<vk::PhysicalDevice> physical_devices;
-  physical_devices.resize(devices_count_);
-  instance_.enumeratePhysicalDevices(&devices_count_, physical_devices.data());
-
-  if (devices_info_ != nullptr) {
-    delete[]devices_info_;
-    devices_info_ = nullptr;
-  }
-
-  devices_info_ = new DeviceInfo[devices_count_];
-  for (uint32_t i = 0; i < devices_count_; i++) {
-    const vk::PhysicalDevice& physical_device = physical_devices[i];
-    DeviceInfo &info = devices_info_[i];
-
-    vk::PhysicalDeviceProperties device_properties;
-    physical_device.getProperties(&device_properties);
-
-    info.physical_device_ = physical_device;
-
-    // info
-    memcpy(info.device_name_, device_properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
-    info.api_version_ = device_properties.apiVersion;
-    info.driver_version_ = device_properties.driverVersion;
-    info.vendor_id_ = device_properties.vendorID;
-    info.device_id_ = device_properties.deviceID;
-    info.type_ = device_properties.deviceType;
-
-    // capability
-    info.max_shared_memory_size_ = device_properties.limits.maxComputeSharedMemorySize;
-
-    info.max_workgroup_count_[0] = device_properties.limits.maxComputeWorkGroupCount[0];
-    info.max_workgroup_count_[1] = device_properties.limits.maxComputeWorkGroupCount[1];
-    info.max_workgroup_count_[2] = device_properties.limits.maxComputeWorkGroupCount[2];
-
-    info.max_workgroup_invocations_ = device_properties.limits.maxComputeWorkGroupInvocations;
-
-    info.max_workgroup_size_[0] = device_properties.limits.maxComputeWorkGroupSize[0];
-    info.max_workgroup_size_[1] = device_properties.limits.maxComputeWorkGroupSize[1];
-    info.max_workgroup_size_[2] = device_properties.limits.maxComputeWorkGroupSize[2];
-
-    info.memory_map_alignment_ = device_properties.limits.minMemoryMapAlignment;
-    info.buffer_offset_alignment_ = device_properties.limits.minStorageBufferOffsetAlignment;
-
-    info.compute_queue_familly_id_ = GetComputeQueueFamilyId(physical_device);
-  }
-  return 0;
 }
 
 } // namespace vky

@@ -4,7 +4,6 @@
 #include <iostream>
 #include <vulkan/vulkan.hpp>
 
-#include "device.h"
 #include "pipeline.h"
 
 namespace vky {

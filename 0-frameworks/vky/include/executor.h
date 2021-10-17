@@ -17,8 +17,6 @@
 
 namespace vky {
 
-// TODO: Handle exeception.
-
 class Executor {
 
 public:
@@ -29,73 +27,30 @@ public:
   const vk::Device &device() const { return device_; }
   Allocator *allocator() const { return allocator_; }
 
-  int Initialize(const DeviceInfo *device_info, const std::string &shaders_dir_path) {
-    // Init Device.
-    device_ = CreateLogicalDevice(device_info->physical_device_, device_info->compute_queue_familly_id_);
+  int Initialize(const int physical_device_id, const std::string &shaders_dir_path);
 
-    // Init command.
-    command_ = new Command();
-    command_->Initialize(device_, device_info->compute_queue_familly_id_);
-
-    // One factory for one executor.
-    op_factory_ = new OpFactory(device_, 
-                                device_info->max_workgroup_size_,
-                                device_info->max_workgroup_invocations_, 
-                                shaders_dir_path);
-
-    allocator_ = new Allocator(device_, device_info->physical_device_, command_);
-    return 0;
-  }
-
-  int UnInitialize() {
-    if (allocator_ != nullptr) {
-      delete allocator_;
-      allocator_ = nullptr;
-    }
-    if (op_factory_ != nullptr) {
-      delete op_factory_;
-      op_factory_ = nullptr;
-    }
-    if (command_ != nullptr) {
-      command_->UnInitialize();
-      delete command_;
-      command_ = nullptr;
-    }
-
-    device_.destroy();
-    return 0;
-  }
+  int UnInitialize();
 
   int Run(const std::string op_name, 
           const std::vector<vky::BufferMemory *> &buffer_memorys,
           const void *push_params, 
-          const int push_params_size) {
-
-    // Get op from the map of factory.
-    // If it doesn't exist, then use factory to create one.
-    op_ = op_factory_->GetOpByName(op_name);
-
-    op_->Run(command_, buffer_memorys, push_params, push_params_size);
-
-    return 0;
-  }
+          const int push_params_size);
 
 private:
+  // Filter list of desired extensions to include only those supported by current Vulkan instance.
+  std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const;
 
-  vk::Device CreateLogicalDevice(const vk::PhysicalDevice &physical_device, const uint32_t compute_queue_familly_id) {
-    // create logical device to interact with the physical one
-    // When creating the device specify what queues it has
-    // TODO: when physical device is a discrete gpu, transfer queue needs to be included
-    float p = float(1.0); // queue priority
-    vk::DeviceQueueCreateInfo queue_create_info =
-      vk::DeviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), compute_queue_familly_id, 1, &p);
-    vk::DeviceCreateInfo device_create_info = 
-      vk::DeviceCreateInfo(vk::DeviceCreateFlags(), 1, &queue_create_info, 0, nullptr);//layers_.size(), layers_.data()
+  // Filter list of desired layers to include only those supported by current Vulkan instance
+  std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const;
 
-    return physical_device.createDevice(device_create_info, nullptr);
-  }
+  // Create & Destory vk::Instance.
+  vk::Instance &CreateInstance(bool is_enable_validation);
+  void DestroyInstance();
 
-private:  
+private:
+  DeviceManager dm_;
+  vk::Instance instance_;
+
   vk::Device device_;    // logical device providing access to a physical one 
   std::map<std::string, vk::ShaderModule> shaders_name_obj_;
   std::map<std::string, std::string> shaders_name_path_;

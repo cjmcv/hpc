@@ -2,18 +2,12 @@
 #define VKY_ALLOCATOR_H_
 
 #include <iostream>
-#include <fstream>
 #include <map>
 
 #include <vulkan/vulkan.hpp>
 
 #include "data_type.h"
-
-#include "device.h"
 #include "command.h"
-
-#include<chrono>
-#include<thread>
 
 namespace vky {
 

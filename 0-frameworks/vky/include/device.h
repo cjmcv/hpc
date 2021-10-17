@@ -37,44 +37,29 @@ public:
   uint32_t compute_queue_familly_id_;
 };
 
-// TODO: 部分内容与device无关，应跟环境有关
 class DeviceManager {
 public:
-  DeviceManager():devices_count_(0) {}
+  DeviceManager() {}
   ~DeviceManager() {}
 
-  int device_count() const { return devices_count_; }
-  vk::PhysicalDevice physical_device(int id) const { return devices_info_[id].physical_device_; }
-  DeviceInfo *device_info(int id) const { return &devices_info_[id]; }
+  //vk::PhysicalDevice &physical_device(int id) const { return devices_info_[id].physical_device_; }
+  const DeviceInfo &device_info(int physical_device_id) const { return devices_info_[physical_device_id]; }
 
-  int Initialize(bool is_enable_validation);
-  int UnInitialize();
+  int QueryDeviceInfo(vk::Instance &instance);
 
   void PrintDevicesInfo() const;
+  
+  vk::Device CreateLogicalDevice(int physical_device_id);
 
 private: 
-  // filter list of desired extensions to include only those supported by current Vulkan instance.
-  std::vector<const char*> EnabledExtensions(const std::vector<const char*>& extensions) const;
-
-  // filter list of desired layers to include only those supported by current Vulkan instance
-  std::vector<const char*> EnabledLayers(const std::vector<const char*>& layers) const;
-
-  // 
-  int CreateInstance(std::vector<const char*> &layers, std::vector<const char*> &extensions);
-  int DestroyInstance();
   // @return the index of a queue family that supports compute operations.
   // Groups of queues that have the same capabilities (for instance, they all supports graphics
   // and computer operations), are grouped into queue families.
   // When submitting a command buffer, you must specify to which queue in the family you are submitting to.
   uint32_t GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const;
 
-  int QueryDeviceInfo();
-
 private:
-  vk::Instance instance_;
-
-  uint32_t devices_count_;
-  DeviceInfo *devices_info_;
+  std::vector<DeviceInfo> devices_info_;
 }; // class DeviceManager
 
 } // namespace vky
