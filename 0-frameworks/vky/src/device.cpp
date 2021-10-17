@@ -18,7 +18,7 @@ int DeviceManager::Initialize(bool is_enable_validation) {
   }
 
   CreateInstance(layers, extensions);
-  QueryPhysicalDevices();
+  QueryDeviceInfo();
 
   return 0;
 }
@@ -28,6 +28,7 @@ int DeviceManager::UnInitialize() {
     delete[]devices_info_;
     devices_info_ = nullptr;
   }
+  DestroyInstance();
   return 0;
 }
 
@@ -152,6 +153,11 @@ int DeviceManager::CreateInstance(std::vector<const char*> &layers,
   return 0;
 }
 
+int DeviceManager::DestroyInstance() {
+  instance_.destroy();
+  return 0;
+}
+
 uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const {
   auto queue_families = physical_device.getQueueFamilyProperties();
 
@@ -178,7 +184,7 @@ uint32_t DeviceManager::GetComputeQueueFamilyId(const vk::PhysicalDevice& physic
   throw std::runtime_error("could not find a queue family that supports compute operations");
 }
 
-int DeviceManager::QueryPhysicalDevices() {
+int DeviceManager::QueryDeviceInfo() {
 
   instance_.enumeratePhysicalDevices(&devices_count_, nullptr);
   if (devices_count_ == 0) {

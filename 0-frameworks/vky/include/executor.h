@@ -61,8 +61,8 @@ public:
       delete command_;
       command_ = nullptr;
     }
-    // TODO: recheck
-    //device_.destroy();
+
+    device_.destroy();
     return 0;
   }
 

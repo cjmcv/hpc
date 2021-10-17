@@ -61,14 +61,14 @@ private:
 
   // 
   int CreateInstance(std::vector<const char*> &layers, std::vector<const char*> &extensions);
-
+  int DestroyInstance();
   // @return the index of a queue family that supports compute operations.
   // Groups of queues that have the same capabilities (for instance, they all supports graphics
   // and computer operations), are grouped into queue families.
   // When submitting a command buffer, you must specify to which queue in the family you are submitting to.
   uint32_t GetComputeQueueFamilyId(const vk::PhysicalDevice& physical_device) const;
 
-  int QueryPhysicalDevices();
+  int QueryDeviceInfo();
 
 private:
   vk::Instance instance_;
