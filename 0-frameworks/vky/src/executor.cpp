@@ -50,19 +50,6 @@ int Executor::UnInitialize() {
   return 0;
 }
 
-int Executor::Run(const std::string op_name,
-  const std::vector<vky::BufferMemory *> &buffer_memorys,
-  const void *push_params,
-  const int push_params_size) {
-
-  // Get op from the map of factory.
-  // If it doesn't exist, then use factory to create one.
-  op_ = op_factory_->GetOpByName(op_name);
-  op_->Run(command_, buffer_memorys, push_params, push_params_size);
-
-  return 0;
-}
-
 ///////////////
 // <Private.
 std::vector<const char*> Executor::EnabledExtensions(const std::vector<const char*>& extensions) const {

@@ -3,16 +3,13 @@
 
 #include <iostream>
 #include <fstream>
-#include <map>
 
 #include <vulkan/vulkan.hpp>
 
 #include "data_type.h"
-
 #include "device.h"
 #include "allocator.h"
 #include "command.h"
-#include "pipeline.h"
 #include "op_factory.h"
 
 namespace vky {
@@ -24,17 +21,25 @@ public:
   Executor() {}
   ~Executor() {}
 
-  const vk::Device &device() const { return device_; }
+  //const vk::Device &device() const { return device_; }
   Allocator *allocator() const { return allocator_; }
 
   int Initialize(const int physical_device_id, const std::string &shaders_dir_path);
 
   int UnInitialize();
 
-  int Run(const std::string op_name, 
-          const std::vector<vky::BufferMemory *> &buffer_memorys,
-          const void *push_params, 
-          const int push_params_size);
+  template <typename T>
+  int Run(const std::string op_name,
+    const std::vector<vky::BufferMemory *> &buffer_memorys,
+    const T *push_params) {
+
+    // Get op from the map of factory.
+    // If it doesn't exist, then use factory to create one.
+    Operator *op = op_factory_->GetOpByName(op_name);
+    op->Run(command_, buffer_memorys, push_params, sizeof(T));
+
+    return 0;
+  }
 
 private:
   // Filter list of desired extensions to include only those supported by current Vulkan instance.
@@ -52,11 +57,8 @@ private:
   vk::Instance instance_;
 
   vk::Device device_;    // logical device providing access to a physical one 
-  std::map<std::string, vk::ShaderModule> shaders_name_obj_;
-  std::map<std::string, std::string> shaders_name_path_;
 
   Command *command_;
-  Operator *op_;
   OpFactory *op_factory_;
 
   Allocator *allocator_;

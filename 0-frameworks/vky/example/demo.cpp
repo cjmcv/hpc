@@ -64,7 +64,7 @@ int TestExecutor() {
       params.height = height;
 
       // Warm up.
-      executor->Run("add", buffer_mems, &params, sizeof(params));
+      executor->Run("add", buffer_mems, &params);
 
       //clock_t time = clock();
       //for (int i = 0; i < 2; i++) {
