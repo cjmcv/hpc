@@ -134,17 +134,17 @@ void MatrixMulSIMDv3(const int M, const int N, const int K, const float ALPHA,
       float apart0 = ALPHA * A[i*lda + k];
       float32x4_t apart = vdupq_n_f32(apart0);
       for (j = 0; j < N - 7; j += 8) {
-        __builtin_prefetch(B + k * ldb + j + 16, 0, 1);
-        __builtin_prefetch(C + i * ldc + j + 16, 0, 1);
+        __builtin_prefetch(B + k * ldb + j + 8, 0, 1);
+        __builtin_prefetch(C + i * ldc + j + 8, 0, 1);
 
         float32x4_t b0 = vld1q_f32(B + k * ldb + j);
-        float32x4_t b1 = vld1q_f32(B + k * ldb + j + 8);
+        float32x4_t b1 = vld1q_f32(B + k * ldb + j + 4);
         float32x4_t c0 = vld1q_f32(C + i * ldc + j);
-        float32x4_t c1 = vld1q_f32(C + i * ldc + j + 8);
+        float32x4_t c1 = vld1q_f32(C + i * ldc + j + 4);
         c0 = vmlaq_f32(c0, apart, b0); // apart * b + c
         c1 = vmlaq_f32(c1, apart, b1);
         vst1q_f32(C + i * ldc + j, c0);
-        vst1q_f32(C + i * ldc + j + 8, c1);
+        vst1q_f32(C + i * ldc + j + 4, c1);
       }
       for (; j < N; j++) {
         C[i*ldc + j] += apart0 * B[k*ldb + j];
@@ -184,26 +184,34 @@ int main() {
   for (int i = 0; i < 100; i++) {
     MatrixMulNormalv2(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_normal_v2, width_ret);
   }
-  printf("Normalv2 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_normal_v1, height_ret, width_ret));
+  printf("Normalv2 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_normal_v2, height_ret, width_ret));
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
     MatrixMulSIMDv1(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v1, width_ret);
   }
-  printf("SIMDv1 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_normal_v1, height_ret, width_ret));
+  printf("SIMDv1 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_simd_v1, height_ret, width_ret));
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
     MatrixMulSIMDv2(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v2, width_ret);
   }
-  printf("SIMDv2 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_normal_v1, height_ret, width_ret));
+  printf("SIMDv2 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_simd_v2, height_ret, width_ret));
 
   stime = clock();
   for (int i = 0; i < 100; i++) {
     MatrixMulSIMDv3(height_ret, width_ret, width_a, 1.0, mat_a, width_a, mat_b, width_b, mat_ret_simd_v3, width_ret);
   }
-  printf("SIMDv3 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_normal_v1, height_ret, width_ret));
+  printf("SIMDv3 -> time: %d, mean value: %f\n", clock() - stime, GetMean(mat_ret_simd_v3, height_ret, width_ret));
 
+  /*
+  * Normalv1 -> time: 669906, mean value: 121543.968750
+  * Normalv2 -> time: 696504, mean value: 121543.968750
+  * SIMDv1 -> time: 452413, mean value: 121543.968750
+  * SIMDv2 -> time: 408867, mean value: 121543.968750
+  * SIMDv3 -> time: 363831, mean value: 121543.968750
+  */
+     
   free(mat_a);
   free(mat_b);
   free(mat_ret_normal_v1);
