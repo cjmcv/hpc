@@ -108,13 +108,13 @@ void MatrixMulSIMDv2(const int M, const int N, const int K, const float ALPHA,
       float32x4_t apart = vdupq_n_f32(apart0);
       for (j = 0; j < N - 7; j += 8) {
         float32x4_t b0 = vld1q_f32(B + k * ldb + j);
-        float32x4_t b1 = vld1q_f32(B + k * ldb + j + 8);
+        float32x4_t b1 = vld1q_f32(B + k * ldb + j + 4);
         float32x4_t c0 = vld1q_f32(C + i * ldc + j);
-        float32x4_t c1 = vld1q_f32(C + i * ldc + j + 8);
+        float32x4_t c1 = vld1q_f32(C + i * ldc + j + 4);
         c0 = vmlaq_f32(c0, apart, b0); // apart * b + c
         c1 = vmlaq_f32(c1, apart, b1);
         vst1q_f32(C + i * ldc + j, c0);
-        vst1q_f32(C + i * ldc + j + 8, c1);
+        vst1q_f32(C + i * ldc + j + 4, c1);
       }
       for (; j < N; j++) {
         C[i*ldc + j] += apart0 * B[k*ldb + j];
