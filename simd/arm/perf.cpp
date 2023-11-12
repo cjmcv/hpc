@@ -7,13 +7,17 @@
 #include <stdio.h>
 
 #define LOOP (1e9)
-#define OP_FLOATS (128) // fmla为乘一次加一次，一条操作4个float，共10条 = 2*4*10 = 80
+#define OP_FLOATS (80) // fmla为乘一次加一次，一条操作4个float，共10条 = 2*4*10 = 80
                        // 如16条，则为128
 
 // https://zhuanlan.zhihu.com/p/28226956
 // 理论峰值就等于2(port) * 4 * 2(mul+add) * 频率 ( * 核心数 )
 //              16 * 2G = 32G
 void TEST(int loop) {
+    float *pa = new float[1000];
+    float *pb = new float[1000];
+    float *pc = new float[1000];
+
     for (int i=0; i<loop; i++) {
         asm volatile(
             "fmla v0.4s, v0.4s, v0.4s \n"
@@ -26,13 +30,42 @@ void TEST(int loop) {
             "fmla v7.4s, v7.4s, v7.4s \n"
             "fmla v8.4s, v8.4s, v8.4s \n"
             "fmla v9.4s, v9.4s, v9.4s \n"
-            "fmla v10.4s, v10.4s, v10.4s \n"
-            "fmla v11.4s, v11.4s, v11.4s \n"
-            "fmla v12.4s, v12.4s, v12.4s \n"
-            "fmla v13.4s, v13.4s, v13.4s \n"
-            "fmla v14.4s, v14.4s, v14.4s \n"
-            "fmla v15.4s, v15.4s, v15.4s \n"
-        );      
+            
+            // "fmla v0.4s, v0.4s, v0.s[0] \n"
+            // "fmla v1.4s, v1.4s, v1.s[0] \n"
+            // "fmla v2.4s, v2.4s, v2.s[0] \n"
+            // "fmla v3.4s, v3.4s, v3.s[0] \n"
+            // "fmla v4.4s, v4.4s, v4.s[0] \n"
+            // "fmla v5.4s, v5.4s, v5.s[0] \n"
+            // "fmla v6.4s, v6.4s, v6.s[0] \n"
+            // "fmla v7.4s, v7.4s, v7.s[0] \n"
+            // "fmla v8.4s, v8.4s, v8.s[0] \n"
+            // "fmla v9.4s, v9.4s, v9.s[0] \n"
+
+            "ldr	x10, [%0] \n"   
+            "fmla v0.4s, v0.4s, v0.s[0] \n"
+            "ldr	x11, [%1] \n"
+            "fmla v1.4s, v1.4s, v1.s[0] \n"
+            "ldr	x12, [%2] \n"
+            "fmla v2.4s, v2.4s, v2.s[0] \n"
+            "add	x10, x10, #64 \n"
+            "fmla v3.4s, v3.4s, v3.s[0] \n"
+            "fmla v4.4s, v4.4s, v4.s[0] \n"
+            "fmla v5.4s, v5.4s, v5.s[0] \n"
+            "ins    v20.d[1], x10 \n" 
+
+            "fmla v6.4s, v6.4s, v6.s[0] \n"            
+            "fmla v7.4s, v7.4s, v7.s[0] \n"
+            
+            // "ldr	x11, [%0, #8] \n"
+            // "ins    v20.d[1], x10 \n" 
+            "fmla v8.4s, v8.4s, v8.s[0] \n"
+            "fmla v9.4s, v9.4s, v9.s[0] \n"
+
+            : "=r"(pa), "=r"(pb), "=r"(pc)
+            : "0"(pa), "1"(pb), "2"(pc)
+            : "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v20"
+        );
     }
 }
 
