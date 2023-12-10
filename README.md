@@ -11,18 +11,22 @@
 </details>
 
 <details>
-  <summary><strong>hcs</strong> -- A heterogeneous computing system for multi-task scheduling optimization. !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/graph) instead.</summary>
+  <summary><strong>hcs</strong> -- A heterogeneous computing system for multi-task scheduling optimization. </summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs](https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs)
+  
+  !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/graph) instead.
   
   tag: std::thread / cuda.
 </details>
 
 <details>
-  <summary><strong>vky</strong> -- A Vulkan-based computing framework. !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/vk) instead.</summary>
+  <summary><strong>vky</strong> -- A Vulkan-based computing framework. </summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky](https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky)
   
+  !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/vk) instead.
+
   tag: vulkan.
 </details>
 
