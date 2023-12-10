@@ -3,7 +3,7 @@
 ## Practice
 
 <details>
-  <summary><strong>cux</strong> -- An experimental framework for performance analysis and optimization of CUDA kernel functions.</summary>
+  <summary><strong>cux</strong> -- An experimental framework for performance analysis and optimization of CUDA kernel functions. </summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/cux](https://github.com/cjmcv/hpc/tree/master/0-frameworks/cux)
   
@@ -11,7 +11,7 @@
 </details>
 
 <details>
-  <summary><strong>hcs</strong> -- A heterogeneous computing system for multi-task scheduling optimization.</summary>
+  <summary><strong>hcs</strong> -- A heterogeneous computing system for multi-task scheduling optimization. !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/graph) instead.</summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs](https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs)
   
@@ -19,7 +19,7 @@
 </details>
 
 <details>
-  <summary><strong>vky</strong> -- A Vulkan-based computing framework.</summary>
+  <summary><strong>vky</strong> -- A Vulkan-based computing framework. !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/vk) instead.</summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky](https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky)
   
@@ -179,7 +179,7 @@
 <details>
   <summary>neon</summary>
 
-* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/arm/matrix_multiply.cpp) ： Matrix Multiplication. 
+* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/arm/gemm.cpp) : Matrix Multiplication. 
 * [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/arm/matrix_transpose.cpp) ： Matrix Transpose.
 </details>
 
