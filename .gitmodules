@@ -2,6 +2,6 @@
 	path = 0-frameworks/cux/3rdparty/googletest
 	url = https://github.com/google/googletest.git
     
-[submodule "0-frameworks/mrpc/3rdparty/asio"]
-	path = 0-frameworks/mrpc/3rdparty/asio
-	url = https://github.com/chriskohlhoff/asio.git
+[submodule "3rdparty/ptk"]
+	path = 3rdparty/ptk
+	url = https://github.com/cjmcv/ptk.git
