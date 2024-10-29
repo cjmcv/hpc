@@ -1,5 +1,12 @@
 # Learning and practice of high performance computing
 
+## Application
+<details>
+  <summary><strong>pocket-ai</strong>  -- A Portable Toolkit for deploying Edge AI and HPC. </summary>
+  
+  [https://github.com/cjmcv/pocket-ai](https://github.com/cjmcv/pocket-ai)
+</details>
+
 ## Practice
 
 <details>
@@ -11,31 +18,21 @@
 </details>
 
 <details>
-  <summary><strong>hcs</strong> -- A heterogeneous computing system for multi-task scheduling optimization. </summary>
-  
-  [https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs](https://github.com/cjmcv/hpc/tree/master/0-frameworks/hcs)
-  
-  !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/graph) instead.
-  
-  tag: std::thread / cuda.
-</details>
-
-<details>
-  <summary><strong>vky</strong> -- A Vulkan-based computing framework. </summary>
-  
-  [https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky](https://github.com/cjmcv/hpc/tree/master/0-frameworks/vky)
-  
-  !!!DEPRECATED - See [ptk](https://github.com/cjmcv/ptk/tree/master/engine/vk) instead.
-
-  tag: vulkan.
-</details>
-
-<details>
   <summary><strong>mrpc</strong> -- Mini-RPC, based on asio.</summary>
   
   [https://github.com/cjmcv/hpc/tree/master/0-frameworks/mrpc](https://github.com/cjmcv/hpc/tree/master/0-frameworks/mrpc)
   
   tag: distributed computing.
+</details>
+
+<details>
+  <summary><strong>DEPRECATED</strong></summary>
+  
+  [hcs](https://github.com/cjmcv/hpc/tree/20211017/0-frameworks/hcs) A heterogeneous computing system for multi-task scheduling optimization.
+
+  [vky](https://github.com/cjmcv/hpc/tree/20211017/0-frameworks/vky) A Vulkan-based computing framework
+
+  "hcs" and "vky" have been moved to [pocket-ai](https://github.com/cjmcv/pocket-ai/tree/master/engine) and renamed as graph and vk respectively.
 </details>
 
 ---
