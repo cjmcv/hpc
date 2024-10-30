@@ -1,7 +1,6 @@
 [submodule "0-frameworks/cux/3rdparty/googletest"]
 	path = 0-frameworks/cux/3rdparty/googletest
 	url = https://github.com/google/googletest.git
-    
-[submodule "pocket_ai"]
-	path = pocket_ai
-	url = https://github.com/cjmcv/pocket-ai
+[submodule "pocket-ai"]
+	path = pocket-ai
+	url = https://github.com/cjmcv/pocket-ai.git

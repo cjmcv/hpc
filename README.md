@@ -1,5 +1,9 @@
 # Learning and practice of high performance computing
 
+## Insatll
+git clone 
+
+
 ## Application
 <details>
   <summary><strong>pocket-ai</strong>  -- A Portable Toolkit for deploying Edge AI and HPC. </summary>
