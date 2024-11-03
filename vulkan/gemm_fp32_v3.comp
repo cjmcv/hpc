@@ -1,0 +1,136 @@
+#version 450 core
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_control_flow_attributes : enable
+#extension GL_EXT_debug_printf : enable
+// #extension GL_EXT_spirv_intrinsics : enable
+
+layout(binding=0) buffer InputA { float data[]; } A;
+layout(binding=1) buffer InputB { float data[]; } B;
+layout(binding=2) buffer Output { float data[]; } C;
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x_id = 0, local_size_y_id = 1, local_size_z_id = 2) in; 
+
+layout(push_constant) uniform Parameters {
+   uint M;
+   uint N;
+   uint K;
+} params;
+
+// // v3_1: 初步使用vec4， 对应 gemm_mobile.cl 中的 v3_1， 此时输入输出的ABC矩阵为float
+// void main() {
+    
+//     const int STEP = 4;
+//     const uint lda = params.K;
+//     const uint ldb = params.N;
+//     const uint ldc = params.N;
+    
+//     uvec2 lid = gl_LocalInvocationID.xy;
+//     uint gid_sx = (gl_WorkGroupID.x * gl_WorkGroupSize.x + lid.x) * STEP;
+//     uint gid_sy = (gl_WorkGroupID.y * gl_WorkGroupSize.y + lid.y) * STEP;
+
+//     if (gid_sx >= params.N || gid_sy >= params.M)
+//         return;
+
+//     vec4 acc[STEP];
+//     for (int si = 0; si < STEP; si++) {
+//         acc[si] = vec4(0.f, 0.f, 0.f, 0.f);
+//     }
+    
+//     for (int k = 0; k < params.K; k++) {
+//         vec4 Asi, Bsj;
+//         Asi.x = A.data[(gid_sy+0) * lda + k];
+//         Asi.y = A.data[(gid_sy+1) * lda + k];
+//         Asi.z = A.data[(gid_sy+2) * lda + k];
+//         Asi.w = A.data[(gid_sy+3) * lda + k];
+
+//         Bsj.x = B.data[k * ldb + gid_sx + 0];
+//         Bsj.y = B.data[k * ldb + gid_sx + 1];
+//         Bsj.z = B.data[k * ldb + gid_sx + 2];
+//         Bsj.w = B.data[k * ldb + gid_sx + 3];
+
+//         acc[0] += vec4(Asi.x, Asi.x, Asi.x, Asi.x) * Bsj;
+//         acc[1] += vec4(Asi.y, Asi.y, Asi.y, Asi.y) * Bsj;
+//         acc[2] += vec4(Asi.z, Asi.z, Asi.z, Asi.z) * Bsj;
+//         acc[3] += vec4(Asi.w, Asi.w, Asi.w, Asi.w) * Bsj;
+//     }
+
+//     C.data[(gid_sy+0) * ldc + gid_sx+0] = acc[0].x;
+//     C.data[(gid_sy+0) * ldc + gid_sx+1] = acc[0].y;
+//     C.data[(gid_sy+0) * ldc + gid_sx+2] = acc[0].z;
+//     C.data[(gid_sy+0) * ldc + gid_sx+3] = acc[0].w;
+
+//     C.data[(gid_sy+1) * ldc + gid_sx+0] = acc[1].x;
+//     C.data[(gid_sy+1) * ldc + gid_sx+1] = acc[1].y;
+//     C.data[(gid_sy+1) * ldc + gid_sx+2] = acc[1].z;
+//     C.data[(gid_sy+1) * ldc + gid_sx+3] = acc[1].w;
+
+//     C.data[(gid_sy+2) * ldc + gid_sx+0] = acc[2].x;
+//     C.data[(gid_sy+2) * ldc + gid_sx+1] = acc[2].y;
+//     C.data[(gid_sy+2) * ldc + gid_sx+2] = acc[2].z;
+//     C.data[(gid_sy+2) * ldc + gid_sx+3] = acc[2].w;
+
+//     C.data[(gid_sy+3) * ldc + gid_sx+0] = acc[3].x;
+//     C.data[(gid_sy+3) * ldc + gid_sx+1] = acc[3].y;
+//     C.data[(gid_sy+3) * ldc + gid_sx+2] = acc[3].z;
+//     C.data[(gid_sy+3) * ldc + gid_sx+3] = acc[3].w;
+// }
+
+// v3_2: 转置矩阵A
+void main() {
+    
+    const int STEP = 4;
+    const uint lda = params.K;
+    const uint ldb = params.N;
+    const uint ldc = params.N;
+    
+    uvec2 lid = gl_LocalInvocationID.xy;
+    uint gid_sx = (gl_WorkGroupID.x * gl_WorkGroupSize.x + lid.x) * STEP;
+    uint gid_sy = (gl_WorkGroupID.y * gl_WorkGroupSize.y + lid.y) * STEP;
+
+    if (gid_sx >= params.N || gid_sy >= params.M)
+        return;
+
+    vec4 acc[STEP];
+    for (int si = 0; si < STEP; si++) {
+        acc[si] = vec4(0.f, 0.f, 0.f, 0.f);
+    }
+    
+    for (int k = 0; k < params.K; k++) {
+        vec4 Asi, Bsj;
+        Asi.x = A.data[(gid_sy+0) * lda + k];
+        Asi.y = A.data[(gid_sy+1) * lda + k];
+        Asi.z = A.data[(gid_sy+2) * lda + k];
+        Asi.w = A.data[(gid_sy+3) * lda + k];
+
+        Bsj.x = B.data[k * ldb + gid_sx + 0];
+        Bsj.y = B.data[k * ldb + gid_sx + 1];
+        Bsj.z = B.data[k * ldb + gid_sx + 2];
+        Bsj.w = B.data[k * ldb + gid_sx + 3];
+
+        acc[0] += vec4(Asi.x, Asi.x, Asi.x, Asi.x) * Bsj;
+        acc[1] += vec4(Asi.y, Asi.y, Asi.y, Asi.y) * Bsj;
+        acc[2] += vec4(Asi.z, Asi.z, Asi.z, Asi.z) * Bsj;
+        acc[3] += vec4(Asi.w, Asi.w, Asi.w, Asi.w) * Bsj;
+    }
+
+    C.data[(gid_sy+0) * ldc + gid_sx+0] = acc[0].x;
+    C.data[(gid_sy+0) * ldc + gid_sx+1] = acc[0].y;
+    C.data[(gid_sy+0) * ldc + gid_sx+2] = acc[0].z;
+    C.data[(gid_sy+0) * ldc + gid_sx+3] = acc[0].w;
+
+    C.data[(gid_sy+1) * ldc + gid_sx+0] = acc[1].x;
+    C.data[(gid_sy+1) * ldc + gid_sx+1] = acc[1].y;
+    C.data[(gid_sy+1) * ldc + gid_sx+2] = acc[1].z;
+    C.data[(gid_sy+1) * ldc + gid_sx+3] = acc[1].w;
+
+    C.data[(gid_sy+2) * ldc + gid_sx+0] = acc[2].x;
+    C.data[(gid_sy+2) * ldc + gid_sx+1] = acc[2].y;
+    C.data[(gid_sy+2) * ldc + gid_sx+2] = acc[2].z;
+    C.data[(gid_sy+2) * ldc + gid_sx+3] = acc[2].w;
+
+    C.data[(gid_sy+3) * ldc + gid_sx+0] = acc[3].x;
+    C.data[(gid_sy+3) * ldc + gid_sx+1] = acc[3].y;
+    C.data[(gid_sy+3) * ldc + gid_sx+2] = acc[3].z;
+    C.data[(gid_sy+3) * ldc + gid_sx+3] = acc[3].w;
+}

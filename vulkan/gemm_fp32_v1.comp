@@ -1,0 +1,41 @@
+#version 450 core
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_control_flow_attributes : enable
+#extension GL_EXT_debug_printf : enable
+// #extension GL_EXT_spirv_intrinsics : enable
+
+layout(binding=0) buffer InputA { float data[]; } A;
+layout(binding=1) buffer InputB { float data[]; } B;
+layout(binding=2) buffer Output { float data[]; } C;
+
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x_id = 0, local_size_y_id = 1, local_size_z_id = 2) in; 
+
+layout(push_constant) uniform Parameters {
+   uint M;
+   uint N;
+   uint K;
+} params;
+
+// v1: 朴素实现方式，对应 gemm_mobile.cl 中的v1
+void main() {
+    const uint lda = params.K;
+    const uint ldb = params.N;
+    const uint ldc = params.N;
+    
+    uvec2 lid = gl_LocalInvocationID.xy;
+    uint gid_x = gl_WorkGroupID.x * gl_WorkGroupSize.x + lid.x;
+    uint gid_y = gl_WorkGroupID.y * gl_WorkGroupSize.y + lid.y;
+
+    // debugPrintfEXT("(%d, %d, %d, %d, %d, %d), ", gl_WorkGroupID.x, gl_WorkGroupID.y, gid_x, gid_y, lid.x, lid.y);
+
+    if (gid_x >= params.N || gid_y >= params.M)
+        return;
+
+    float acc = 0;
+    for (int k = 0; k < params.K; k++) {
+        acc += A.data[gid_y * lda + k] * B.data[k * ldb + gid_x];
+    }
+    C.data[gid_y * ldc + gid_x] = acc;
+}

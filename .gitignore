@@ -112,3 +112,4 @@ AppPackages/
 # Test output
 */env/bin
 */env/build-*
+*/spv
