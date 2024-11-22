@@ -67,34 +67,11 @@ git clone
 <details>
   <summary>cuda</summary>
 
-* [cuda_util](https://github.com/cjmcv/hpc/blob/master/cuda/cuda_util.h) ： Utility functions.
-* [alg_histogram](https://github.com/cjmcv/hpc/blob/master/cuda/alg_histogram.cu) ： histogram, mainly introduce atomicAdd.
-* [alg_matrix_multiply](https://github.com/cjmcv/hpc/blob/master/cuda/alg_matrix_multiply.cu) ： gemm: C = A * B.
-* [alg_vector_add](https://github.com/cjmcv/hpc/blob/master/cuda/alg_vector_add.cu) ： Vector addition: C = A + B. 
-* [alg_vector_dot_product](https://github.com/cjmcv/hpc/blob/master/cuda/alg_vector_dot_product.cu) ： Vector dot product: h_result = SUM(A * B).
-* [alg_vector_scan](https://github.com/cjmcv/hpc/blob/master/cuda/alg_vector_scan.cu) ： Scan. Prefix Sum.
-* [base_aligned_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/base_aligned_memory_access.cu) ： An experiment on aligned memory access.
-* [base_bank_conflict](https://github.com/cjmcv/hpc/blob/master/cuda/base_bank_conflict.cu) ： An experiment on Bank Conflict in Shared Memory.
-* [base_coalesced_memory_access](https://github.com/cjmcv/hpc/blob/master/cuda/base_coalesced_memory_access.cu) ： An experiment on coalesced memory access.
-* [base_float2half](https://github.com/cjmcv/hpc/blob/master/cuda/base_float2half.cu) ： Record the basic usage of float2half.
 * [base_graph](https://github.com/cjmcv/hpc/blob/master/cuda/base_graph.cu) ： Record the basic usage of cuda graph.
-* [base_hyperQ](https://github.com/cjmcv/hpc/blob/master/cuda/base_hyperQ.cu) ： Demonstrate how HyperQ allows supporting devices to avoid false dependencies between kernels in different streams.
-* [base_kernel_layout](https://github.com/cjmcv/hpc/blob/master/cuda/base_kernel_layout.cu) ： Record the basic execution configuration of kernel.
-* [base_occupancy](https://github.com/cjmcv/hpc/blob/master/cuda/base_occupancy.cu) ： Record the basic usage of cudaOccupancyMaxPotentialBlockSize.
-* [base_texture](https://github.com/cjmcv/hpc/blob/master/cuda/base_texture.cu) ： Record the basic usage of Texture Memory.
 * [base_unified_memory](https://github.com/cjmcv/hpc/blob/master/cuda/base_unified_memory.cu) ： A simple task consumer using threads and streams with all data in Unified Memory.
 * [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) ： Record the basic usage of Zero Copy.
-* [cub_block_reduce](https://github.com/cjmcv/hpc/blob/master/cuda/cub_block_reduce.cu) ： Simple demonstration of cub::BlockReduce.
-* [cub_block_scan](https://github.com/cjmcv/hpc/blob/master/cuda/cub_block_scan.cu) ： Simple demonstration of cub::BlockScan.
-* [cub_device_reduce](https://github.com/cjmcv/hpc/blob/master/cuda/cub_device_reduce.cu) ： Simple demonstration of DeviceScan::Sum.
-* [cub_device_scan](https://github.com/cjmcv/hpc/blob/master/cuda/cub_device_scan.cu) ： Simple demonstration of DeviceScan::ExclusiveSum.
-* [cub_warp_reduce](https://github.com/cjmcv/hpc/blob/master/cuda/cub_warp_reduce.cu) ： Simple demonstration of cub::WarpReduce.
-* [cub_warp_scan](https://github.com/cjmcv/hpc/blob/master/cuda/cub_warp_scan) ： Simple demonstration of cub::WarpScan.
-* [cublas_gemm_float16](https://github.com/cjmcv/hpc/blob/master/cuda/cublas_gemm_float16.cu) ： gemm: C = A * B. Use cublas with half-precision.
-* [thrust_iterators](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_iterators.cu) ： Record the basic usage of Iterators in Thrust.
-* [thrust_sort](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_sort.cu) ： Sort arrays with Thrust.
-* [thrust_transformations](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_transformations.cu) ： Some of the parallel vector operations in Thrust.
-* [thrust_vector](https://github.com/cjmcv/hpc/blob/master/cuda/thrust_vector.cu) ： Record the basic usage of Vector in Thrust.
+* [gemm_fp16_wmma](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp16_wmma.cu) ： Gemm fp16 - wmma
+* [gemm_fp32](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp32.cu) ： Gemm fp32 - cuda core
 </details>
 
 <details>

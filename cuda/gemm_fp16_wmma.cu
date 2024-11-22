@@ -6,12 +6,39 @@
 #include "time.h"
 
 #include "pocket-ai/engine/cu/common.hpp"
-#include "pocket-ai/engine/cu/common_ptx.hpp"
+#include "pocket-ai/engine/cu/common_mma.hpp"
 
 using namespace pai::cu;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Annotation:
+// \function, unsigned short __float2half_rn(float x);  -->  device_functions.h
+//   It was already presented in CUDA before CUDA 7.5.
+//
+// \function, __half __float2half(const float a);       -->  cuda_fp16.h
+//   It was introduced in CUDA 7.5 and does the same with __float2half_rn,
+//   but return a half.
+//
+// \function, __half2 __float2half2_rn(const float a);  -->  cuda_fp16.h
+//   It returns a half2 which stores two half into an unsigned int. 
+//
+// \Difference between __float2half_rn and __float2half.
+// https://stackoverflow.com/questions/35198856/half-precision-difference-between-float2half-vs-float2half-rn
+//   "I found that (for sm_20) the old __float2half_rn() has an additional int16 to int32
+//   operation and does a 32bit store. On the other hand, __float2half_() does not have 
+//   this conversion and does a 16bit store."
+//   __float2half_rn():
+//    /*0040*/         I2I.U32.U16 R0, R0;
+//    /*0050*/         STL[R2], R0;
+//   __float2half():
+//    /*0048*/         STL.U16 [R2], R0;
+//
+//   half res_h = __float2half(flt_in);  
+//   printf("Device version, float -> half: %f -> %hu\n", flt_in, res_h);
+//   half2 res_h2 = __float2half2_rn(flt_in);
+//   printf("Device version, float -> half2: %f -> (x: %d, y: %d)\n", res_h2.x, res_h2.y);
+//   float res_f = __half2float(res_h);
 // Initialize the input data.
 void GenHalfMatrix(const int height, const int width, half *mat) {
     for (int i = 0; i < height; i++) {

@@ -9,8 +9,8 @@
 #include <algorithm>
 #include <thread>
 
-#include "cuda_util.h"
 #include <cublas_v2.h>
+#include "pocket-ai/engine/cu/common.hpp"
 
  // Simple host dgemv: assume data_ is in row-major format and square
 template <typename T>
@@ -119,7 +119,7 @@ void TaskAssignment(std::vector< Task<T> > &task_list, cublasHandle_t *handle,
 
 
 int main() {
-  int ret = cjmcv_cuda_util::InitEnvironment(0);
+  int ret = pai::cu::InitEnvironment(0);
   if (ret != 0) {
     printf("Failed to initialize the environment for cuda.");
     return -1;
@@ -173,8 +173,8 @@ int main() {
   for (int i = 0; i < task_list.size(); i++) {
     task_list[i].Deallocate();
   }
-  task_list.swap(std::vector<Task<double> >());
+  // task_list.swap(std::vector<Task<double> >());
 
-  cjmcv_cuda_util::CleanUpEnvironment();
+  pai::cu::CleanUpEnvironment();
   return 0;
 }
