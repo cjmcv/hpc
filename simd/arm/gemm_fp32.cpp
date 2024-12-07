@@ -440,13 +440,14 @@ void UKernelV9(const int mstart, const int mend,
 // 考虑到neon寄存器的数据读取和回写是有一定代价的，观察到C矩阵在最内层循环有回写的操作。
 // 然后C矩阵的读写只涉及到了三层循环中的i和j，是否可以把kk循环放回到最内层，以减少C回写次数, 提高计算访存比。
 // 但是会引入之前的老问题，B矩阵的最内层循环访存不连续，cache miss加重。
+// 实验：将b的加载用zero = vdupq_n_f32(0)代替，耗时约从10gflops提升到16gflops，性能提升显著。
 void UKernelV10(const int mstart, const int mend, 
                 const int nstart, const int nend, 
                 const int kstart, const int kend, 
                 const float *A, const int lda,
                 const float *B, const int ldb,
                 float *C, const int ldc) {
-
+    
     int i, j, k;
     for (i = mstart; i < mend-3; i += 4) {
         for (j = nstart; j < nend - 7; j += 8) {
@@ -904,7 +905,8 @@ void UKernelV12(const int mstart, const int mend,
 
 // 基于UKernelV12, 尝试进一步展开i循环， 因B矩阵不涉及i，所以pack不用改。
 //                 可提高内层循环的计算访存比，多个va的四次读取，多了32次fmla。
-//                 而此时有16个va，8个vb，8个vc，则使用的向量寄存器达到了32个，于v8而言，已用满。
+//                 而此时有8个va，8个vb，16个vc，则使用的向量寄存器达到了32个，于armv8而言，向量寄存器已用满。
+//                 也可观察其汇编代码确认。
 void UKernelV13(const int mstart, const int mend, 
                 const int nstart, const int nend, 
                 const int kstart, const int kend, 
@@ -1315,6 +1317,297 @@ void UKernelV14(const int mstart, const int mend,
     }
 }
 
+// 基于v13进行试验：
+// 1. 单独将vai0到vai7用zero代替，去掉cache不命中导致的影响，性能仅仅得到一丝改善，变化不大。
+// 2. 单独vb的加载用zero代替，性能同样变化很小。
+// 说明a和b矩阵加载的缓存命中率对整体性能影响不大。
+// 3. 单独将c的写，改为内存连续的写，性能也变化不大。
+// 说明c矩阵的缓存命中率对整体性能影响也不大。
+// 
+// 内层循环访存16x4=64，计算8x8条vfmaq_laneq_f32，每条含4x2次计算，共512.
+// 基于UKernelV13的汇编实现，可以看到LBB19_8即为最内层循环。
+// 参考这部分汇编，将内层循环改写成汇编。
+//
+// 直接翻译版
+// https://blog.alex.balgavy.eu/a-practical-guide-to-gcc-inline-assembly/
+void UKernelV15(const int mstart, const int mend, 
+                const int nstart, const int nend, 
+                const int kstart, const int kend, 
+                const float *A, const int lda,
+                const float *B, const int bid,
+                float *C, const int ldc) {
+
+    float32x4_t zero = vdupq_n_f32(0);
+    int i, j, k;
+    for (i = mstart; i < mend-7; i += 8) {
+        int lbid = bid;        // bid 只跟j/jj/k三层循环有关，bid由外面的j指定，内部两层循环则这里指定。
+        float *pB = (float *)B + lbid;
+        float *a0 = (float *)A + (i+0)*lda;
+        float *a1 = (float *)A + (i+1)*lda;
+        float *a2 = (float *)A + (i+2)*lda;
+        float *a3 = (float *)A + (i+3)*lda;
+        float *a4 = (float *)A + (i+4)*lda;
+        float *a5 = (float *)A + (i+5)*lda;
+        float *a6 = (float *)A + (i+6)*lda;
+        float *a7 = (float *)A + (i+7)*lda;
+        for (j = nstart; j < nend - 7; j += 8) {
+            float32x4_t vc0i0 = zero;
+            float32x4_t vc1i0 = zero;
+            float32x4_t vc0i1 = zero;
+            float32x4_t vc1i1 = zero;
+            float32x4_t vc0i2 = zero;
+            float32x4_t vc1i2 = zero;
+            float32x4_t vc0i3 = zero;
+            float32x4_t vc1i3 = zero;
+
+            float32x4_t vc0i4 = zero;
+            float32x4_t vc1i4 = zero;
+            float32x4_t vc0i5 = zero;
+            float32x4_t vc1i5 = zero;
+            float32x4_t vc0i6 = zero;
+            float32x4_t vc1i6 = zero;
+            float32x4_t vc0i7 = zero;
+            float32x4_t vc1i7 = zero;
+
+            for (k = kstart; k < kend-3; k += 4) {
+
+                const float *pA0 = a0 + k;
+                const float *pA1 = a1 + k;
+                const float *pA2 = a2 + k;
+                const float *pA3 = a3 + k;
+                const float *pA4 = a4 + k;
+                const float *pA5 = a5 + k;
+                const float *pA6 = a6 + k;
+                const float *pA7 = a7 + k;
+
+                asm volatile(
+                    "ldr    q0, [%32] \n" // vai0, 以%32为基准，加%40偏移，取地址数据到q0
+                    "ldr    q1, [%33] \n" 
+                    "ldr    q2, [%34] \n"
+                    "ldr    q3, [%35] \n"
+                    "ldr    q4, [%36] \n"
+                    "ldr    q5, [%37] \n"
+                    "ldr    q6, [%38] \n"
+                    "ldr    q7, [%39] \n" // vai7
+                    "prfm   pldl1keep, [%40, #640]   \n"
+                    "ldp    q8, q9, [%40], #32 \n" // %41是pB, q8 = vb0k0, q9 = vb1k0, 数据读取后，寄存器 %26 里的值会自动加上 32 = 4个字节 * 8个元素
+                    "ldp    q10, q11, [%40], #32 \n" // q10 = vb0k1, q11 = vb1k1
+                    "ldp    q12, q13, [%40], #32 \n" // q12 = vb0k2, q13 = vb1k2
+                    "ldp    q14, q15, [%40], #32 \n" // q14 = vb0k3, q15 = vb1k3
+
+                    // float32x4_t vai0 = vld1q_f32(pA0);
+                    // float32x4_t vai1 = vld1q_f32(pA1);
+                    // float32x4_t vai2 = vld1q_f32(pA2);
+                    // float32x4_t vai3 = vld1q_f32(pA3);
+                    // float32x4_t vai4 = vld1q_f32(pA4);
+                    // float32x4_t vai5 = vld1q_f32(pA5);
+                    // float32x4_t vai6 = vld1q_f32(pA6);
+                    // float32x4_t vai7 = vld1q_f32(pA7);
+
+                    // float32x4_t vb0k0 = vld1q_f32(pB + 0); 
+                    // float32x4_t vb1k0 = vld1q_f32(pB + 4);
+                    // float32x4_t vb0k1 = vld1q_f32(pB + 8);
+                    // float32x4_t vb1k1 = vld1q_f32(pB + 12);
+                    // float32x4_t vb0k2 = vld1q_f32(pB + 16);
+                    // float32x4_t vb1k2 = vld1q_f32(pB + 20);
+                    // float32x4_t vb0k3 = vld1q_f32(pB + 24);
+                    // float32x4_t vb1k3 = vld1q_f32(pB + 28);
+                    // pB += 32;
+
+                    "fmla	%0.4s, v8.4s, v0.s[0] \n"  // %0 = vc0i0
+                    "fmla	%0.4s, v10.4s, v0.s[1] \n"
+                    "fmla	%0.4s, v12.4s, v0.s[2] \n"
+                    "fmla	%0.4s, v14.4s, v0.s[3] \n"
+                    "fmla	%1.4s, v9.4s, v0.s[0] \n"
+                    "fmla	%1.4s, v11.4s, v0.s[1] \n"
+                    "fmla	%1.4s, v13.4s, v0.s[2] \n"
+                    "fmla	%1.4s, v15.4s, v0.s[3] \n"
+                    // vc0i0 = vfmaq_laneq_f32(vc0i0, vb0k0, vai0, 0);
+                    // vc0i0 = vfmaq_laneq_f32(vc0i0, vb0k1, vai0, 1);
+                    // vc0i0 = vfmaq_laneq_f32(vc0i0, vb0k2, vai0, 2);    
+                    // vc0i0 = vfmaq_laneq_f32(vc0i0, vb0k3, vai0, 3);
+                    // vc1i0 = vfmaq_laneq_f32(vc1i0, vb1k0, vai0, 0);
+                    // vc1i0 = vfmaq_laneq_f32(vc1i0, vb1k1, vai0, 1);
+                    // vc1i0 = vfmaq_laneq_f32(vc1i0, vb1k2, vai0, 2);
+                    // vc1i0 = vfmaq_laneq_f32(vc1i0, vb1k3, vai0, 3);
+
+                    "fmla	%2.4s, v8.4s, v1.s[0] \n"
+                    "fmla	%2.4s, v10.4s, v1.s[1] \n"
+                    "fmla	%2.4s, v12.4s, v1.s[2] \n"
+                    "fmla	%2.4s, v14.4s, v1.s[3] \n"
+                    "fmla	%3.4s, v9.4s, v1.s[0] \n"
+                    "fmla	%3.4s, v11.4s, v1.s[1] \n"
+                    "fmla	%3.4s, v13.4s, v1.s[2] \n"
+                    "fmla	%3.4s, v15.4s, v1.s[3] \n"
+                    // vc0i1 = vfmaq_laneq_f32(vc0i1, vb0k0, vai1, 0);
+                    // vc0i1 = vfmaq_laneq_f32(vc0i1, vb0k1, vai1, 1);
+                    // vc0i1 = vfmaq_laneq_f32(vc0i1, vb0k2, vai1, 2);    
+                    // vc0i1 = vfmaq_laneq_f32(vc0i1, vb0k3, vai1, 3);
+                    // vc1i1 = vfmaq_laneq_f32(vc1i1, vb1k0, vai1, 0); 
+                    // vc1i1 = vfmaq_laneq_f32(vc1i1, vb1k1, vai1, 1);
+                    // vc1i1 = vfmaq_laneq_f32(vc1i1, vb1k2, vai1, 2);
+                    // vc1i1 = vfmaq_laneq_f32(vc1i1, vb1k3, vai1, 3);
+
+                    "fmla	%4.4s, v8.4s, v2.s[0] \n"
+                    "fmla	%4.4s, v10.4s, v2.s[1] \n"
+                    "fmla	%4.4s, v12.4s, v2.s[2] \n"
+                    "fmla	%4.4s, v14.4s, v2.s[3] \n"
+                    "fmla	%5.4s, v9.4s, v2.s[0] \n"
+                    "fmla	%5.4s, v11.4s, v2.s[1] \n"
+                    "fmla	%5.4s, v13.4s, v2.s[2] \n"
+                    "fmla	%5.4s, v15.4s, v2.s[3] \n"
+                    // vc0i2 = vfmaq_laneq_f32(vc0i2, vb0k0, vai2, 0);
+                    // vc0i2 = vfmaq_laneq_f32(vc0i2, vb0k1, vai2, 1);
+                    // vc0i2 = vfmaq_laneq_f32(vc0i2, vb0k2, vai2, 2);    
+                    // vc0i2 = vfmaq_laneq_f32(vc0i2, vb0k3, vai2, 3);        
+                    // vc1i2 = vfmaq_laneq_f32(vc1i2, vb1k0, vai2, 0); 
+                    // vc1i2 = vfmaq_laneq_f32(vc1i2, vb1k1, vai2, 1);
+                    // vc1i2 = vfmaq_laneq_f32(vc1i2, vb1k2, vai2, 2);
+                    // vc1i2 = vfmaq_laneq_f32(vc1i2, vb1k3, vai2, 3);
+
+                    "fmla	%6.4s, v8.4s, v3.s[0] \n"
+                    "fmla	%6.4s, v10.4s, v3.s[1] \n"
+                    "fmla	%6.4s, v12.4s, v3.s[2] \n"
+                    "fmla	%6.4s, v14.4s, v3.s[3] \n"
+                    "fmla	%7.4s, v9.4s, v3.s[0] \n"
+                    "fmla	%7.4s, v11.4s, v3.s[1] \n"
+                    "fmla	%7.4s, v13.4s, v3.s[2] \n"
+                    "fmla	%7.4s, v15.4s, v3.s[3] \n"
+                    // vc0i3 = vfmaq_laneq_f32(vc0i3, vb0k0, vai3, 0);
+                    // vc0i3 = vfmaq_laneq_f32(vc0i3, vb0k1, vai3, 1);
+                    // vc0i3 = vfmaq_laneq_f32(vc0i3, vb0k2, vai3, 2);    
+                    // vc0i3 = vfmaq_laneq_f32(vc0i3, vb0k3, vai3, 3);        
+                    // vc1i3 = vfmaq_laneq_f32(vc1i3, vb1k0, vai3, 0); 
+                    // vc1i3 = vfmaq_laneq_f32(vc1i3, vb1k1, vai3, 1);
+                    // vc1i3 = vfmaq_laneq_f32(vc1i3, vb1k2, vai3, 2);
+                    // vc1i3 = vfmaq_laneq_f32(vc1i3, vb1k3, vai3, 3);
+
+                    "fmla	%8.4s, v8.4s, v4.s[0] \n"
+                    "fmla	%8.4s, v10.4s, v4.s[1] \n"
+                    "fmla	%8.4s, v12.4s, v4.s[2] \n"
+                    "fmla	%8.4s, v14.4s, v4.s[3] \n"
+                    "fmla	%9.4s, v9.4s, v4.s[0] \n"
+                    "fmla	%9.4s, v11.4s, v4.s[1] \n"
+                    "fmla	%9.4s, v13.4s, v4.s[2] \n"
+                    "fmla	%9.4s, v15.4s, v4.s[3] \n"
+                    // vc0i4 = vfmaq_laneq_f32(vc0i4, vb0k0, vai4, 0);
+                    // vc0i4 = vfmaq_laneq_f32(vc0i4, vb0k1, vai4, 1);
+                    // vc0i4 = vfmaq_laneq_f32(vc0i4, vb0k2, vai4, 2);    
+                    // vc0i4 = vfmaq_laneq_f32(vc0i4, vb0k3, vai4, 3);
+                    // vc1i4 = vfmaq_laneq_f32(vc1i4, vb1k0, vai4, 0);
+                    // vc1i4 = vfmaq_laneq_f32(vc1i4, vb1k1, vai4, 1);
+                    // vc1i4 = vfmaq_laneq_f32(vc1i4, vb1k2, vai4, 2);
+                    // vc1i4 = vfmaq_laneq_f32(vc1i4, vb1k3, vai4, 3);
+
+                    "fmla	%10.4s, v8.4s, v5.s[0] \n"
+                    "fmla	%10.4s, v10.4s, v5.s[1] \n"
+                    "fmla	%10.4s, v12.4s, v5.s[2] \n"
+                    "fmla	%10.4s, v14.4s, v5.s[3] \n"
+                    "fmla	%11.4s, v9.4s, v5.s[0] \n"
+                    "fmla	%11.4s, v11.4s, v5.s[1] \n"
+                    "fmla	%11.4s, v13.4s, v5.s[2] \n"
+                    "fmla	%11.4s, v15.4s, v5.s[3] \n"
+                    // vc0i5 = vfmaq_laneq_f32(vc0i5, vb0k0, vai5, 0);
+                    // vc0i5 = vfmaq_laneq_f32(vc0i5, vb0k1, vai5, 1);
+                    // vc0i5 = vfmaq_laneq_f32(vc0i5, vb0k2, vai5, 2);    
+                    // vc0i5 = vfmaq_laneq_f32(vc0i5, vb0k3, vai5, 3);
+                    // vc1i5 = vfmaq_laneq_f32(vc1i5, vb1k0, vai5, 0); 
+                    // vc1i5 = vfmaq_laneq_f32(vc1i5, vb1k1, vai5, 1);
+                    // vc1i5 = vfmaq_laneq_f32(vc1i5, vb1k2, vai5, 2);
+                    // vc1i5 = vfmaq_laneq_f32(vc1i5, vb1k3, vai5, 3);
+
+                    "fmla	%12.4s, v8.4s, v6.s[0] \n"
+                    "fmla	%12.4s, v10.4s, v6.s[1] \n"
+                    "fmla	%12.4s, v12.4s, v6.s[2] \n"
+                    "fmla	%12.4s, v14.4s, v6.s[3] \n"
+                    "fmla	%13.4s, v9.4s, v6.s[0] \n"
+                    "fmla	%13.4s, v11.4s, v6.s[1] \n"
+                    "fmla	%13.4s, v13.4s, v6.s[2] \n"
+                    "fmla	%13.4s, v15.4s, v6.s[3] \n"
+                    // vc0i6 = vfmaq_laneq_f32(vc0i6, vb0k0, vai6, 0);
+                    // vc0i6 = vfmaq_laneq_f32(vc0i6, vb0k1, vai6, 1);
+                    // vc0i6 = vfmaq_laneq_f32(vc0i6, vb0k2, vai6, 2);    
+                    // vc0i6 = vfmaq_laneq_f32(vc0i6, vb0k3, vai6, 3);        
+                    // vc1i6 = vfmaq_laneq_f32(vc1i6, vb1k0, vai6, 0); 
+                    // vc1i6 = vfmaq_laneq_f32(vc1i6, vb1k1, vai6, 1);
+                    // vc1i6 = vfmaq_laneq_f32(vc1i6, vb1k2, vai6, 2);
+                    // vc1i6 = vfmaq_laneq_f32(vc1i6, vb1k3, vai6, 3);
+
+                    "fmla	%14.4s, v8.4s, v7.s[0] \n"
+                    "fmla	%14.4s, v10.4s, v7.s[1] \n"
+                    "fmla	%14.4s, v12.4s, v7.s[2] \n"
+                    "fmla	%14.4s, v14.4s, v7.s[3] \n"
+                    "fmla	%15.4s, v9.4s, v7.s[0] \n"
+                    "fmla	%15.4s, v11.4s, v7.s[1] \n"
+                    "fmla	%15.4s, v13.4s, v7.s[2] \n"
+                    "fmla	%15.4s, v15.4s, v7.s[3] \n"
+                    // vc0i7 = vfmaq_laneq_f32(vc0i7, vb0k0, vai7, 0);
+                    // vc0i7 = vfmaq_laneq_f32(vc0i7, vb0k1, vai7, 1);
+                    // vc0i7 = vfmaq_laneq_f32(vc0i7, vb0k2, vai7, 2);    
+                    // vc0i7 = vfmaq_laneq_f32(vc0i7, vb0k3, vai7, 3);        
+                    // vc1i7 = vfmaq_laneq_f32(vc1i7, vb1k0, vai7, 0); 
+                    // vc1i7 = vfmaq_laneq_f32(vc1i7, vb1k1, vai7, 1);
+                    // vc1i7 = vfmaq_laneq_f32(vc1i7, vb1k2, vai7, 2);
+                    // vc1i7 = vfmaq_laneq_f32(vc1i7, vb1k3, vai7, 3);
+
+                    : "=w"(vc0i0), "=w"(vc1i0), "=w"(vc0i1), "=w"(vc1i1),  // 输出：用w传neon寄存器，用r传普通寄存器
+                      "=w"(vc0i2), "=w"(vc1i2), "=w"(vc0i3), "=w"(vc1i3),  // 取别名 [inptr0] "+r"(inptr0)
+                      "=w"(vc0i4), "=w"(vc1i4), "=w"(vc0i5), "=w"(vc1i5),
+                      "=w"(vc0i6), "=w"(vc1i6), "=w"(vc0i7), "=w"(vc1i7) 
+                    : "0"(vc0i0), "1"(vc1i0), "2"(vc0i1), "3"(vc1i1),  // 输入
+                      "4"(vc0i2), "5"(vc1i2), "6"(vc0i3), "7"(vc1i3),  // 输出里有，所以与输出同号 
+                      "8"(vc0i4), "9"(vc1i4), "10"(vc0i5), "11"(vc1i5),
+                      "12"(vc0i6), "13"(vc1i6), "14"(vc0i7), "15"(vc1i7), 
+                      "r"(pA0), "r"(pA1), "r"(pA2), "r"(pA3),  // 输出16个，前面输入有16个，即这里从32开始，32/33/34/35
+                      "r"(pA4), "r"(pA5), "r"(pA6), "r"(pA7),  // 36/37/38/39
+                      "r"(pB)                                  // 40
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15");
+            }
+            vst1q_f32(C + (i+0) * ldc + j, vc0i0);
+            vst1q_f32(C + (i+0) * ldc + j + 4, vc1i0);
+            vst1q_f32(C + (i+1) * ldc + j, vc0i1);
+            vst1q_f32(C + (i+1) * ldc + j + 4, vc1i1);
+            vst1q_f32(C + (i+2) * ldc + j, vc0i2);
+            vst1q_f32(C + (i+2) * ldc + j + 4, vc1i2);
+            vst1q_f32(C + (i+3) * ldc + j, vc0i3);
+            vst1q_f32(C + (i+3) * ldc + j + 4, vc1i3);
+            vst1q_f32(C + (i+4) * ldc + j, vc0i4);
+            vst1q_f32(C + (i+4) * ldc + j + 4, vc1i4);
+            vst1q_f32(C + (i+5) * ldc + j, vc0i5);
+            vst1q_f32(C + (i+5) * ldc + j + 4, vc1i5);
+            vst1q_f32(C + (i+6) * ldc + j, vc0i6);
+            vst1q_f32(C + (i+6) * ldc + j + 4, vc1i6);
+            vst1q_f32(C + (i+7) * ldc + j, vc0i7);
+            vst1q_f32(C + (i+7) * ldc + j + 4, vc1i7);
+
+            for (; k < kend; k++) {
+                for (int ii=0; ii<8; ii++) {
+                    for (int jj=0; jj<8; jj++) {
+                        C[(i+ii) * ldc + (j+jj)] += A[(i+ii) * lda + k] * pB[jj];
+                    }
+                }
+                pB += 8;
+            }
+        }
+        for (; j < nend; j++) {
+            for (int ii=0; ii<8; ii++) {
+                for (k = kstart; k < kend; ++k) {
+                    C[(i+ii) * ldc + j] += A[(i+ii) * lda + k] * pB[k];
+                }
+            }
+            pB += kend-kstart;
+        }
+    }
+    for (; i < mend; ++i) {
+        int lbid = bid;
+        for (j = nstart; j < nend; j++) {
+            for (k = kstart; k < kend; ++k) {
+                C[i * ldc + j] += A[i * lda + k] * B[lbid++];
+            }
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////
 /// V20 B矩阵转置版本，分block后的原始内层实现
@@ -1575,7 +1868,7 @@ void GemmTilePackTBL2(const int M, const int N, const int K,
     
     int T = 64;
     int nldb;
-    float *nB = (float *)malloc(N * K * sizeof(float));
+    float *nB = (float *)malloc(N * K * sizeof(float)); // float nB[N*K];
     upack(is_transposed_b, T, N, K, B, ldb, nB, &nldb);
 
     // B矩阵根据访问顺序做调整，使其在连续内存上连续访问，此时需要将b的当前访问下标传递进去
@@ -1727,153 +2020,6 @@ void GemmTileL2(const int M, const int N, const int K,
     }
 }
 
-
-
-/// 基于V25，观察到C的累加也不需要赋零，把k的第一次计算拆分出来即可
-/// 无效果，编译后的汇编代码差不多
-void UKernelPBV26(const int mstart, const int mend,
-                 const int nstart, const int nend,
-                 const int kstart, const int kend,
-                 const float *A, const int lda,
-                 const float *B, const int bid,
-                 float *C, const int ldc) {
-
-    int i, j, k;
-    for (i = mstart; i < mend - 7; i += 8) {
-        float *a0 = (float *)A + i * lda;
-        float *a1 = (float *)A + (i+1) * lda;
-        float *a2 = (float *)A + (i+2) * lda;
-        float *a3 = (float *)A + (i+3) * lda;
-        float *a4 = (float *)A + (i+4) * lda;
-        float *a5 = (float *)A + (i+5) * lda;
-        float *a6 = (float *)A + (i+6) * lda;
-        float *a7 = (float *)A + (i+7) * lda;
-
-        int lbid = bid; // bid 只跟j/jj/k三层循环有关，bid由外面的j指定，内部两层循环则这里指定。
-        for (j = nstart; j < nend - 3; j += 4) {
-            float32x4_t va0 = vld1q_f32(a0 + kstart);
-            float32x4_t va1 = vld1q_f32(a1 + kstart);
-            float32x4_t va2 = vld1q_f32(a2 + kstart);
-            float32x4_t va3 = vld1q_f32(a3 + kstart);
-            float32x4_t va4 = vld1q_f32(a4 + kstart);
-            float32x4_t va5 = vld1q_f32(a5 + kstart);
-            float32x4_t va6 = vld1q_f32(a6 + kstart);
-            float32x4_t va7 = vld1q_f32(a7 + kstart);
-
-            float32x4_t vb0j0 = vld1q_f32(B + lbid);
-            float32x4_t vb1j0 = vld1q_f32(B + lbid + 4);
-            float32x4_t vb2j0 = vld1q_f32(B + lbid + 8);
-            float32x4_t vb3j0 = vld1q_f32(B + lbid + 12);
-            lbid += 16;
-
-            float32x4_t vc0 = vmulq_laneq_f32(vb0j0, va0, 0);
-            vc0 = vfmaq_laneq_f32(vc0, vb1j0, va0, 1);
-            vc0 = vfmaq_laneq_f32(vc0, vb2j0, va0, 2);
-            vc0 = vfmaq_laneq_f32(vc0, vb3j0, va0, 3);
-
-            float32x4_t vc1 = vmulq_laneq_f32(vb0j0, va1, 0);
-            vc1 = vfmaq_laneq_f32(vc1, vb1j0, va1, 1);
-            vc1 = vfmaq_laneq_f32(vc1, vb2j0, va1, 2);
-            vc1 = vfmaq_laneq_f32(vc1, vb3j0, va1, 3);
-
-            float32x4_t vc2 = vmulq_laneq_f32(vb0j0, va2, 0);
-            vc2 = vfmaq_laneq_f32(vc2, vb1j0, va2, 1);
-            vc2 = vfmaq_laneq_f32(vc2, vb2j0, va2, 2);
-            vc2 = vfmaq_laneq_f32(vc2, vb3j0, va2, 3);
-
-            float32x4_t vc3 = vmulq_laneq_f32(vb0j0, va3, 0);
-            vc3 = vfmaq_laneq_f32(vc3, vb1j0, va3, 1);
-            vc3 = vfmaq_laneq_f32(vc3, vb2j0, va3, 2);
-            vc3 = vfmaq_laneq_f32(vc3, vb3j0, va3, 3);
-
-            float32x4_t vc4 = vmulq_laneq_f32(vb0j0, va4, 0);
-            vc4 = vfmaq_laneq_f32(vc4, vb1j0, va4, 1);
-            vc4 = vfmaq_laneq_f32(vc4, vb2j0, va4, 2);
-            vc4 = vfmaq_laneq_f32(vc4, vb3j0, va4, 3);
-
-            float32x4_t vc5 = vmulq_laneq_f32(vb0j0, va5, 0);
-            vc5 = vfmaq_laneq_f32(vc5, vb1j0, va5, 1);
-            vc5 = vfmaq_laneq_f32(vc5, vb2j0, va5, 2);
-            vc5 = vfmaq_laneq_f32(vc5, vb3j0, va5, 3);
-
-            float32x4_t vc6 = vmulq_laneq_f32(vb0j0, va6, 0);
-            vc6 = vfmaq_laneq_f32(vc6, vb1j0, va6, 1);
-            vc6 = vfmaq_laneq_f32(vc6, vb2j0, va6, 2);
-            vc6 = vfmaq_laneq_f32(vc6, vb3j0, va6, 3);
-
-            float32x4_t vc7 = vmulq_laneq_f32(vb0j0, va7, 0);
-            vc7 = vfmaq_laneq_f32(vc7, vb1j0, va7, 1);
-            vc7 = vfmaq_laneq_f32(vc7, vb2j0, va7, 2);
-            vc7 = vfmaq_laneq_f32(vc7, vb3j0, va7, 3);
-
-            for (k = kstart + 4; k < kend - 3; k += 4) {
-                va0 = vld1q_f32(a0 + k);
-                va1 = vld1q_f32(a1 + k);
-                va2 = vld1q_f32(a2 + k);
-                va3 = vld1q_f32(a3 + k);
-                va4 = vld1q_f32(a4 + k);
-                va5 = vld1q_f32(a5 + k);
-                va6 = vld1q_f32(a6 + k);
-                va7 = vld1q_f32(a7 + k);
-                
-                vb0j0 = vld1q_f32(B + lbid); 
-                vb1j0 = vld1q_f32(B + lbid + 4);
-                vb2j0 = vld1q_f32(B + lbid + 8);
-                vb3j0 = vld1q_f32(B + lbid + 12);
-                lbid += 16;
-
-                vc0 = vfmaq_laneq_f32(vc0, vb0j0, va0, 0);
-                vc0 = vfmaq_laneq_f32(vc0, vb1j0, va0, 1);
-                vc0 = vfmaq_laneq_f32(vc0, vb2j0, va0, 2);
-                vc0 = vfmaq_laneq_f32(vc0, vb3j0, va0, 3);
-
-                vc1 = vfmaq_laneq_f32(vc1, vb0j0, va1, 0);
-                vc1 = vfmaq_laneq_f32(vc1, vb1j0, va1, 1);
-                vc1 = vfmaq_laneq_f32(vc1, vb2j0, va1, 2);
-                vc1 = vfmaq_laneq_f32(vc1, vb3j0, va1, 3);
-
-                vc2 = vfmaq_laneq_f32(vc2, vb0j0, va2, 0);
-                vc2 = vfmaq_laneq_f32(vc2, vb1j0, va2, 1);
-                vc2 = vfmaq_laneq_f32(vc2, vb2j0, va2, 2);
-                vc2 = vfmaq_laneq_f32(vc2, vb3j0, va2, 3);
-
-                vc3 = vfmaq_laneq_f32(vc3, vb0j0, va3, 0);
-                vc3 = vfmaq_laneq_f32(vc3, vb1j0, va3, 1);
-                vc3 = vfmaq_laneq_f32(vc3, vb2j0, va3, 2);
-                vc3 = vfmaq_laneq_f32(vc3, vb3j0, va3, 3);
-
-                vc4 = vfmaq_laneq_f32(vc4, vb0j0, va4, 0);
-                vc4 = vfmaq_laneq_f32(vc4, vb1j0, va4, 1);
-                vc4 = vfmaq_laneq_f32(vc4, vb2j0, va4, 2);
-                vc4 = vfmaq_laneq_f32(vc4, vb3j0, va4, 3);
-
-                vc5 = vfmaq_laneq_f32(vc5, vb0j0, va5, 0);
-                vc5 = vfmaq_laneq_f32(vc5, vb1j0, va5, 1);
-                vc5 = vfmaq_laneq_f32(vc5, vb2j0, va5, 2);
-                vc5 = vfmaq_laneq_f32(vc5, vb3j0, va5, 3);
-
-                vc6 = vfmaq_laneq_f32(vc6, vb0j0, va6, 0);
-                vc6 = vfmaq_laneq_f32(vc6, vb1j0, va6, 1);
-                vc6 = vfmaq_laneq_f32(vc6, vb2j0, va6, 2);
-                vc6 = vfmaq_laneq_f32(vc6, vb3j0, va6, 3);
-
-                vc7 = vfmaq_laneq_f32(vc7, vb0j0, va7, 0);
-                vc7 = vfmaq_laneq_f32(vc7, vb1j0, va7, 1);
-                vc7 = vfmaq_laneq_f32(vc7, vb2j0, va7, 2);
-                vc7 = vfmaq_laneq_f32(vc7, vb3j0, va7, 3);
-            }
-
-            vst1q_f32(C + i * ldc + j, vc0);
-            vst1q_f32(C + (i+1) * ldc + j, vc1);
-            vst1q_f32(C + (i+2) * ldc + j, vc2);
-            vst1q_f32(C + (i+3) * ldc + j, vc3);
-            vst1q_f32(C + (i+4) * ldc + j, vc4);
-            vst1q_f32(C + (i+5) * ldc + j, vc5);
-            vst1q_f32(C + (i+6) * ldc + j, vc6);
-            vst1q_f32(C + (i+7) * ldc + j, vc7);
-        }
-    }
-}
 
 // 基于V25和V25Asm，发现ldr扎堆在一起
 // 查A55优化手册，ldr的q格式的加载无法进行双发射，只有d格式的才行。
@@ -2072,180 +2218,6 @@ void UKernelPBV27(const int mstart, const int mend,
     }
 }
 
-// V25 内嵌汇编 直接翻译版
-// https://blog.alex.balgavy.eu/a-practical-guide-to-gcc-inline-assembly/
-void UKernelPBV25MixAsm(const int mstart, const int mend,
-                 const int nstart, const int nend,
-                 const int kstart, const int kend,
-                 const float *A, const int lda,
-                 const float *B, const int bid,
-                 float *C, const int ldc) {
-                    
-    float32x4_t zero = vdupq_n_f32(0);
-
-    int i, j, k;
-    for (i = mstart; i < mend - 7; i += 8) {
-        float *a0 = (float *)A + i * lda;
-        float *a1 = (float *)A + (i+1) * lda;
-        float *a2 = (float *)A + (i+2) * lda;
-        float *a3 = (float *)A + (i+3) * lda;
-        float *a4 = (float *)A + (i+4) * lda;
-        float *a5 = (float *)A + (i+5) * lda;
-        float *a6 = (float *)A + (i+6) * lda;
-        float *a7 = (float *)A + (i+7) * lda;
-
-        // int lbid = bid; 
-        float *pB = (float *)B + bid; // bid 只跟j/jj/k三层循环有关，bid由外面的j指定，内部两层循环则这里指定。
-        for (j = nstart; j < nend - 3; j += 4) {
-            float32x4_t vc0 = zero;
-            float32x4_t vc1 = zero;
-            float32x4_t vc2 = zero;
-            float32x4_t vc3 = zero;
-            float32x4_t vc4 = zero;
-            float32x4_t vc5 = zero;
-            float32x4_t vc6 = zero;
-            float32x4_t vc7 = zero;
-
-            for (k = kstart; k < kend - 3; k += 4) {
-
-                float *pA0 = a0 + k;
-                float *pA1 = a1 + k;
-                float *pA2 = a2 + k;
-                float *pA3 = a3 + k;
-                float *pA4 = a4 + k;
-                float *pA5 = a5 + k;
-                float *pA6 = a6 + k;
-                float *pA7 = a7 + k;
-
-                asm volatile(
-                    // "prfm   pldl1keep, [%0, #512]   \n"
-                    "ldr    q0, [%18] \n" // va0
-                    "ldr    q1, [%19] \n"
-                    "ldr    q2, [%20] \n"
-                    "ldr    q3, [%21] \n"
-                    "ldr    q4, [%22] \n"
-                    "ldr    q5, [%23] \n"
-                    "ldr    q6, [%24] \n"
-                    "ldr    q7, [%25] \n"
-                    "ldp	q8, q9, [%8], #32 \n" // q8 = vb0j0, q9 = vb1j0
-                    "ldp	q10, q11, [%8], #32 \n" // q10 = vb2j0, q11 = vb3j0
-                    "fmla	%0.4s, v8.4s, v0.s[0] \n"
-                    "fmla	%0.4s, v9.4s, v0.s[1] \n"
-                    "fmla	%0.4s, v10.4s, v0.s[2] \n"
-                    "fmla	%0.4s, v11.4s, v0.s[3] \n"
-
-                    "fmla	%1.4s, v8.4s, v1.s[0] \n"
-                    "fmla	%1.4s, v9.4s, v1.s[1] \n"
-                    "fmla	%1.4s, v10.4s, v1.s[2] \n"
-                    "fmla	%1.4s, v11.4s, v1.s[3] \n"
-                    
-                    "fmla	%2.4s, v8.4s, v2.s[0] \n"
-                    "fmla	%2.4s, v9.4s, v2.s[1] \n"
-                    "fmla	%2.4s, v10.4s, v2.s[2] \n"
-                    "fmla	%2.4s, v11.4s, v2.s[3] \n"
-
-                    "fmla	%3.4s, v8.4s, v3.s[0] \n"
-                    "fmla	%3.4s, v9.4s, v3.s[1] \n"
-                    "fmla	%3.4s, v10.4s, v3.s[2] \n"
-                    "fmla	%3.4s, v11.4s, v3.s[3] \n"
-
-                    "fmla	%4.4s, v8.4s, v4.s[0] \n"
-                    "fmla	%4.4s, v9.4s, v4.s[1] \n"
-                    "fmla	%4.4s, v10.4s, v4.s[2] \n"
-                    "fmla	%4.4s, v11.4s, v4.s[3] \n"
-
-                    "fmla	%5.4s, v8.4s, v5.s[0] \n"
-                    "fmla	%5.4s, v9.4s, v5.s[1] \n"
-                    "fmla	%5.4s, v10.4s, v5.s[2] \n"
-                    "fmla	%5.4s, v11.4s, v5.s[3] \n"
-
-                    "fmla	%6.4s, v8.4s, v6.s[0] \n"
-                    "fmla	%6.4s, v9.4s, v6.s[1] \n"
-                    "fmla	%6.4s, v10.4s, v6.s[2] \n"
-                    "fmla	%6.4s, v11.4s, v6.s[3] \n"
-
-                    "fmla	%7.4s, v8.4s, v7.s[0] \n"
-                    "fmla	%7.4s, v9.4s, v7.s[1] \n"
-                    "fmla	%7.4s, v10.4s, v7.s[2] \n"
-                    "fmla	%7.4s, v11.4s, v7.s[3] \n"
-
-                    : "=w"(vc0), "=w"(vc1), "=w"(vc2), "=w"(vc3),  // 输出：用w传neon寄存器，用r传普通寄存器
-                      "=w"(vc4), "=w"(vc5), "=w"(vc6), "=w"(vc7),  // 取别名 [inptr0] "+r"(inptr0)
-                      "=r"(pB)
-                    : "0"(vc0), "1"(vc1), "2"(vc2), "3"(vc3),  // 输入
-                      "4"(vc4), "5"(vc5), "6"(vc6), "7"(vc7),  // 输出里有，所以与输出同号 
-                      "8"(pB),                   
-                      "r"(pA0), "r"(pA1), "r"(pA2), "r"(pA3),  // 输出9个，前面输入有9个，即这里从18开始，18/19/20/21
-                      "r"(pA4), "r"(pA5), "r"(pA6), "r"(pA7)  // 22/23/24/25
-                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11");
-
-                // float32x4_t va0 = vld1q_f32(a0 + k);
-                // float32x4_t va1 = vld1q_f32(a1 + k);
-                // float32x4_t va2 = vld1q_f32(a2 + k);
-                // float32x4_t va3 = vld1q_f32(a3 + k);
-                // float32x4_t va4 = vld1q_f32(a4 + k);
-                // float32x4_t va5 = vld1q_f32(a5 + k);
-                // float32x4_t va6 = vld1q_f32(a6 + k);
-                // float32x4_t va7 = vld1q_f32(a7 + k);
-                
-                // float32x4_t vb0j0 = vld1q_f32(pB); 
-                // float32x4_t vb1j0 = vld1q_f32(pB + 4);
-                // float32x4_t vb2j0 = vld1q_f32(pB + 8);
-                // float32x4_t vb3j0 = vld1q_f32(pB + 12);
-                // pB += 16;
-
-                // vc0 = vfmaq_laneq_f32(vc0, vb0j0, va0, 0);
-                // vc0 = vfmaq_laneq_f32(vc0, vb1j0, va0, 1);
-                // vc0 = vfmaq_laneq_f32(vc0, vb2j0, va0, 2);
-                // vc0 = vfmaq_laneq_f32(vc0, vb3j0, va0, 3);
-
-                // vc1 = vfmaq_laneq_f32(vc1, vb0j0, va1, 0);
-                // vc1 = vfmaq_laneq_f32(vc1, vb1j0, va1, 1);
-                // vc1 = vfmaq_laneq_f32(vc1, vb2j0, va1, 2);
-                // vc1 = vfmaq_laneq_f32(vc1, vb3j0, va1, 3);
-
-                // vc2 = vfmaq_laneq_f32(vc2, vb0j0, va2, 0);
-                // vc2 = vfmaq_laneq_f32(vc2, vb1j0, va2, 1);
-                // vc2 = vfmaq_laneq_f32(vc2, vb2j0, va2, 2);
-                // vc2 = vfmaq_laneq_f32(vc2, vb3j0, va2, 3);
-
-                // vc3 = vfmaq_laneq_f32(vc3, vb0j0, va3, 0);
-                // vc3 = vfmaq_laneq_f32(vc3, vb1j0, va3, 1);
-                // vc3 = vfmaq_laneq_f32(vc3, vb2j0, va3, 2);
-                // vc3 = vfmaq_laneq_f32(vc3, vb3j0, va3, 3);
-
-                // vc4 = vfmaq_laneq_f32(vc4, vb0j0, va4, 0);
-                // vc4 = vfmaq_laneq_f32(vc4, vb1j0, va4, 1);
-                // vc4 = vfmaq_laneq_f32(vc4, vb2j0, va4, 2);
-                // vc4 = vfmaq_laneq_f32(vc4, vb3j0, va4, 3);
-
-                // vc5 = vfmaq_laneq_f32(vc5, vb0j0, va5, 0);
-                // vc5 = vfmaq_laneq_f32(vc5, vb1j0, va5, 1);
-                // vc5 = vfmaq_laneq_f32(vc5, vb2j0, va5, 2);
-                // vc5 = vfmaq_laneq_f32(vc5, vb3j0, va5, 3);
-
-                // vc6 = vfmaq_laneq_f32(vc6, vb0j0, va6, 0);
-                // vc6 = vfmaq_laneq_f32(vc6, vb1j0, va6, 1);
-                // vc6 = vfmaq_laneq_f32(vc6, vb2j0, va6, 2);
-                // vc6 = vfmaq_laneq_f32(vc6, vb3j0, va6, 3);
-
-                // vc7 = vfmaq_laneq_f32(vc7, vb0j0, va7, 0);
-                // vc7 = vfmaq_laneq_f32(vc7, vb1j0, va7, 1);
-                // vc7 = vfmaq_laneq_f32(vc7, vb2j0, va7, 2);
-                // vc7 = vfmaq_laneq_f32(vc7, vb3j0, va7, 3);
-            }
-
-            vst1q_f32(C + i * ldc + j, vc0);
-            vst1q_f32(C + (i+1) * ldc + j, vc1);
-            vst1q_f32(C + (i+2) * ldc + j, vc2);
-            vst1q_f32(C + (i+3) * ldc + j, vc3);
-            vst1q_f32(C + (i+4) * ldc + j, vc4);
-            vst1q_f32(C + (i+5) * ldc + j, vc5);
-            vst1q_f32(C + (i+6) * ldc + j, vc6);
-            vst1q_f32(C + (i+7) * ldc + j, vc7);
-        }
-    }
-}
 
 // 基于V25MixAsm，手动调流水
 // 1. 拆分%0/1/2/3的累计的写后读依赖；
@@ -2795,327 +2767,6 @@ void UKernelPBV25MixAsmOptV2(const int mstart, const int mend,
 }
 
 
-// 基于GemmTilePackBL2，将nB矩阵从堆放到栈中，能得到轻微加速(0.087100s -> 0.086598s)
-void GemmTilePackBL2V2(const int M, const int N, const int K,
-                  const float *A, const int lda,
-                  const float *B, const int ldb,
-                  float *C, const int ldc, UKernelFunc ukernel) {
-    int i, ii, j, jj, k, kk;
-    memset(C, 0, sizeof(float) * ldc * M);
-    
-    int T = 64;
-     
-    int nldb;
-    float nB[N*K];
-    PackB4x4V2(T, N, K, B, ldb, nB);
-
-    int bid = 0;
-    for (i = 0; i < M; i += T) {
-        for (j = 0; j < N; j += T) {
-            bid = j * K;
-            ukernel(i, std::min(i + T, M),
-                    j, std::min(j + T, N),
-                    0, K,
-                    A, lda, nB, bid, C, ldc);
-        }
-    }
-}
-
-// V30, 基于UKernelPBV25对A也进行Pack 使其内层连续, 但实测packA的代价高于A的访存收益，导致整体耗时反而轻微增加
-void UKernelPABV30(const int mstart, const int mend,
-                 const int nstart, const int nend,
-                 const int kstart, const int kend,
-                 const float *A, const int aid,
-                 const float *B, const int bid, 
-                 float *C, const int ldc) {
-                    
-    int i, j, k;
-    float32x4_t zero = vdupq_n_f32(0);
-    for (i = mstart; i < mend - 7; i += 8) {
-        int iaid = i * kend;
-        int lbid = bid; // bid 不能把i循环包含在内，所以每次这里刷新
-        for (j = nstart; j < nend - 3; j += 4) {
-            float32x4_t vc0 = zero;
-            float32x4_t vc1 = zero;
-            float32x4_t vc2 = zero;
-            float32x4_t vc3 = zero;
-            float32x4_t vc4 = zero;
-            float32x4_t vc5 = zero;
-            float32x4_t vc6 = zero;
-            float32x4_t vc7 = zero;  
-
-            int laid = iaid; // aid 不能把j循环包含在内，只算i的，所以每次这里刷新
-            for (k = kstart; k < kend - 3; k += 4) {
-                float32x4_t va0 = vld1q_f32(A + laid);
-                float32x4_t va1 = vld1q_f32(A + laid + 4);
-                float32x4_t va2 = vld1q_f32(A + laid + 8);
-                float32x4_t va3 = vld1q_f32(A + laid + 12);
-                float32x4_t va4 = vld1q_f32(A + laid + 16);
-                float32x4_t va5 = vld1q_f32(A + laid + 20);
-                float32x4_t va6 = vld1q_f32(A + laid + 24);
-                float32x4_t va7 = vld1q_f32(A + laid + 28);
-                laid += 32;
-                
-                float32x4_t vb0j0 = vld1q_f32(B + lbid); 
-                float32x4_t vb1j0 = vld1q_f32(B + lbid + 4);
-                float32x4_t vb2j0 = vld1q_f32(B + lbid + 8);
-                float32x4_t vb3j0 = vld1q_f32(B + lbid + 12);
-                lbid += 16;
-
-                vc0 = vfmaq_laneq_f32(vc0, vb0j0, va0, 0);
-                vc0 = vfmaq_laneq_f32(vc0, vb1j0, va0, 1);
-                vc0 = vfmaq_laneq_f32(vc0, vb2j0, va0, 2);
-                vc0 = vfmaq_laneq_f32(vc0, vb3j0, va0, 3);
-
-                vc1 = vfmaq_laneq_f32(vc1, vb0j0, va1, 0);
-                vc1 = vfmaq_laneq_f32(vc1, vb1j0, va1, 1);
-                vc1 = vfmaq_laneq_f32(vc1, vb2j0, va1, 2);
-                vc1 = vfmaq_laneq_f32(vc1, vb3j0, va1, 3);
-
-                vc2 = vfmaq_laneq_f32(vc2, vb0j0, va2, 0);
-                vc2 = vfmaq_laneq_f32(vc2, vb1j0, va2, 1);
-                vc2 = vfmaq_laneq_f32(vc2, vb2j0, va2, 2);
-                vc2 = vfmaq_laneq_f32(vc2, vb3j0, va2, 3);
-
-                vc3 = vfmaq_laneq_f32(vc3, vb0j0, va3, 0);
-                vc3 = vfmaq_laneq_f32(vc3, vb1j0, va3, 1);
-                vc3 = vfmaq_laneq_f32(vc3, vb2j0, va3, 2);
-                vc3 = vfmaq_laneq_f32(vc3, vb3j0, va3, 3);
-
-                vc4 = vfmaq_laneq_f32(vc4, vb0j0, va4, 0);
-                vc4 = vfmaq_laneq_f32(vc4, vb1j0, va4, 1);
-                vc4 = vfmaq_laneq_f32(vc4, vb2j0, va4, 2);
-                vc4 = vfmaq_laneq_f32(vc4, vb3j0, va4, 3);
-
-                vc5 = vfmaq_laneq_f32(vc5, vb0j0, va5, 0);
-                vc5 = vfmaq_laneq_f32(vc5, vb1j0, va5, 1);
-                vc5 = vfmaq_laneq_f32(vc5, vb2j0, va5, 2);
-                vc5 = vfmaq_laneq_f32(vc5, vb3j0, va5, 3);
-
-                vc6 = vfmaq_laneq_f32(vc6, vb0j0, va6, 0);
-                vc6 = vfmaq_laneq_f32(vc6, vb1j0, va6, 1);
-                vc6 = vfmaq_laneq_f32(vc6, vb2j0, va6, 2);
-                vc6 = vfmaq_laneq_f32(vc6, vb3j0, va6, 3);
-
-                vc7 = vfmaq_laneq_f32(vc7, vb0j0, va7, 0);
-                vc7 = vfmaq_laneq_f32(vc7, vb1j0, va7, 1);
-                vc7 = vfmaq_laneq_f32(vc7, vb2j0, va7, 2);
-                vc7 = vfmaq_laneq_f32(vc7, vb3j0, va7, 3);
-            }
-            // for (; k < kend; ++k) {
-            //     C[i * ldc + j] += A[laid++] * B[lbid++];
-            // }
-
-            vst1q_f32(C + i * ldc + j, vc0);
-            vst1q_f32(C + (i+1) * ldc + j, vc1);
-            vst1q_f32(C + (i+2) * ldc + j, vc2);
-            vst1q_f32(C + (i+3) * ldc + j, vc3);
-            vst1q_f32(C + (i+4) * ldc + j, vc4);
-            vst1q_f32(C + (i+5) * ldc + j, vc5);
-            vst1q_f32(C + (i+6) * ldc + j, vc6);
-            vst1q_f32(C + (i+7) * ldc + j, vc7);
-        }
-        // for (; j < nend; ++j) {
-        //     int laid = i * kend;
-        //     for (k = kstart; k < kend; k++) {
-        //         C[i * ldc + j] += A[laid++] * B[lbid++];
-        //     }
-        // }
-    }
-    // for (; i < mend; ++i) {
-    //     int lbid = bid;
-    //     for (j = nstart; j < nend; j++) {
-    //         int laid = i * kend;
-    //         for (k = kstart; k < kend; ++k) {
-    //             C[i * ldc + j] += A[laid++] * B[lbid++];
-    //         }
-    //     }
-    // }
-}
-
-void UKernelPABV30MixASM(const int mstart, const int mend,
-                 const int nstart, const int nend,
-                 const int kstart, const int kend,
-                 const float *A, const int aid,
-                 const float *B, const int bid, 
-                 float *C, const int ldc) {
-                    
-    int i, j, k;
-    float32x4_t zero = vdupq_n_f32(0);
-    for (i = mstart; i < mend - 7; i += 8) {
-        int iaid = i * kend;
-        float *pA = (float *)A + iaid;
-        float *pB = (float *)B + bid; // bid 不能把i循环包含在内，所以每次这里刷新
-        for (j = nstart; j < nend - 3; j += 4) {
-            float32x4_t vc0 = zero;
-            float32x4_t vc1 = zero;
-            float32x4_t vc2 = zero;
-            float32x4_t vc3 = zero;
-            float32x4_t vc4 = zero;
-            float32x4_t vc5 = zero;
-            float32x4_t vc6 = zero;
-            float32x4_t vc7 = zero;  
-
-            pA = (float *)A + iaid;// aid 不能把j循环包含在内，只算i的，所以每次这里刷新
-            for (k = kstart; k < kend - 3; k += 4) {
-
-                asm volatile(
-                    // 
-                    // "ld1 {v0.4s, v1.4s, v2.4s, v3.4s}, [%8], #64\n"
-                    // "ld1 {v4.4s, v5.4s, v6.4s, v7.4s}, [%8], #64\n"
-
-                    // "ldr	q0, [%8], #16 \n" 
-                    // "ldr	q1, [%8], #16 \n"
-                    // "ldr	q2, [%8], #16 \n" 
-                    // "ldr	q3, [%8], #16 \n" 
-                    // "ldr	q4, [%8], #16 \n" 
-                    // "ldr	q5, [%8], #16 \n" 
-                    // "ldr	q6, [%8], #16 \n" 
-                    // "ldr	q7, [%8], #16 \n"
-
-                    "ldp	q0, q1, [%8], #32 \n" 
-                    "ldp	q2, q3, [%8], #32 \n" 
-                    "ldp	q4, q5, [%8], #32 \n" 
-                    "ldp	q6, q7, [%8], #32 \n"
-                    "prfm   pldl1keep, [%8, #640]   \n"
-
-                    "ldp	q8, q9, [%9], #32 \n" // q8 = vb0j0, q9 = vb1j0
-                    "ldp	q10, q11, [%9], #32 \n" // q10 = vb2j0, q11 = vb3j0
-                    "prfm   pldl1keep, [%9, #640]   \n"
-
-                    "fmla	%0.4s, v8.4s, v0.s[0] \n"
-                    "fmla	%1.4s, v8.4s, v1.s[0] \n"
-                    "fmla	%2.4s, v8.4s, v2.s[0] \n"
-                    "fmla	%3.4s, v8.4s, v3.s[0] \n"
-                    "fmla	%4.4s, v8.4s, v4.s[0] \n"
-                    "fmla	%5.4s, v8.4s, v5.s[0] \n"
-                    "fmla	%6.4s, v8.4s, v6.s[0] \n"
-                    "fmla	%7.4s, v8.4s, v7.s[0] \n"
-
-                    "fmla	%0.4s, v9.4s, v0.s[1] \n"
-                    "fmla	%1.4s, v9.4s, v1.s[1] \n"
-                    "fmla	%2.4s, v9.4s, v2.s[1] \n"
-                    "fmla	%3.4s, v9.4s, v3.s[1] \n"
-                    "fmla	%4.4s, v9.4s, v4.s[1] \n"
-                    "fmla	%5.4s, v9.4s, v5.s[1] \n"
-                    "fmla	%6.4s, v9.4s, v6.s[1] \n"
-                    "fmla	%7.4s, v9.4s, v7.s[1] \n"
-
-                    "fmla	%0.4s, v10.4s, v0.s[2] \n"
-                    "fmla	%1.4s, v10.4s, v1.s[2] \n"
-                    "fmla	%2.4s, v10.4s, v2.s[2] \n"
-                    "fmla	%3.4s, v10.4s, v3.s[2] \n"
-                    "fmla	%4.4s, v10.4s, v4.s[2] \n"      
-                    "fmla	%5.4s, v10.4s, v5.s[2] \n"
-                    "fmla	%6.4s, v10.4s, v6.s[2] \n"
-                    "fmla	%7.4s, v10.4s, v7.s[2] \n"
-
-                    "fmla	%0.4s, v11.4s, v0.s[3] \n"
-                    "fmla	%1.4s, v11.4s, v1.s[3] \n"
-                    "fmla	%2.4s, v11.4s, v2.s[3] \n"
-                    "fmla	%3.4s, v11.4s, v3.s[3] \n"
-                    "fmla	%4.4s, v11.4s, v4.s[3] \n"
-                    "fmla	%5.4s, v11.4s, v5.s[3] \n"
-                    "fmla	%6.4s, v11.4s, v6.s[3] \n"
-                    "fmla	%7.4s, v11.4s, v7.s[3] \n"
-
-                    : "=w"(vc0), "=w"(vc1), "=w"(vc2), "=w"(vc3),  // 输出：用w传neon寄存器，用r传普通寄存器
-                      "=w"(vc4), "=w"(vc5), "=w"(vc6), "=w"(vc7),  // 取别名 [inptr0] "+r"(inptr0)
-                      "=r"(pA), "=r"(pB)
-                    : "0"(vc0), "1"(vc1), "2"(vc2), "3"(vc3),  // 输入
-                      "4"(vc4), "5"(vc5), "6"(vc6), "7"(vc7),  // 输出里有，所以与输出同号 
-                      "8"(pA), "9"(pB)
-                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11");
-
-                // float32x4_t va0 = vld1q_f32(pA);
-                // float32x4_t va1 = vld1q_f32(pA + 4);
-                // float32x4_t va2 = vld1q_f32(pA + 8);
-                // float32x4_t va3 = vld1q_f32(pA + 12);
-                // float32x4_t va4 = vld1q_f32(pA + 16);
-                // float32x4_t va5 = vld1q_f32(pA + 20);
-                // float32x4_t va6 = vld1q_f32(pA + 24);
-                // float32x4_t va7 = vld1q_f32(pA + 28);
-                // pA += 32;
-                
-                // float32x4_t vb0j0 = vld1q_f32(pB); 
-                // float32x4_t vb1j0 = vld1q_f32(pB + 4);
-                // float32x4_t vb2j0 = vld1q_f32(pB + 8);
-                // float32x4_t vb3j0 = vld1q_f32(pB + 12);
-                // pB += 16;
-
-                // vc0 = vfmaq_laneq_f32(vc0, vb0j0, va0, 0);
-                // vc0 = vfmaq_laneq_f32(vc0, vb1j0, va0, 1);
-                // vc0 = vfmaq_laneq_f32(vc0, vb2j0, va0, 2);
-                // vc0 = vfmaq_laneq_f32(vc0, vb3j0, va0, 3);
-
-                // vc1 = vfmaq_laneq_f32(vc1, vb0j0, va1, 0);
-                // vc1 = vfmaq_laneq_f32(vc1, vb1j0, va1, 1);
-                // vc1 = vfmaq_laneq_f32(vc1, vb2j0, va1, 2);
-                // vc1 = vfmaq_laneq_f32(vc1, vb3j0, va1, 3);
-
-                // vc2 = vfmaq_laneq_f32(vc2, vb0j0, va2, 0);
-                // vc2 = vfmaq_laneq_f32(vc2, vb1j0, va2, 1);
-                // vc2 = vfmaq_laneq_f32(vc2, vb2j0, va2, 2);
-                // vc2 = vfmaq_laneq_f32(vc2, vb3j0, va2, 3);
-
-                // vc3 = vfmaq_laneq_f32(vc3, vb0j0, va3, 0);
-                // vc3 = vfmaq_laneq_f32(vc3, vb1j0, va3, 1);
-                // vc3 = vfmaq_laneq_f32(vc3, vb2j0, va3, 2);
-                // vc3 = vfmaq_laneq_f32(vc3, vb3j0, va3, 3);
-
-                // vc4 = vfmaq_laneq_f32(vc4, vb0j0, va4, 0);
-                // vc4 = vfmaq_laneq_f32(vc4, vb1j0, va4, 1);
-                // vc4 = vfmaq_laneq_f32(vc4, vb2j0, va4, 2);
-                // vc4 = vfmaq_laneq_f32(vc4, vb3j0, va4, 3);
-
-                // vc5 = vfmaq_laneq_f32(vc5, vb0j0, va5, 0);
-                // vc5 = vfmaq_laneq_f32(vc5, vb1j0, va5, 1);
-                // vc5 = vfmaq_laneq_f32(vc5, vb2j0, va5, 2);
-                // vc5 = vfmaq_laneq_f32(vc5, vb3j0, va5, 3);
-
-                // vc6 = vfmaq_laneq_f32(vc6, vb0j0, va6, 0);
-                // vc6 = vfmaq_laneq_f32(vc6, vb1j0, va6, 1);
-                // vc6 = vfmaq_laneq_f32(vc6, vb2j0, va6, 2);
-                // vc6 = vfmaq_laneq_f32(vc6, vb3j0, va6, 3);
-
-                // vc7 = vfmaq_laneq_f32(vc7, vb0j0, va7, 0);
-                // vc7 = vfmaq_laneq_f32(vc7, vb1j0, va7, 1);
-                // vc7 = vfmaq_laneq_f32(vc7, vb2j0, va7, 2);
-                // vc7 = vfmaq_laneq_f32(vc7, vb3j0, va7, 3);
-            }
-            // for (; k < kend; ++k) {
-            //     C[i * ldc + j] += A[laid++] * B[lbid++];
-            // }
-
-            vst1q_f32(C + i * ldc + j, vc0);
-            vst1q_f32(C + (i+1) * ldc + j, vc1);
-            vst1q_f32(C + (i+2) * ldc + j, vc2);
-            vst1q_f32(C + (i+3) * ldc + j, vc3);
-            vst1q_f32(C + (i+4) * ldc + j, vc4);
-            vst1q_f32(C + (i+5) * ldc + j, vc5);
-            vst1q_f32(C + (i+6) * ldc + j, vc6);
-            vst1q_f32(C + (i+7) * ldc + j, vc7);
-        }
-        // for (; j < nend; ++j) {
-        //     int laid = i * kend;
-        //     for (k = kstart; k < kend; k++) {
-        //         C[i * ldc + j] += A[laid++] * B[lbid++];
-        //     }
-        // }
-    }
-    // for (; i < mend; ++i) {
-    //     int lbid = bid;
-    //     for (j = nstart; j < nend; j++) {
-    //         int laid = i * kend;
-    //         for (k = kstart; k < kend; ++k) {
-    //             C[i * ldc + j] += A[laid++] * B[lbid++];
-    //         }
-    //     }
-    // }
-}
-
-
-
 // v26，基于v25。考虑到pack都是在循环前统一进行的，即pack的时候数据加载进cache，在计算时仍然需要从内存加载进cache。
 //      两次进cache的过程可以省略掉一次. (矩阵较大时不适用？因为会超过L1的范围（64B）)
 void GemmTileL2PackABV31(const int M, const int N, const int K,
@@ -3314,71 +2965,6 @@ void GemmTileL2PackABV31(const int M, const int N, const int K,
     // free(nA);
 }
 
-extern "C" void UKernelPABV30Asm(const int mstart, const int mend,
-                 const int nstart, const int nend,
-                 const int kstart, const int kend,
-                 const float *A, const int lda,
-                 const float *B, const int bid,
-                 float *C, const int ldc);
-
-void GemmTilePackABL2(const int M, const int N, const int K,
-                  const float *A, const int lda,
-                  const float *B, const int ldb,
-                  float *C, const int ldc, UKernelFunc ukernel) {
-
-    int i, ii, j, jj, k, kk;
-    memset(C, 0, sizeof(float) * ldc * M);
-    
-    int T = 64;
-     
-    float *nB = (float *)malloc(N * K * sizeof(float));
-    float *nA = (float *)malloc(M * K * sizeof(float));
-    PackB4x4V2(T, N, K, B, ldb, nB);
-    PackA8x4V2(T, M, K, A, lda, nA);
-
-    int aid = 0;
-    int bid = 0;
-    for (i = 0; i < M; i += T) {
-        for (j = 0; j < N; j += T) {
-            bid = j * K;
-            ukernel(i, std::min(i + T, M),
-                    j, std::min(j + T, N),
-                    0, K,
-                    nA, aid, nB, bid, C, ldc);
-        }
-    }
-
-    free(nB);
-    free(nA);
-}
-
-void GemmTilePackABL2V2(const int M, const int N, const int K,
-                  const float *A, const int lda,
-                  const float *B, const int ldb,
-                  float *C, const int ldc, UKernelFunc ukernel) {
-
-    int i, ii, j, jj, k, kk;
-    memset(C, 0, sizeof(float) * ldc * M);
-    
-    int T = 64;
-     
-    float nB[N*K];
-    float nA[M*K];
-    PackB4x4V2(T, N, K, B, ldb, nB);
-    PackA8x4V2(T, M, K, A, lda, nA);
-
-    int aid = 0;
-    int bid = 0;
-    for (i = 0; i < M; i += T) {
-        for (j = 0; j < N; j += T) {
-            bid = j * K;
-            ukernel(i, std::min(i + T, M),
-                    j, std::min(j + T, N),
-                    0, K,
-                    nA, aid, nB, bid, C, ldc);
-        }
-    }
-}
 
 #define TEST_MODULE(func)                                     \
     do {                                                      \
@@ -3458,7 +3044,7 @@ int main() {
     TEST_MODULE_UKERNEL(GemmTile, UKernelV8); // 尝试展开k，基于k复用vc的读写，C矩阵的加载和写回节省了3/4。
     TEST_MODULE_UKERNEL(GemmTile, UKernelV9); // 对i进行展开，提高计算访存比
     TEST_MODULE_UKERNEL(GemmTile, UKernelV10); // 调整循环顺序，减少C矩阵读写次数；但也导致B矩阵的最内层循环访存不连续，cache miss加重。
-    TEST_MODULE_PACK_UKERNEL(GemmTilePackTBL2, PackTB2B, false, UKernelV10, false); // 与下面的 GemmTilePackTBL2UKernelV10 对应
+    TEST_MODULE_PACK_UKERNEL(GemmTilePackTBL2, PackTB2B, false, UKernelV10, false); // 与下面的 GemmTilePackTBL2UKernelV10 对应, 仅供参考，表示二者相对应
     TEST_MODULE_PACK_UKERNEL(GemmTilePackTBL2, PackTB2BC, false, UKernelV11, true); 
     TEST_MODULE_PACK_UKERNEL(GemmTilePackTBL2, PackTB2BC, false, UKernelV13, true); 
     TEST_MODULE_PACK_UKERNEL(GemmTilePackTBL2, PackTB2BC, false, UKernelV13Asm, true); 
@@ -3484,20 +3070,10 @@ int main() {
     TEST_MODULE_PACK_UKERNEL(GemmTilePackATBL2, PackTB2BC, true, UKernelV14, true); // 进一步Pack A, 收益不大；有bug, N维度上的边界数据没排对, 如N能被4整除，结果是对的
 
 
-    // TEST_MODULE_UKERNEL(GemmTilePackBL2V2, UKernelPBV25MixAsm);
     // TEST_MODULE_UKERNEL(GemmTilePackBL2V2, UKernelPBV25MixAsmOpt);
     // TEST_MODULE_UKERNEL(GemmTilePackBL2V2, UKernelPBV25MixAsmOptV2);
-
-    // TEST_MODULE_UKERNEL(GemmTilePackBL2V2, UKernelPBV26);    // 没啥用
     // TEST_MODULE_UKERNEL(GemmTilePackBL2V2, UKernelPBV27);
-
-    // TEST_MODULE_UKERNEL(GemmTilePackABL2, UKernelPABV30); // PackA和B
-    // TEST_MODULE_UKERNEL(GemmTilePackABL2V2, UKernelPABV30);  // AB用栈，与UKernelPBV25对标
     // TEST_MODULE(GemmTileL2PackABV31); // 将pack藏入到kernel中
-    // TEST_MODULE_UKERNEL(GemmTilePackABL2V2, UKernelPABV30Asm);
-    // TEST_MODULE_UKERNEL(GemmTilePackABL2V2, UKernelPABV30MixASM);
-    // // TEST_MODULE_UKERNEL(GemmTilePackBL2V2, UKernelPBV25MixAsm);
-
     // TEST_MODULE_UKERNEL(GemmTilePackBL2V3, UKernelPBV25Asm);
 
     /*
