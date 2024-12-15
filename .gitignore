@@ -17,5 +17,6 @@ bld/
 */env/bin
 */env/build-*
 */spv
+*/*/spv
 */a.out
 */*/a.out

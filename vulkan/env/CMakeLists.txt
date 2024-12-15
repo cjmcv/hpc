@@ -35,7 +35,7 @@ include_directories(${INCLUDE_DIR})
 	
 # Source GLOB_RECURSE
 file(GLOB SRC_LIST 
-    "${CMAKE_CURRENT_SOURCE_DIR}/../${MAIN_SRC}" # PROJECT_SOURCE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../main_gemm.cpp" # PROJECT_SOURCE_DIR
     # Include
     # "${INCLUDE_DIR}/*.h"
 )

@@ -1,7 +1,7 @@
 
 #include <cmath>
 #include "pocket-ai/engine/vk/engine.hpp"
-#include "pocket-ai/prof/timer.hpp"
+// #include "pocket-ai/prof/timer.hpp"
 
 using namespace pai;
 
@@ -20,47 +20,6 @@ void SetParamsGemm(vk::KernelParams *params) {
     params->push_constant_num = 3; // Prepare for M N K
 }
 
-void TestBaseKernel(vk::Engine *engine, std::string kernel_name) {
-    PAI_LOGS(">>> %s: ", kernel_name.c_str());
-
-    uint32_t len = 640 * 640;
-    uint32_t size = sizeof(float) * len;
-    vk::Buffer *input_buffer0 = engine->CreateBuffer(size);
-    vk::Buffer *input_buffer1 = engine->CreateBuffer(size);
-    vk::Buffer *output_buffer = engine->CreateBuffer(size);
-    std::vector<vk::Buffer *> input_buffers = {input_buffer0, input_buffer1};
-    std::vector<vk::Buffer *> output_buffers = {output_buffer};
-
-    float *mapped_data0 = (float *)input_buffer0->MapMemory(0, input_buffer0->buffer_size());
-    float *mapped_data1 = (float *)input_buffer1->MapMemory(0, input_buffer1->buffer_size());
-    for (uint32_t i = 0; i < len; i++) {
-        mapped_data0[i] = 1;
-        mapped_data1[i] = 1;
-    }
-    input_buffer0->UnmapMemory();
-    input_buffer1->UnmapMemory();
-
-    for (uint32_t i = 0; i < 1; i++) {
-        uint32_t p[2] = {12, 23};
-        uint32_t num_xyz[3] = {640, 640, 1};
-        engine->Run("engine_test", num_xyz, input_buffers, sizeof(uint32_t) * 2, p, output_buffers);
-
-        {
-            vk::Buffer *buffer = output_buffers[0];
-            float *mapped_data = (float *)buffer->MapMemory(0, buffer->buffer_size());
-            PAI_LOGS("<<< Out: (%f, %f, %f, %f) - (%f, %f, %f, %f)\n", 
-                    mapped_data[0], mapped_data[1], mapped_data[2], mapped_data[3], 
-                    mapped_data[4], mapped_data[5], mapped_data[6], mapped_data[7]);
-            buffer->UnmapMemory();
-        }
-    }
-
-    for (uint32_t i = 0; i < input_buffers.size(); i++)
-        delete input_buffers[i];
-    for (uint32_t i = 0; i < output_buffers.size(); i++)
-        delete output_buffers[i];
-}
-
 void TestGemm(vk::Engine *engine, std::string kernel_name, int step) {
     PAI_LOGS(">>> %s: ", kernel_name.c_str());
 
@@ -73,7 +32,8 @@ void TestGemm(vk::Engine *engine, std::string kernel_name, int step) {
     std::vector<vk::Buffer *> output_buffers = {output_buffer};
 
     uint32_t loop_cnt = 10;
-    prof::Timer timer(kernel_name, loop_cnt);
+    // prof::Timer timer(kernel_name, loop_cnt);
+    double acc_duration_ms = 0;
     for (uint32_t i = 0; i < loop_cnt; i++) {
         float *mapped_data0 = (float *)input_buffer0->MapMemory(0, input_buffer0->buffer_size());
         float *mapped_data1 = (float *)input_buffer1->MapMemory(0, input_buffer1->buffer_size());
@@ -88,15 +48,13 @@ void TestGemm(vk::Engine *engine, std::string kernel_name, int step) {
         input_buffer1->UnmapMemory();
         output_buffer->UnmapMemory();
 
-        timer.Start();
-
+        double duration_ms = 0;
         uint32_t push_const[3] = {height_a, width_b, width_a}; // M N K
         uint32_t num_xyz[3] = {width_b/step, height_a/step, 1};
-        engine->Run(kernel_name, num_xyz, input_buffers, 3*sizeof(uint32_t), push_const, output_buffers);
+        engine->Run(kernel_name, num_xyz, input_buffers, 3*sizeof(uint32_t), push_const, output_buffers, &duration_ms);
 
-        timer.Stop(0, "Kernel Run");
+        acc_duration_ms += duration_ms;
     }
-    timer.Print(0, loop_cnt);
 
     // Check result.
     { 
@@ -110,7 +68,7 @@ void TestGemm(vk::Engine *engine, std::string kernel_name, int step) {
                 // printf("%f, ", mapped_data[i * width_b + j]);
             }
         }
-        PAI_LOGS(" <<< Out: %f.\n", mean / (height_a * width_b));
+        PAI_LOGS("%f ms <<< Out: %f.\n", acc_duration_ms / loop_cnt, mean / (height_a * width_b));
         buffer->UnmapMemory();
     }
 
@@ -128,7 +86,7 @@ int main() {
     shaders_name.push_back(std::make_pair("gemm_fp32_v2", SetParamsGemm));
     shaders_name.push_back(std::make_pair("gemm_fp32_v3", SetParamsGemm));
 
-    engine.Init("../spv", shaders_name, 0, true);
+    engine.Init("./spv", shaders_name, 0, true, true);
 
     TestGemm(&engine, "gemm_fp32_v1", 1);
     TestGemm(&engine, "gemm_fp32_v2", 4);
