@@ -6,7 +6,7 @@
 #include "time.h"
 
 #include "pocket-ai/engine/cu/common.hpp"
-#include "pocket-ai/engine/cu/common_mma.hpp"
+#include "pocket-ai/engine/cu/common_ptx.hpp"
 
 using namespace pai::cu;
 
@@ -115,6 +115,11 @@ __global__ void GemmKernelv1(const int M, const int N, const int K,
 }
 
 // wmma v1.
+// 由上面的GemmKernelv1直接一一对应改写。
+// wmma以warp为单位计算，一个warp有32个线程，则x方向32个线程为一个warp，需要将线程的gid转换为warp的wid。
+// 然后一个warp处理一个tile的数据，围绕输出矩阵C来布局warp负责的区域，一个warp负责C矩阵的一个tile。
+// 对于C矩阵tile的访问偏移量，需要按wid来换算，一个tile的M方向长度为WMMA_M，n方向为WMMA_N，wid对应相乘得到对应方向的数据偏移量。
+// 对于每个C矩阵的tile，每个warp需要循环遍历K方向对A和B矩阵相关tile完成乘累加操作。
 template <int WMMA_M, int WMMA_N, int WMMA_K>
 __global__ void GemmWmmaKernelv1(const int M, const int N, const int K,
                                 const half* __restrict__ A, const int lda,
@@ -137,14 +142,14 @@ __global__ void GemmWmmaKernelv1(const int M, const int N, const int K,
         return;
     }
 
-    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, wmma::row_major> A_frag;
+    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, wmma::row_major> A_frag; // A矩阵，半精度，行优先(即一行内的元素是连续的)
     wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, __half, wmma::row_major> B_frag;
     wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, __half> C_frag;
     wmma::fill_fragment(C_frag, 0.0);
 
-    for (int fid_K = 0; fid_K < K; fid_K += WMMA_K) {
-        wmma::load_matrix_sync(A_frag, A + fid_y * lda + fid_K, lda);
-        wmma::load_matrix_sync(B_frag, B + fid_K * ldb + fid_x, ldb);
+    for (int fid_k = 0; fid_k < K; fid_k += WMMA_K) {
+        wmma::load_matrix_sync(A_frag, A + fid_y * lda + fid_k, lda);
+        wmma::load_matrix_sync(B_frag, B + fid_k * ldb + fid_x, ldb);
 
         wmma::mma_sync(C_frag, A_frag, B_frag, C_frag);
     }
@@ -186,14 +191,15 @@ __global__ void GemmWmmaKernelv1(const int M, const int N, const int K,
 //   255行: 252, 253, 254, 255
 //
 // 计算时fragment布局：
-//   处理单元为16x16，则TC[128][256] = 8x16个wmma，即一个warp需要处理16个[16,16] = 4x4个[16,16]
-//   w0, w1, w2, w3,  => 一个warp处理临近4x4个16x16
+//   wmma处理单元为16x16，则TC[128][256] = 8x16个wmma，TC是一个block的任务量，即一个block8个warp，则一个warp需要处理16个[16,16]，可划分成4x4个[16,16]
+//   w0, w1, w2, w3,  => 一个warp处理临近4x4个16x16，N方向4x16x4(warp)=256, M方向4x16x2(warp)=128
 //   w4，w5, w6, w7
-// 则4x4个16x16 warp子块计算，则需要4x4的frag_acc，分别累加。
+// 则一个warp负责的4x4个16x16子块计算，则需要4x4的frag_acc，分别累加。
 // 
 // 因为block子块k方向为32，可凑够2个16，可全部取出一次算完。
 // 则可以使用frag_a[4][2]和frag_b[2][4]来计算得到frag_c[4][4].
-//
+// AB矩阵从共享内存中读取会被重复访问，不需要再考虑warp的布局问题，根据frag_c所需数据对应读取即可。
+// 
 // 《《《 bank conflict 》》》
 // https://zhuanlan.zhihu.com/p/603016056
 // 共享内存中的bank冲突问题（定义一个warp的不同线程访问同一个bank的不同位置）：
@@ -235,7 +241,78 @@ __global__ void GemmWmmaKernelv1(const int M, const int N, const int K,
 //  16:  ........
 //  则所有线程都不会调用到同一个bank，达到conflict free的效果。
 
+////  LAYOUT_IDX_CVT ////
+// a分块128*32对应256个线程，一个线程读16个数据，为使用向量化读取。
+// 将共享内存按float4来处理，为128*8个half=128*4个float4, 即一个线程读取16/4/2 = 2个float4。
+// 一个float4为8个half，按half取下标时, tid(m,k): 
+//   0(0,0-7), 1(0,8-15), 2(0,16-23), 3(0,24-31), ...
+//   0(1,0-7), 1(1,8-15), 2(1,16-23), 3(1,24-31), ...
+//   4(2,0-7), 5(2,8-15), 6(2,16-23), 7(2,24-31), ...
+//   4(3,0-7), 5(3,8-15), 6(3,16-23), 7(3,24-31), ...
+// 以 (线程号)->m下标 为格式：
+// load_a_smem_m = (0,1,2,3)->0, (4,5,6,7)->2, (8,9,10,11)->4, 
+//                  索引只需以奇数行计算，偶数行加1即可，则乘以2，
+//                 (0,1,2,3)->0, (4,5,6,7)->1*2, (8,9,10,11)->2*2, 
+// 所以 load_a_smem_m = tid/4*2;
+// load_a_smem_k = 0->0, 1->8, 2->16, 3->24, 4->0, 5->8, 6->16, 7->24,...
+//                 即以乘以8递增即可，而最大为24=3*8, %4 即可循环取到0-3.
+// 所以 load_a_smem_k = tid%4*8;
+//
+// b分块32*256对应256个线程，一个线程读32个数据，为使用向量化读取。
+// 将共享内存按float4来处理，为32*64个half4=32*32个float4, 即一个线程读取32/4/2 = 4个float4。
+// 一个float4为8个half，按half取下标时, 线程号(k,n): 
+//   0(0,0-7),  1(0,8-15),  2(0,16-23),  3(0,24-31),  4(0,32-39),  5(0,40-47), ... , 31(0,248-255)
+//   0(1,0-7),  1(1,8-15),  2(1,16-23),  3(1,24-31),  4(1,32-39),  5(1,40-47), ... , 31(1,248-255)
+//   0(2,0-7),  1(2,8-15),  2(2,16-23),  3(2,24-31),  4(2,32-39),  5(2,40-47), ... , 31(2,248-255)
+//   0(3,0-7),  1(3,8-15),  2(3,16-23),  3(3,24-31),  4(3,32-39),  5(3,40-47), ... , 31(3,248-255)
+//  32(4,0-7), 33(4,8-15), 34(4,16-23), 35(4,24-31), ...
+// load_b_smem_k = (0,1,2,3,...31)->0, (32,...,63)->4, (64,...,95)->8, 
+//                    索引只需以4行取1行计算，其他行分别+1+2+3即可，则转为乘以4，
+//                    (0,1,2,3,...31)->0*4, (32,...,63)->1*4, (64,...,95)->2*4, 
+// 所以 load_b_smem_k = tid/32*4;
+// load_b_smem_n = 0->0, 1->8, 2->16, 3->24, ... , 31->248, 32->0, 33->8, ...
+//                    即以乘以8递增即可，而最大为248=31*8, %31 即可循环取到0-31, 也可以用 &31 来得到。
+// 所以 load_b_smem_n = tid%31*8;
+//
+// load_a_gmem_m / load_b_gmem_n 全局内存线程索引，其中k方向只需给出线程在block内负责的数据的起始点即可(即load_a_smem_k)，在k循环时跨block递增访问。
+//
+// warp索引转换为fragment wid => 0-7 -> 01010101 => comp_c_frag_m 
+//                       wid => 0-7 -> 00112233 => comp_c_frag_n
+//                       (0,0), (0,1), (0,2), (0,3) -> (comp_c_frag_m, comp_c_frag_n)
+//                       (1,0), (1,1), (1,2), (1,3)
+#define LAYOUT_IDX_CVT(tid, bx, by, BM, BN, lda, ldb) \
+    int load_a_smem_m = (tid >> 2) << 1; \
+    int load_a_smem_k = (tid &  3) << 3; \
+    int load_b_smem_k = (tid >> 5) << 2; \
+    int load_b_smem_n = (tid & 31) << 3; \
+    \
+    int load_a_gmem_m = by * BM + load_a_smem_m; \
+    int load_b_gmem_n = bx * BN + load_b_smem_n; \
+    \
+    int load_a_gmem_addr = OFFSET(load_a_gmem_m, load_a_smem_k, lda); \
+    int load_b_gmem_addr = OFFSET(load_b_smem_k, load_b_gmem_n, ldb); \
+    \
+    int comp_c_frag_m = wid &  1; \
+    int comp_c_frag_n = wid >> 1; 
+
+//// LD_SMEM2FRAG_42x24 ////
 // 一个warp，从smem_a中加载frag_a[4][2], 从smem_b中加载frag_b[2][4]
+// [128,32] * [32, 256] = [128, 256] 按[16*16]划分warp计算区域，则有 [8,2] * [2,16] = [8,16]个子块。
+// 而这里一个block有8个warp，则每个warp需要处理对应C矩阵的16个块，即16次wmma。
+// w0[0-3, 0-3], w2[0-3, 4-7], w4[0-3, 8-11], w6[0-3, 12-15]
+// w1[4-7, 0-3], w3[4-7, 4-7], w5[4-7, 8-11], w7[4-7, 12-15]
+// 每个warp处理临近的4*4个子块。换算为下标
+// w0[0-63, 0-63],   w2[0-63, 64-127],   w4[0-63, 128-191],   w6[0-63, 192-255]
+// w1[64-127, 0-63], w3[64-127, 64-127], w5[64-127, 128-191], w7[64-127, 192-255]
+// =》
+// w0[0-63, 0-63]     = sa[0-63][32] * sb[32][0-63]     (m=0, n=0)
+// w1[64-127, 0-63]   = sa[64-127][32] * sb[32][0-63]   (m=1, n=0)
+// w2[0-63, 64-127]   = sa[0-63][32] * sb[32][64-127]   (m=0, n=1)
+// w3[64-127, 64-127] = sa[64-127][32] * sb[32][64-127] (m=1, n=1)
+// w3[0-63, 128-191]  = sa[0-63][32] * sb[32][128-191]  (m=0, n=2)
+// ...
+// comp_c_frag_m： 0/1
+// comp_c_frag_n： 0/1/2/3
 #define LD_SMEM2FRAG_42x24(frag_a, smem_a, comp_c_frag_m, a_sw, frag_b, smem_b, comp_c_frag_n, b_sw) \
     wmma::load_matrix_sync(frag_a[0][0], &smem_a[(comp_c_frag_m * 64     )*a_sw +  0], a_sw); \
     wmma::load_matrix_sync(frag_a[1][0], &smem_a[(comp_c_frag_m * 64 + 16)*a_sw +  0], a_sw); \
@@ -255,6 +332,7 @@ __global__ void GemmWmmaKernelv1(const int M, const int N, const int K,
     wmma::load_matrix_sync(frag_b[1][2], &smem_b[16*b_sw + comp_c_frag_n * 64 + 32], b_sw); \
     wmma::load_matrix_sync(frag_b[1][3], &smem_b[16*b_sw + comp_c_frag_n * 64 + 48], b_sw); \
 
+//// COMP_FRAG_42x24 ////
 // 一个warp，计算[4][2] x [2][4]个frag
 #define COMP_FRAG_42x24(frag_c, frag_a, frag_b) \
     for (int i = 0; i < 4; i++) { \
@@ -265,6 +343,7 @@ __global__ void GemmWmmaKernelv1(const int M, const int N, const int K,
         } \
     }
 
+//// ST_FRAG_4X4 ////
 // 一个block处理4x4个frag 
 #define ST_FRAG_4X4(C, comp_c_frag_m, comp_c_frag_n, frag_c) \
     int store_c_gmem_m = blockIdx.y * BM + comp_c_frag_m * 64; \
@@ -281,14 +360,17 @@ __global__ void GemmWmmaKernelv2(const int M, const int N, const int K,
                                 const half* __restrict__ A, const int lda,
                                 const half* __restrict__ B, const int ldb,
                                 half* __restrict__ C, const int ldc) {
-    const int WARP_SIZE = 32;
-
     const int BM = 128;
     const int BN = 256;
     const int BK = 32;
 
     const int APAD = 8;
     const int BPAD = 8;
+
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    int tid = threadIdx.x;
+    int wid = tid >> 5; // = tid / 32
 
     __shared__ half smem_a[BM * (BK + APAD)];
     __shared__ half smem_b[BK * (BN + BPAD)];
@@ -303,53 +385,7 @@ __global__ void GemmWmmaKernelv2(const int M, const int N, const int K,
         }
     }
 
-    // a分块128*32对应256个线程，一个线程读16个数据，为使用向量化读取。
-    // 将共享内存按float4来处理，为128*8个half=128*4个float4, 即一个线程读取16/4/2 = 2个float4。
-    // 一个float4为8个half，按half取下标时, tid(m,k): 
-    //   0(0,0-7), 1(0,8-15), 2(0,16-23), 3(0,24-31), ...
-    //   0(1,0-7), 1(1,8-15), 2(1,16-23), 3(1,24-31), ...
-    //   4(2,0-7), 5(2,8-15), 6(2,16-23), 7(2,24-31), ...
-    //   4(3,0-7), 5(3,8-15), 6(3,16-23), 7(3,24-31), ...
-    // 以 (线程号)->m下标 为格式：
-    // load_a_smem_m = (0,1,2,3)->0, (4,5,6,7)->2, (8,9,10,11)->4, 
-    //                    索引只需以奇数行计算，偶数行加1即可，则乘以2，
-    //                    (0,1,2,3)->0, (4,5,6,7)->1*2, (8,9,10,11)->2*2, 
-    // 所以 load_a_smem_m = tid/4*2;
-    // load_a_smem_k = 0->0, 1->8, 2->16, 3->24, 4->0, 5->8, 6->16, 7->24,...
-    //                    即以乘以8递增即可，而最大为24=3*8, %4 即可循环取到0-3.
-    // 所以 load_a_smem_k = tid%4*8;
-    //
-    // b分块32*256对应256个线程，一个线程读32个数据，为使用向量化读取。
-    // 将共享内存按float4来处理，为32*64个half4=32*32个float4, 即一个线程读取32/4/2 = 4个float4。
-    // 一个float4为8个half，按half取下标时, 线程号(k,n): 
-    //   0(0,0-7),  1(0,8-15),  2(0,16-23),  3(0,24-31),  4(0,32-39),  5(0,40-47), ... , 31(0,248-255)
-    //   0(1,0-7),  1(1,8-15),  2(1,16-23),  3(1,24-31),  4(1,32-39),  5(1,40-47), ... , 31(1,248-255)
-    //   0(2,0-7),  1(2,8-15),  2(2,16-23),  3(2,24-31),  4(2,32-39),  5(2,40-47), ... , 31(2,248-255)
-    //   0(3,0-7),  1(3,8-15),  2(3,16-23),  3(3,24-31),  4(3,32-39),  5(3,40-47), ... , 31(3,248-255)
-    //  32(4,0-7), 33(4,8-15), 34(4,16-23), 35(4,24-31), ...
-    // load_b_smem_k = (0,1,2,3,...31)->0, (32,...,63)->4, (64,...,95)->8, 
-    //                    索引只需以4行取1行计算，其他行分别+1+2+3即可，则转为乘以4，
-    //                    (0,1,2,3,...31)->0*4, (32,...,63)->1*4, (64,...,95)->2*4, 
-    // 所以 load_b_smem_k = tid/32*4;
-    // load_b_smem_n = 0->0, 1->8, 2->16, 3->24, ... , 31->248, 32->0, 33->8, ...
-    //                    即以乘以8递增即可，而最大为248=31*8, %31 即可循环取到0-31, 也可以用 &31 来得到。
-    // 所以 load_b_smem_n = tid%31*8;
-    int load_a_smem_m = (threadIdx.x >> 2) << 1;
-    int load_a_smem_k = (threadIdx.x &  3) << 3;
-    int load_b_smem_k = (threadIdx.x >> 5) << 2;
-    int load_b_smem_n = (threadIdx.x & 31) << 3;
-
-    // 全局内存线程索引，其中k方向只需给出线程在block内负责的数据的起始点即可，在k循环时跨block递增访问。
-    int load_a_gmem_m = blockIdx.y * BM + load_a_smem_m;
-    int load_b_gmem_n = blockIdx.x * BN + load_b_smem_n;
-
-    int load_a_gmem_addr = OFFSET(load_a_gmem_m, load_a_smem_k, lda);  
-    int load_b_gmem_addr = OFFSET(load_b_smem_k, load_b_gmem_n, ldb);
-
-    // warp索引计算fragment
-    int wid = threadIdx.x / WARP_SIZE;
-    int comp_c_frag_m = wid &  1; // wid => 0-7 -> 01010101
-    int comp_c_frag_n = wid >> 1; // wid => 0-7 -> 00112233
+    LAYOUT_IDX_CVT(tid, bx, by, BM, BN, lda, ldb);
 
     for (int bk = 0; bk < K / BK; bk++) {
         // 一个线程，从gmem内存A中加载2X8个元素到smem_a, 从global内存B中加载4X8个元素到smem_b，FLOAT4为8个half，等于16个字节。
@@ -364,22 +400,8 @@ __global__ void GemmWmmaKernelv2(const int M, const int N, const int K,
 
         load_a_gmem_addr += BK;        // a 矩阵往x方向偏移
         load_b_gmem_addr += BK * ldb;  // b 矩阵往y方向偏移
-        __syncthreads();
+        __syncthreads();               // 同步，以block为单位进行处理
 
-        // [128,32] * [32, 256] = [128, 256] 按[16*16]划分warp计算区域，则有 [8,2] * [2,16] = [8,16]个子块。
-        // 而这里一个block有8个warp，则每个warp需要处理对应C矩阵的16个块，即16次wmma。
-        // w0[0-3, 0-3], w2[0-3, 4-7], w4[0-3, 8-11], w6[0-3, 12-15]
-        // w1[4-7, 0-3], w3[4-7, 4-7], w5[4-7, 8-11], w7[4-7, 12-15]
-        // 每个warp处理临近的4*4个子块。换算为下标
-        // w0[0-63, 0-63],   w2[0-63, 64-127],   w4[0-63, 128-191],   w6[0-63, 192-255]
-        // w1[64-127, 0-63], w3[64-127, 64-127], w5[64-127, 128-191], w7[64-127, 192-255]
-        // =》
-        // w0[0-63, 0-63]     = sa[0-63][32] * sb[32][0-63]     (m=0, n=0)
-        // w1[64-127, 0-63]   = sa[64-127][32] * sb[32][0-63]   (m=1, n=0)
-        // w2[0-63, 64-127]   = sa[0-63][32] * sb[32][64-127]   (m=0, n=1)
-        // w3[64-127, 64-127] = sa[64-127][32] * sb[32][64-127] (m=1, n=1)
-        // w3[0-63, 128-191]  = sa[0-63][32] * sb[32][128-191]  (m=0, n=2)
-        // ...
         LD_SMEM2FRAG_42x24(frag_a, smem_a, comp_c_frag_m, a_sw, 
                            frag_b, smem_b, comp_c_frag_n, b_sw);
 
@@ -404,14 +426,13 @@ __global__ void GemmWmmaKernelv3(const int M, const int N, const int K,
     const int BM = 128;
     const int BN = 256;
     const int BK = 32;
+    const int APAD = 8;
+    const int BPAD = 8;
 
     int bx = blockIdx.x;
     int by = blockIdx.y;
     int tid = threadIdx.x;
     int wid = tid / WARP_SIZE;
-
-    const int APAD = 8;
-    const int BPAD = 8;
 
     __shared__ half smem_a[BM * (BK + APAD)];
     __shared__ half smem_b[BK * (BN + BPAD)];
@@ -426,14 +447,10 @@ __global__ void GemmWmmaKernelv3(const int M, const int N, const int K,
         }
     }
 
-    int load_a_smem_m = (tid >> 2) << 1;
-    int load_a_smem_k = (tid &  3) << 3;
-    int load_b_smem_k = (tid >> 5) << 2;
-    int load_b_smem_n = (tid & 31) << 3;
+    LAYOUT_IDX_CVT(tid, bx, by, BM, BN, lda, ldb);
 
     // https://forums.developer.nvidia.com/t/problem-about-ptx-instruction-cp-async-ca-shared-global/224219/2
     // 需要进行地址空间转换后才能使用cp.async.ca.shared.global
-    // 
     int s_a_base_addr = __cvta_generic_to_shared(smem_a); 
     int s_b_base_addr = __cvta_generic_to_shared(smem_b);
     int load_a_smem_addr_0 = s_a_base_addr + OFFSET(load_a_smem_m, load_a_smem_k, BK + APAD) * sizeof(half);
@@ -442,15 +459,6 @@ __global__ void GemmWmmaKernelv3(const int M, const int N, const int K,
     int load_b_smem_addr_1 = load_b_smem_addr_0 +     (BN + BPAD) * sizeof(half);
     int load_b_smem_addr_2 = load_b_smem_addr_0 + 2 * (BN + BPAD) * sizeof(half);
     int load_b_smem_addr_3 = load_b_smem_addr_0 + 3 * (BN + BPAD) * sizeof(half);
-
-    int load_a_gmem_m = by * BM + load_a_smem_m;
-    int load_b_gmem_n = bx * BN + load_b_smem_n;
-
-    int load_a_gmem_addr = OFFSET(load_a_gmem_m, load_a_smem_k, K);
-    int load_b_gmem_addr = OFFSET(load_b_smem_k, load_b_gmem_n, N);
-
-    int comp_c_frag_m = wid &  1;
-    int comp_c_frag_n = wid >> 1;
 
     for (int bk = 0; bk < K / BK; bk++) {
         // 将上面v2中的FLOAT4赋值一一替换成CP_ASYNC_CA
@@ -520,10 +528,7 @@ __global__ void GemmWmmaKernelv4(const int M, const int N, const int K,
         }
     }
 
-    int load_a_smem_m = (tid >> 2) << 1;
-    int load_a_smem_k = (tid &  3) << 3;
-    int load_b_smem_k = (tid >> 5) << 2;
-    int load_b_smem_n = (tid & 31) << 3;
+    LAYOUT_IDX_CVT(tid, bx, by, BM, BN, lda, ldb);
 
     int s_a_base_addr = __cvta_generic_to_shared(smem_a);
     int s_b_base_addr = __cvta_generic_to_shared(smem_b);
@@ -534,15 +539,6 @@ __global__ void GemmWmmaKernelv4(const int M, const int N, const int K,
     int load_b_smem_addr_1 = load_b_smem_addr_0 +     (BN + BPAD) * sizeof(half);
     int load_b_smem_addr_2 = load_b_smem_addr_0 + 2 * (BN + BPAD) * sizeof(half);
     int load_b_smem_addr_3 = load_b_smem_addr_0 + 3 * (BN + BPAD) * sizeof(half);
-
-    int load_a_gmem_m = by * BM + load_a_smem_m;
-    int load_b_gmem_n = bx * BN + load_b_smem_n;
-
-    int load_a_gmem_addr = OFFSET(load_a_gmem_m, load_a_smem_k, K);
-    int load_b_gmem_addr = OFFSET(load_b_smem_k, load_b_gmem_n, N);
-
-    int comp_c_frag_m = wid &  1;
-    int comp_c_frag_n = wid >> 1;
 
     {
         CP_ASYNC_CA(load_a_smem_addr_0, &A[load_a_gmem_addr        ], 16);
@@ -636,10 +632,7 @@ __global__ void GemmWmmaKernelv5(const int M, const int N, const int K,
         }
     }
 
-    int load_a_smem_m = (tid >> 2) << 1;
-    int load_a_smem_k = (tid &  3) << 3;
-    int load_b_smem_k = (tid >> 5) << 2;
-    int load_b_smem_n = (tid & 31) << 3;
+    LAYOUT_IDX_CVT(tid, bx, by, BM, BN, lda, ldb);
 
     int s_a_base_addr = __cvta_generic_to_shared(smem_a);
     int s_b_base_addr = __cvta_generic_to_shared(smem_b);
@@ -650,15 +643,6 @@ __global__ void GemmWmmaKernelv5(const int M, const int N, const int K,
     int load_b_smem_addr_1 = load_b_smem_addr_0 +     (BN + BPAD) * sizeof(half);
     int load_b_smem_addr_2 = load_b_smem_addr_0 + 2 * (BN + BPAD) * sizeof(half);
     int load_b_smem_addr_3 = load_b_smem_addr_0 + 3 * (BN + BPAD) * sizeof(half);
-
-    int load_a_gmem_m = by * BM + load_a_smem_m;
-    int load_b_gmem_n = bx * BN + load_b_smem_n;
-
-    int load_a_gmem_addr = OFFSET(load_a_gmem_m, load_a_smem_k, K);
-    int load_b_gmem_addr = OFFSET(load_b_smem_k, load_b_gmem_n, N);
-
-    int comp_c_frag_m = wid &  1;
-    int comp_c_frag_n = wid >> 1;
 
     {
         CP_ASYNC_CA(load_a_smem_addr_0, &A[load_a_gmem_addr        ], 16);
@@ -727,12 +711,13 @@ float MatrixMulCUDA(int version_id, int step,
     dim3 blocks_per_grid((N + threads_per_block.x - 1) / threads_per_block.x, (M + threads_per_block.y - 1) / threads_per_block.y);
     
     // Warm up.
-    for (int i=0; i<10; i++) {
-        GemmKernelv1<< <blocks_per_grid, threads_per_block >> >
-            (M, N, K, A, lda, B, ldb, C, ldc);        
+    if (version_id == -1) {
+        for (int i=0; i<2; i++) {
+            GemmKernelv1<< <blocks_per_grid, threads_per_block >> >
+                (M, N, K, A, lda, B, ldb, C, ldc);        
+        }
     }
     cudaMemset(C, 0, sizeof(half) * M * N);
-
     // Record the start event
     gpu_timer.Start();
 
@@ -818,8 +803,8 @@ int main() {
     }
 
     // Normal test
-    int height_a = 4096, width_a = 4096;
-    int height_b = 4096, width_b = 4096;
+    int height_a = 2048, width_a = 4096;
+    int height_b = 4096, width_b = 2048;
     // // Test split-k
     // int height_a = 64, width_a = 4096;
     // int height_b = 4096, width_b = 64;
@@ -862,6 +847,7 @@ int main() {
     CUDA_CHECK(cudaMalloc((void **)&d_b, mem_size_b));
     CUDA_CHECK(cudaMalloc((void **)&d_c, mem_size_c));
 
+    TEST_CUDA_MODULE_UKERNEL(-1, 1); // warm up
     TEST_CUDA_MODULE_UKERNEL(0, 1);
     TEST_CUDA_MODULE_UKERNEL(1, 1);
     TEST_CUDA_MODULE_UKERNEL(2, 1);
@@ -883,10 +869,17 @@ int main() {
     // gpu version 2 step  1 -> time: 0.000495 s, mean value = 1023.098633
 
     // GPU Device 0: "NVIDIA GeForce RTX 3080" with compute capability 8.6 with 68 multi-processors.
-
     // gpu version 0 step  1 -> time: 0.014940 s, mean value = 1018.071594
     // gpu version 1 step  1 -> time: 0.001727 s, mean value = 1018.270447
     // gpu version 2 step  1 -> time: 0.000460 s, mean value = 1018.270447
+
+    // GPU Device 0: "NVIDIA GeForce RTX 4050 Laptop GPU" with compute capability 8.9 with 20 multi-processors.
+    // gpu version 0 step  1 -> time: 0.041210 s, mean value = 1016.943176
+    // gpu version 1 step  1 -> time: 0.006101 s, mean value = 1017.139648
+    // gpu version 2 step  1 -> time: 0.001273 s, mean value = 1017.139648
+    // gpu version 3 step  1 -> time: 0.001230 s, mean value = 1017.139648
+    // gpu version 4 step  1 -> time: 0.000923 s, mean value = 1017.139648
+    // gpu version 5 step  1 -> time: 0.000908 s, mean value = 1017.139648
 
     free(h_a);
     free(h_b);
