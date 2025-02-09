@@ -1,15 +1,26 @@
-# Learning and practice of high performance computing
-
-## Insatll
-git clone 
-
+# Learning and practice of high performance computing and ai infra
 
 ## Application
 <details>
-  <summary><strong>pocket-ai</strong>  -- A Portable Toolkit for deploying Edge AI and HPC. </summary>
+  <summary><strong>pocket-ai</strong>  -- A Portable Toolkit for building AI Infra. </summary>
   
   [https://github.com/cjmcv/pocket-ai](https://github.com/cjmcv/pocket-ai)
+
+* [engine/cl](https://github.com/cjmcv/pocket-ai/tree/master/engine/cl): A small computing framework based on opencl. This framework is designed to help you quickly call Opencl API to do the calculations you need.
+
+* [engine/vk](https://github.com/cjmcv/pocket-ai/tree/master/engine/vk): A small computing framework based on vulkan. This framework is designed to help you quickly call vulkan's computing API to do the calculations you need.
+
+* [engine/graph](https://github.com/cjmcv/pocket-ai/tree/master/engine/graph): A small multitasking scheduler that can quickly build efficient pipelines for your multiple tasks.
+
+* [engine/infer](https://github.com/cjmcv/pocket-ai/tree/master/engine/infer): A tiny inference engine for microprocessors, with a library size of only 10K+.
+
+* [eval/llm](https://github.com/cjmcv/pocket-ai/tree/master/eval/llm): A small tool is used to quickly verify whether the end-to-end calculation results are correct when accelerating and optimizing the large language model (LLM) inference engine.
+
 </details>
+
+## Reading Notes
+
+[sglang](https://github.com/cjmcv/sglang/tree/note), [vllm](https://github.com/cjmcv/vllm/tree/note)
 
 ## Practice
 
@@ -43,6 +54,53 @@ git clone
 
 ## Learning
 
+### Heterogeneous computing
+
+<details>
+  <summary>cuda</summary>
+
+* [base_graph](https://github.com/cjmcv/hpc/blob/master/cuda/base_graph.cu) : Record the basic usage of cuda graph.
+* [base_unified_memory](https://github.com/cjmcv/hpc/blob/master/cuda/base_unified_memory.cu) ： A simple task consumer using threads and streams with all data in Unified Memory.
+* [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) : Record the basic usage of Zero Copy.
+* [gemm_fp16_wmma](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp16_wmma.cu) : Gemm fp16 - wmma
+* [gemm_fp32](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp32.cu) : Gemm fp32 - cuda core
+</details>
+
+<details>
+  <summary>vulkan</summary>
+  
+* [gemm_fp32](https://github.com/cjmcv/hpc/tree/master/vulkan/main_gemm.cpp) : Gemm fp32.
+
+</details>
+
+<details>
+  <summary>opencl</summary>
+  
+* [basic_demo](https://github.com/cjmcv/hpc/blob/master/opencl/basic_demo.cpp) : Introduce the basic calling method and process of OpenCL API (without using pocket-ai).
+* [gemm_f32](https://github.com/cjmcv/hpc/blob/master/opencl/gemm_fp32.cl) : Gemm fp32 for Discrete graphics card.
+* [gemm_mobile_f32](https://github.com/cjmcv/hpc/blob/master/opencl/gemm_mobile_fp32.cl) : Gemm fp32 for integrated graphics card.
+</details>
+
+
+### SIMD
+
+<details>
+  <summary>neon</summary>
+
+* [gemm_fp32](https://github.com/cjmcv/hpc/blob/master/simd/arm/gemm_fp32.cpp) : Gemm fp32.
+* [gemm_int8](https://github.com/cjmcv/hpc/blob/master/simd/arm/gemm_int8.cpp) : Gemm int8.
+* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/arm/matrix_transpose.cpp) ： Matrix Transpose.
+</details>
+
+<details>
+  <summary>sse/avx</summary>
+ 
+* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_multiply.cpp) ： Matrix Multiplication. 
+* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_transpose.cpp) ： Matrix Transpose.
+* [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_dot_product.cpp) ： Vector dot product: result = SUM(A * B).
+* [vector_scan](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_scan.cpp) ： Scan. Prefix Sum.
+</details>
+
 ### Distributed computing
 
 <details>
@@ -60,33 +118,6 @@ git clone
 * [py_base_broadcast_scatter_gather](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_broadcast_scatter_gather.py) ： Record the basic usage of Bcast, Scatter, Gather and Allgather.
 * [py_base_reduce_scan](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_reduce_scan.py) ： Record the basic usage of Reduce and Scan.
 * [py_base_send_recv](https://github.com/cjmcv/hpc/blob/master/mpi/mpi4py/base_send_recv.py) ： Record the basic usage of Send and Recv.
-</details>
-
-### Heterogeneous computing
-
-<details>
-  <summary>cuda</summary>
-
-* [base_graph](https://github.com/cjmcv/hpc/blob/master/cuda/base_graph.cu) ： Record the basic usage of cuda graph.
-* [base_unified_memory](https://github.com/cjmcv/hpc/blob/master/cuda/base_unified_memory.cu) ： A simple task consumer using threads and streams with all data in Unified Memory.
-* [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) ： Record the basic usage of Zero Copy.
-* [gemm_fp16_wmma](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp16_wmma.cu) ： Gemm fp16 - wmma
-* [gemm_fp32](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp32.cu) ： Gemm fp32 - cuda core
-</details>
-
-<details>
-  <summary>vulkan</summary>
-  
-* [vky](https://github.com/cjmcv/hpc/tree/master/vulkan/vky)
-</details>
-
-<details>
-  <summary>opencl</summary>
-  
-* [ocl_util](https://github.com/cjmcv/hpc/blob/master/opencl/ocl_util.h) ： Utility functions.
-* [alg_dot_product](https://github.com/cjmcv/hpc/blob/master/opencl/alg_dot_product.cpp) ： Vector dot product, h_result = SUM(A * B).
-* [alg_vector_add](https://github.com/cjmcv/hpc/blob/master/opencl/alg_vector_add.cpp) ： Vector addition: C = A + B.
-* [base_platform_info](https://github.com/cjmcv/hpc/blob/master/opencl/base_platform_info.cpp) ： Query OpenCL platform information.
 </details>
 
 ### Thread
@@ -145,24 +176,6 @@ git clone
 * [base_gather](https://github.com/cjmcv/hpc/blob/master/coroutine/asyncio/base_gather.py)： Use gather to execute tasks in parallel.
 * [base_hello_world](https://github.com/cjmcv/hpc/blob/master/coroutine/asyncio/base_hello_world.py)： Hello world. Record the basic usage of async, await and loop.
 * [base_loop_chain](https://github.com/cjmcv/hpc/blob/master/coroutine/asyncio/base_loop_chain.py)： Executes nested coroutines.
-</details>
-
-### SIMD
-
-<details>
-  <summary>sse/avx</summary>
- 
-* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_multiply.cpp) ： Matrix Multiplication. 
-* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_transpose.cpp) ： Matrix Transpose.
-* [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_dot_product.cpp) ： Vector dot product: result = SUM(A * B).
-* [vector_scan](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_scan.cpp) ： Scan. Prefix Sum.
-</details>
-
-<details>
-  <summary>neon</summary>
-
-* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/arm/gemm.cpp) : Matrix Multiplication. 
-* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/arm/matrix_transpose.cpp) ： Matrix Transpose.
 </details>
 
 ---
