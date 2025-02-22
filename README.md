@@ -22,7 +22,9 @@
 
 ## Reading Notes
 
-[sglang](https://github.com/cjmcv/sglang/), [vllm](https://github.com/cjmcv/vllm/)
+[ai-infra-notes](https://github.com/cjmcv/ai-infra-notes)
+
+sglang, lighteval, vllm, mlc-llm
 
 ## Practice
 

@@ -15,141 +15,7 @@ You will specifically learn about:
 * Program re-ordering for improved L2 cache hit rate.
 
 * Automatic performance tuning.
-
-
-
 """
-# Motivations
-# -----------
-#
-# Matrix multiplications are a key building block of most modern high-performance computing systems.
-# They are notoriously hard to optimize, hence their implementation is generally done by
-# hardware vendors themselves as part of so-called "kernel libraries" (e.g., cuBLAS).
-# Unfortunately, these libraries are often proprietary and cannot be easily customized
-# to accommodate the needs of modern deep learning workloads (e.g., fused activation functions).
-# In this tutorial, you will learn how to implement efficient matrix multiplications by
-# yourself with Triton, in a way that is easy to customize and extend.
-#
-# Roughly speaking, the kernel that we will write will implement the following blocked
-# algorithm to multiply a (M, K) by a (K, N) matrix:
-#
-#  .. code-block:: python
-#
-#    # Do in parallel
-#    for m in range(0, M, BLOCK_SIZE_M):
-#      # Do in parallel
-#      for n in range(0, N, BLOCK_SIZE_N):
-#        acc = zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=float32)
-#        for k in range(0, K, BLOCK_SIZE_K):
-#          a = A[m : m+BLOCK_SIZE_M, k : k+BLOCK_SIZE_K]
-#          b = B[k : k+BLOCK_SIZE_K, n : n+BLOCK_SIZE_N]
-#          acc += dot(a, b)
-#        C[m : m+BLOCK_SIZE_M, n : n+BLOCK_SIZE_N] = acc
-#
-# where each iteration of the doubly-nested for-loop is performed by a dedicated Triton program instance.
-
-# Compute Kernel
-# --------------
-#
-# The above algorithm is, actually, fairly straightforward to implement in Triton.
-# The main difficulty comes from the computation of the memory locations at which blocks
-# of :code:`A` and :code:`B` must be read in the inner loop. For that, we need
-# multi-dimensional pointer arithmetic.
-#
-# Pointer Arithmetic
-# ~~~~~~~~~~~~~~~~~~~
-#
-# For a row-major 2D tensor :code:`X`, the memory location of :code:`X[i, j]` is given
-# by :code:`&X[i, j] = X + i*stride_xi + j*stride_xj`.
-# Therefore, blocks of pointers for :code:`A[m : m+BLOCK_SIZE_M, k:k+BLOCK_SIZE_K]` and
-# :code:`B[k : k+BLOCK_SIZE_K, n : n+BLOCK_SIZE_N]` can be defined in pseudo-code as:
-#
-#  .. code-block:: python
-#
-#    &A[m : m+BLOCK_SIZE_M, k:k+BLOCK_SIZE_K] =  a_ptr + (m : m+BLOCK_SIZE_M)[:, None]*A.stride(0) + (k : k+BLOCK_SIZE_K)[None, :]*A.stride(1);
-#    &B[k : k+BLOCK_SIZE_K, n:n+BLOCK_SIZE_N] =  b_ptr + (k : k+BLOCK_SIZE_K)[:, None]*B.stride(0) + (n : n+BLOCK_SIZE_N)[None, :]*B.stride(1);
-#
-# Which means that pointers for blocks of A and B can be initialized (i.e., :code:`k=0`) in Triton as the following
-# code. Also note that we need an extra modulo to handle the case where :code:`M` is not a multiple of
-# :code:`BLOCK_SIZE_M` or :code:`N` is not a multiple of :code:`BLOCK_SIZE_N`, in which case we can pad the data with
-# some useless values, which will not contribute to the results. For the :code:`K` dimension, we will handle that later
-# using masking load semantics.
-#
-#  .. code-block:: python
-#
-#    offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
-#    offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
-#    offs_k = tl.arange(0, BLOCK_SIZE_K)
-#    a_ptrs = a_ptr + (offs_am[:, None]*stride_am + offs_k [None, :]*stride_ak)
-#    b_ptrs = b_ptr + (offs_k [:, None]*stride_bk + offs_bn[None, :]*stride_bn)
-#
-# And then updated in the inner loop as follows:
-#
-#  .. code-block:: python
-#
-#    a_ptrs += BLOCK_SIZE_K * stride_ak;
-#    b_ptrs += BLOCK_SIZE_K * stride_bk;
-#
-#
-# L2 Cache Optimizations
-# ~~~~~~~~~~~~~~~~~~~~~~
-#
-# As mentioned above, each program instance computes a :code:`[BLOCK_SIZE_M, BLOCK_SIZE_N]`
-# block of :code:`C`.
-# It is important to remember that the order in which these blocks are computed does
-# matter, since it affects the L2 cache hit rate of our program, and unfortunately, a
-# simple row-major ordering
-#
-#  .. code-block:: Python
-#
-#    pid = tl.program_id(axis=0)
-#    grid_n = tl.cdiv(N, BLOCK_SIZE_N)
-#    pid_m = pid // grid_n
-#    pid_n = pid % grid_n
-#
-# is just not going to cut it.
-#
-# One possible solution is to launch blocks in an order that promotes data reuse.
-# This can be done by 'super-grouping' blocks in groups of :code:`GROUP_M` rows before
-# switching to the next column:
-#
-#  .. code-block:: python
-#
-#    # Program ID
-#    pid = tl.program_id(axis=0)
-#    # Number of program ids along the M axis
-#    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
-#    # Number of programs ids along the N axis
-#    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
-#    # Number of programs in group
-#    num_pid_in_group = GROUP_SIZE_M * num_pid_n
-#    # Id of the group this program is in
-#    group_id = pid // num_pid_in_group
-#    # Row-id of the first program in the group
-#    first_pid_m = group_id * GROUP_SIZE_M
-#    # If `num_pid_m` isn't divisible by `GROUP_SIZE_M`, the last group is smaller
-#    group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
-#    # *Within groups*, programs are ordered in a column-major order
-#    # Row-id of the program in the *launch grid*
-#    pid_m = first_pid_m + ((pid % num_pid_in_group) % group_size_m)
-#    # Col-id of the program in the *launch grid*
-#    pid_n = (pid % num_pid_in_group) // group_size_m
-#
-# For example, in the following matmul where each matrix is 9 blocks by 9 blocks,
-# we can see that if we compute the output in row-major ordering, we need to load 90
-# blocks into SRAM to compute the first 9 output blocks, but if we do it in grouped
-# ordering, we only need to load 54 blocks.
-#
-#   .. image:: grouped_vs_row_major_ordering.png
-#
-# In practice, this can improve the performance of our matrix multiplication kernel by
-# more than 10\% on some hardware architecture (e.g., 220 to 245 TFLOPS on A100).
-#
-
-# 行主序计算9*9的矩阵，计算一行9个元素的输出，需要A取一行9个元素，B取9列9个元素，共需要取90个元素。
-# 如果改成列主序，
-# Final Result
-# ------------
 
 import torch
 
@@ -211,7 +77,7 @@ def get_cuda_autotune_config():
 # 针对 @triton.jit 装饰的kernel函数，可以使用 @triton.autotune 进行自动调优。
 # -- 提供一个 triton.Config 的列表，定义 meta-parameters 的不同定义 和 编译选项。
 # -- key中写的MNK是目标kernel的其中三个入参，autotune会根据key指定的参数数值，自动调优。
-#    这个例子里，MNK是输入数据的维度，不同输入会有不同的MNK，调优后最佳的配置就会有变化。
+#    这个例子里，MNK是输入数据的维度，不同输入会有不同的MNK，根据不同的MNK调优出最佳的配置。
 @triton.autotune(
     configs=get_cuda_autotune_config(),
     key=['M', 'N', 'K'],
@@ -224,10 +90,11 @@ def matmul_kernel(
         # The stride variables represent how much to increase the ptr by when moving by 1
         # element in a particular dimension. E.g. `stride_am` is how much to increase `a_ptr`
         # by to get the element one row down (A has M rows).
-        stride_am, stride_ak,  #
-        stride_bk, stride_bn,  #
+        stride_am, stride_ak,
+        stride_bk, stride_bn,
         stride_cm, stride_cn,
-        # Meta-parameters，可以在autotune中设置，BLOCK_SIZE表示该block负责的数据块维度。
+        # Meta-parameters，可以在autotune中设置，BLOCK_SIZE_M/N/K表示该block负责的数据块维度，
+        # GROUP_SIZE_M表示M方向分组的维度大小
         BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,  #
         GROUP_SIZE_M: tl.constexpr,  #
         ACTIVATION: tl.constexpr  #
@@ -240,85 +107,114 @@ def matmul_kernel(
     # This is done in a grouped ordering to promote L2 data reuse.
     # See above `L2 Cache Optimizations` section for details.
 
-    # 假设BLOCK_SIZE_M/BLOCK_SIZE_N是128, MNK都是512，则block数量是16=4*4
-    # pid取值是0-15.
-    # num_pid_m = 4, num_pid_n = 4. 对应M和N维度上各需要多少个block。
-    # 令GROUP_SIZE_M=2，即m维度上以2分组。
-    #
     # 按行切分矩阵进行分组
     # axis=0是指x维度，pid等同于blockIdx.x, 因为外面调用处的grid是一维的，所以也只能取axis=0。
-    # 以pid去指向该线程块负责计算的C矩阵部分。
-    pid = tl.program_id(axis=0)
-    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M) # 向上取整，M维度上需要使用多少个block来处理
-    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N) # N维度上需要使用多少个block来处理
-    num_pid_in_group = GROUP_SIZE_M * num_pid_n # GROUP_SIZE_M 对 num_pid_m 在行方向分组，分好组后，m*n得到该组数据所需的block。
-    group_id = pid // num_pid_in_group # block id号除以一组所需的block，划分出 group id号
-    first_pid_m = group_id * GROUP_SIZE_M # 一group在m维度上对应的block的起始点
-    group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)  # 当前block对应的group size，m维度最后一组有可能凑不满GROUP_SIZE_M个block，所以需要取小值。
-    pid_m = first_pid_m + ((pid % num_pid_in_group) % group_size_m) # 
+    # 以pid去指向该线程块负责计算的C矩阵部分。 tl.cdiv 是向上取整, // 是向下取整。
+    #
+    # 假设BLOCK_SIZE_M/BLOCK_SIZE_N是128, MNK都是512，则block数量是16 = 512/128 * 512/128
+    # 则pid取值是0-15. num_pid_m = 4, num_pid_n = 4, 对应M和N维度上各需要多少个block。
+    # 令GROUP_SIZE_M=2，即m维度上以分组维度是2，即分成了两组，即4*4分成了2 * 2*4。
+    # num_pid_in_group=8=2*4，即一组由8个block，则对于group_id 0 = pid 0-7, group_id 1 = pid 8-15
+    # first_pid_m = 0 或 2 表示每组M方向的首个下标
+    # group_size_m = 2 = min(4-0, 2) / min(4-2, 2), 表示m方向的实际group_size，如m方向不能被GROUP_SIZE_M整除，则最后一组的group_size_m会小于GROUP_SIZE_M。
+    # pid_m = 0 + (pid0-7 % 8) % 2  => 0-7 : 0, 1, 0, 1, 0, 1, 0, 1
+    #       = 2 + (pid8-15 % 8) % 2 => 8-15: 2, 3, 2, 3, 2, 3, 2, 3
+    # pid_n = (pid0-7 % 8) // 2     => 0-7 : 0, 0, 1, 1, 2, 2, 3, 3
+    #       = (pid8-15 % 8) // 2    => 8-15: 0, 0, 1, 1, 2, 2, 3, 3
+    # 最终排布block的方式为：
+    # pid   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+    # data 00, 10, 01, 11, 02, 12, 03, 13, 20, 30, 21, 31, 22, 32, 23, 33
+    # 即 pid 在4x4块中负责的部分位置，每个区域对应c矩阵的[BLOCK_SIZE_M, BLOCK_SIZE_N]数据块大小
+    #   0  2  4  6
+    #   1  3  5  7
+    #   8 10 12 14
+    #   9 11 13 15   (分组后)
+    # 
+    # 一维id转二维的基本方式是 %和/，如0-15转为4行4列，可以基于行数4，计算y=pid/4=(0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3)，x=pid%4=(0,1,2,3,,0,1,2,3,,0,1,2,3,,0,1,2,3)
+    # 行用/，列用%，则是行主序，而该例子分组后是行用%，列用/，则为列主序。
+    # 即 pid 在4x4块中负责的部分位置：
+    #   0  1  2  3
+    #   4  5  6  7
+    #   8  9 10 11
+    #  12 13 14 15   (分组前)
+    #
+    # 计算c矩阵：
+    # 分组前：对于c的第0行，需要a矩阵的第0行(1,2,3,4)和b矩阵的4列全部数据，a的一行加载一次后保持在L2里，则共4+4*4=20。
+    #         因L2无法将b全部存入，所以计算c的其他行时，b也需要重复读取，因为老数据已被L2踢出。共需要加载20*4=80块。
+    # 分组后：c的0号 = a的0行 + b的0列 = 4+4=8; c的1号=a的1行 + b的0列(L2) = 4，c的2号=a的0行(L2) + b的1列 = 4, c的3号=a的1行(L2) + b的1列(L2) = 0;
+    #        c的4号 = a的0行(L2) + b的2列 = 4; c的5号=a的1行 + b的2列(L2) = 4，c的6号=a的0行(L2) + b的3列 = 4, c的7号=a的1行(L2) + b的3列(L2) = 0; 共28块。
+    #        假设第二组的数据L2数据全部被换出无法复用，则共加载28x2块=56块即可。分组与分子块思路一致。
+
+    pid = tl.program_id(axis=0)           # block id
+    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)  # 对应M和N维度上各需要多少个block
+    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
+    num_pid_in_group = GROUP_SIZE_M * num_pid_n # 一组需要多少个block
+    group_id = pid // num_pid_in_group # 以pid换算到group id号
+    first_pid_m = group_id * GROUP_SIZE_M # 一组在m维度上对应的block的起始点
+    # 当前block对应的group size，m维度最后一组有可能凑不满GROUP_SIZE_M个block，所以需要取小值
+    group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M) 
+    # 一维block转二维分布，划分每个block负责的数据块位置，分别对应行和列
+    pid_m = first_pid_m + ((pid % num_pid_in_group) % group_size_m) 
     pid_n = (pid % num_pid_in_group) // group_size_m
 
     # ----------------------------------------------------------
-    # Create pointers for the first blocks of A and B.
-    # We will advance this pointer as we move in the K direction
-    # and accumulate
-    # `a_ptrs` is a block of [BLOCK_SIZE_M, BLOCK_SIZE_K] pointers
-    # `b_ptrs` is a block of [BLOCK_SIZE_K, BLOCK_SIZE_N] pointers
-    # See above `Pointer Arithmetic` section for details
-    offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M  # 行偏移
-    offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N  # 列偏移
+    # offs_am: m方向，pid_m负责的块的所有行的索引
+    # offs_bn: n方向，pid_n负责的块的所有列的索引
+    offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
+    offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
     offs_k = tl.arange(0, BLOCK_SIZE_K)
+    # offs_am[:, None] 维度从[BLOCK_SIZE_M], 转为[BLOCK_SIZE_M, 1], 
+    # stride_am是跨行的步长，广播后逐元素相乘，即从行索引转变成了对应行的首地址偏移量。
+    # offs_k[None, :] 维度从[BLOCK_SIZE_K], 转为[1, BLOCK_SIZE_K], stride_ak是a矩阵第二维度的步长，一般就是1.
+    # 转变为行首地址偏移的offs_am[BLOCK_SIZE_M, 1]和转变为列偏移的offs_k[1, BLOCK_SIZE_K]相加（广播），再加上a_ptr后，
+    # 得到一个偏移量的二维数组a_ptrs[BLOCK_SIZE_M, BLOCK_SIZE_K]，则每个元素对应a矩阵对应行m在k方向的第一个数据块的一个数据的地址索引。
+    # b_ptrs[BLOCK_SIZE_K, BLOCK_SIZE_N] 同理， 对应b矩阵对应列n在k方向第一个数据块的地址索引。
     a_ptrs = a_ptr + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)
     b_ptrs = b_ptr + (offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
 
     # -----------------------------------------------------------
-    # Iterate to compute a block of the C matrix.
-    # We accumulate into a `[BLOCK_SIZE_M, BLOCK_SIZE_N]` block
-    # of fp32 values for higher accuracy.
-    # `accumulator` will be converted back to fp16 after the loop.
+    # 循环计算累加数据到一个矩阵块accumulator中暂存，对应c矩阵一个块的结果，
+    # accumulator按fp32类型进行累加，尽可能保存精度。计算完了后，在写入c时，再转回fp16，
+    # for循环中tl.cdiv(K, BLOCK_SIZE_K)指k维度上需要计算多少个数据块，k指代k维度上的数据块id。
     accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
-        # Load the next block of A and B, generate a mask by checking the K dimension.
-        # If it is out of bounds, set it to 0.
+        # 沿着a/b矩阵各自k方向取出数据块进行矩阵乘计算。
+        # offs_k[None, :]是[1, BLOCK_SIZE_K], 数值是从0到BLOCK_SIZE_K，需要确保数值需要小于K - k * BLOCK_SIZE_K，
+        # 如k遍历到最后一个数据块，K - k * BLOCK_SIZE_K 的数据小于BLOCK_SIZE_K，则超出部分不应计算，置为0.
+        # a_ptrs[BLOCK_SIZE_M, BLOCK_SIZE_K], mask是[1, BLOCK_SIZE_K]，会将mask广播为[BLOCK_SIZE_M, BLOCK_SIZE_K]在处理。
         a = tl.load(a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0)
         b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
-        # We accumulate along the K dimension.
+        # accumulator = accumulator + a*b
         accumulator = tl.dot(a, b, accumulator)
-        # Advance the ptrs to the next K block.
+        # 指向k维度的下一个数据块
         a_ptrs += BLOCK_SIZE_K * stride_ak
         b_ptrs += BLOCK_SIZE_K * stride_bk
-    # You can fuse arbitrary activation functions here
-    # while the accumulator is still in FP32!
+
+    # 应用fp32的激活函数，后转为fp16.
     if ACTIVATION == "leaky_relu":
         accumulator = leaky_relu(accumulator)
     c = accumulator.to(tl.float16)
 
-    # -----------------------------------------------------------
-    # Write back the block of the output matrix C with masks.
+    # 写入C矩阵中
     offs_cm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
     offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
     c_ptrs = c_ptr + stride_cm * offs_cm[:, None] + stride_cn * offs_cn[None, :]
     c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
     tl.store(c_ptrs, c, mask=c_mask)
 
-
-# We can fuse `leaky_relu` by providing it as an `ACTIVATION` meta-parameter in `matmul_kernel`.
+# 可以选择通过meta-parameter，将激活函数的变量传入到matmul_kernel中，从而融合leaky_relu。
 @triton.jit
 def leaky_relu(x):
     return tl.where(x >= 0, x, 0.01 * x)
-
-# We can now create a convenience wrapper function that only takes two input tensors,
-# and (1) checks any shape constraint; (2) allocates the output; (3) launches the above kernel.
-
 
 def matmul(a, b, activation=""):
     assert a.shape[1] == b.shape[0], "Incompatible dimensions"
     assert a.is_contiguous(), "Matrix A must be contiguous"
     M, K = a.shape
     K, N = b.shape
-    # Allocates output.
     c = torch.empty((M, N), device=a.device, dtype=torch.float16)
-    # 1D launch kernel where each block gets its own program.
+    # 1D的线程块布局，由这线程块的数量可知，每个线程块会负责c矩阵的[BLOCK_SIZE_M, BLOCK_SIZE_N]数据块的计算
+    # triton kernel编写的优势在于不需要管理线程块内的线程如何计算，最底层只需要关注线程块的调度即可。
     grid = lambda META: (triton.cdiv(M, META['BLOCK_SIZE_M']) * triton.cdiv(N, META['BLOCK_SIZE_N']), )
     matmul_kernel[grid](
         a, b, c,  #
@@ -333,11 +229,6 @@ def matmul(a, b, activation=""):
 
 TORCH_HAS_FP8 = hasattr(torch, "float8_e5m2")
 
-# Square Matrix Performance
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~
-#
-# We can now compare the performance of our kernel against that of cuBLAS or rocBLAS. Here we focus on square matrices,
-# but feel free to arrange this script as you wish to benchmark any other matrix shape.
 configs = []
 for fp8_inputs in [False, True]:
     if fp8_inputs and (not TORCH_HAS_FP8 or not is_cuda()):
