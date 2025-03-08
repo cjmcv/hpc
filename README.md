@@ -99,9 +99,8 @@ sglang, lighteval, vllm, mlc-llm
 <details>
   <summary>sse/avx</summary>
  
-* [matrix_multiply](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_multiply.cpp) : Matrix Multiplication. 
-* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_transpose.cpp) : Matrix Transpose.
-* [vector_dot_product](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_dot_product.cpp) : Vector dot product: result = SUM(A * B).
+* [linear](https://github.com/cjmcv/hpc/blob/master/simd/x86/linear.cpp) : Linear operator (fp32/bf16/int8)
+* [matrix_transpose](https://github.com/cjmcv/hpc/blob/master/simd/x86/matrix_transpose.cpp) : Matrix Transpose (int32/fp32)
 * [vector_scan](https://github.com/cjmcv/hpc/blob/master/simd/x86/vector_scan.cpp) : Scan. Prefix Sum.
 </details>
 
