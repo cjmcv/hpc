@@ -24,7 +24,7 @@
 
 [ai-infra-notes](https://github.com/cjmcv/ai-infra-notes)
 
-sglang, lighteval, vllm, mlc-llm
+sglang, lighteval, cutlass, vllm, mlc-llm
 
 ## Practice
 

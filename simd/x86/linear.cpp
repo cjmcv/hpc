@@ -2,23 +2,13 @@
 * \brief linear op = gemm(A x Bt).
 */
 #include <iostream>
-#include <string.h>
+#include <cstring>
 #include "time.h"
 
+#include "pocket-ai/util/type.hpp"
 #include "immintrin.h"
 
-// 定义BF16数据类型
-typedef uint16_t bf16;
-
-inline bf16 float_to_bf16(float f) {
-    uint32_t u = *reinterpret_cast<uint32_t*>(&f);
-    return static_cast<bf16>(u >> 16);
-}
-
-inline float bf16_to_float(bf16 b) {
-    uint32_t u = static_cast<uint32_t>(b) << 16;
-    return *reinterpret_cast<float*>(&u);
-}
+using namespace pai::util;
 
 float RandomFloat(float min, float max) {
     float random = ((float)rand()) / RAND_MAX; // [0, 1]
@@ -44,7 +34,7 @@ float GetMean(const T* mat, const int height, const int width) {
             if (sizeof(T) == 4)
                 total += mat[i*width + j];
             else if (sizeof(T) == 2)
-                total += bf16_to_float(mat[i*width + j]);
+                total += ConvertBf16ToFp32(mat[i*width + j]);
             else
                 printf("The data type T does not match.\n");
         }
@@ -145,24 +135,26 @@ void LinearAvx512Fp32(const int M, const int N, const int K,
 
 // Normal method BF16
 void LinearNormalBf16(const int M, const int N, const int K,
-                    const bf16 *A, const bf16 *B, bf16 *C) {
+                      const bfloat16_t *A, const bfloat16_t *B, bfloat16_t *C) {
     int i, j, k;
     for (i = 0; i < M; ++i) {
         for (j = 0; j < N; ++j) {
             float sum = 0.0f;
             for (int k = 0; k < K; ++k) {
-                float a = bf16_to_float(A[i * K + k]);
-                float b = bf16_to_float(B[j * K + k]);
+                float a = ConvertBf16ToFp32(A[i * K + k]);
+                float b = ConvertBf16ToFp32(B[j * K + k]);
                 sum += a * b;
             }
-            C[i * N + j] = float_to_bf16(sum);
+            C[i * N + j] = ConvertFp32ToBf16(sum);
         }
     }
 }
 
+// 背景知识：bf16是intel提出的，且bf16与fp32的指数部分相同，只是尾数部分有所简化，硬件实现上更简单。
+//          而fp16与fp32相差较大，支持难度更高，所以会出现intel cpu支持新的bf16，却不支持老的fp16的情况。一般转换到fp32后计算。
 // -mavx512bf16
 void LinearAvx512Bf16(const int M, const int N, const int K,
-                    const bf16 *A, const bf16 *B, bf16 *C) {
+                    const bfloat16_t *A, const bfloat16_t *B, bfloat16_t *C) {
     int i, j, k;
     for (i = 0; i < M; ++i) {
         for (j = 0; j < N; ++j) {
@@ -180,13 +172,27 @@ void LinearAvx512Bf16(const int M, const int N, const int K,
             //              sum_ptr[8] + sum_ptr[9] + sum_ptr[10] + sum_ptr[11] + sum_ptr[12] + sum_ptr[13] + sum_ptr[14] + sum_ptr[15];
             float sum = _mm512_reduce_add_ps(vsum);
             for (k; k < K; k++) {
-                float a = bf16_to_float(A[i * K + k]);
-                float b = bf16_to_float(B[j * K + k]);
+                float a = ConvertBf16ToFp32(A[i * K + k]);
+                float b = ConvertBf16ToFp32(B[j * K + k]);
                 sum += a * b;
             }
-            C[i * N + j] = float_to_bf16(sum);
+            C[i * N + j] = ConvertFp32ToBf16(sum);
         }
     }
+}
+
+// 模拟：线性层权重B初始化时被转为fp32，输入A矩阵原为fp16，
+//      计算时转换为fp32，输出矩阵C在返回时转换回fp16.
+void LinearAvx512AhBfCh(const int M, const int N, const int K, 
+                        HalfToFp32Table *half_table, float *At, float *Ct,
+                        const half_t *A, const float *B, half_t *C) {
+    for (int i = 0; i < M; i++)
+        for (int k = 0; k < K; k++)
+            At[i*K + k] = half_table->LoopupTable(A[i*K + k]);
+    LinearAvx512Fp32(M, N, K, At, B, Ct);
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < N; j++)
+            C[i*N+j] = ConvertFp32ToHalf(Ct[i*N+j]);   
 }
 
 // Normal method Int8
@@ -244,6 +250,7 @@ void LinearAvx512Int8(const int M, const int N, const int K,
 } while (0);
 
 int main() {
+
     int M = 200, N = 300, K = 400;
     float *A = new float[M * K];
     float *B = new float[N * K];
@@ -258,18 +265,39 @@ int main() {
     LOOP(50, LinearAvxFp32, A, B, C);
     LOOP(50, LinearAvx512Fp32, A, B, C);
 
-    bf16 *A16 = new bf16[M * K];
-    bf16 *B16 = new bf16[N * K];
-    bf16 *C16 = new bf16[M * N];
+    // bf16
+    bfloat16_t *A16 = new bfloat16_t[M * K];
+    bfloat16_t *B16 = new bfloat16_t[N * K];
+    bfloat16_t *C16 = new bfloat16_t[M * N];
     for (int i = 0; i < M; i++)
         for (int k = 0; k < K; k++)
-            A16[i*K + k] = float_to_bf16(A[i*K + k]);
+            A16[i*K + k] = ConvertFp32ToBf16(A[i*K + k]);
     for (int j = 0; j < N; j++)
         for (int k = 0; k < K; k++)
-            B16[j*K + k] = float_to_bf16(B[j*K + k]);
+            B16[j*K + k] = ConvertFp32ToBf16(B[j*K + k]);
     LOOP(50, LinearNormalBf16, A16, B16, C16);
     LOOP(50, LinearAvx512Bf16, A16, B16, C16);
 
+    // half
+    float *At = new float[M * K];
+    for (int i = 0; i < M; i++)
+        for (int k = 0; k < K; k++)
+            A16[i*K + k] = ConvertFp32ToHalf(A[i*K + k]);
+    HalfToFp32Table half_table;
+    half_table.Create();
+    {
+        LinearAvx512AhBfCh(M, N, K, &half_table, A, C,A16, B, C16);
+        float mean = GetMean(C, M, N);  
+        time_t stime;                   
+        stime = clock();                
+        for (int i = 0; i < 50; i++) { 
+            LinearAvx512AhBfCh(M, N, K, &half_table, A, C,A16, B, C16);  
+        }                               
+        double duration = static_cast<double>(clock() - stime) / CLOCKS_PER_SEC; 
+        printf("LinearAvx512AhBfCh -> time: %f s, result: %f\n", duration, mean); 
+    }
+
+    // int8
     // printf("The input data is truncated and converted from FP32 to INT8, so the result of int8 is different from that of float.\n");
     int8_t *A8 = new int8_t[M * K];
     int8_t *B8 = new int8_t[N * K];
