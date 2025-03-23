@@ -44,16 +44,6 @@ sglang, lighteval, cutlass, vllm, mlc-llm
   tag: distributed computing.
 </details>
 
-<details>
-  <summary><strong>DEPRECATED</strong></summary>
-  
-  [hcs](https://github.com/cjmcv/hpc/tree/20211017/0-frameworks/hcs) A heterogeneous computing system for multi-task scheduling optimization.
-
-  [vky](https://github.com/cjmcv/hpc/tree/20211017/0-frameworks/vky) A Vulkan-based computing framework
-
-  "hcs" and "vky" have been moved to [pocket-ai](https://github.com/cjmcv/pocket-ai/tree/master/engine) and renamed as graph and vk respectively.
-</details>
-
 ---
 
 ## Learning
@@ -65,9 +55,11 @@ sglang, lighteval, cutlass, vllm, mlc-llm
 
 * [base_graph](https://github.com/cjmcv/hpc/blob/master/cuda/base_graph.cu) : Record the basic usage of cuda graph.
 * [base_unified_memory](https://github.com/cjmcv/hpc/blob/master/cuda/base_unified_memory.cu) : A simple task consumer using threads and streams with all data in Unified Memory.
-* [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) : Record the basic usage of Zero Copy.
+* [base_zero_copy](https://github.com/cjmcv/hpc/blob/master/cuda/base_zero_copy.cu) : Zero Copy.
 * [gemm_fp16_wmma](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp16_wmma.cu) : Gemm fp16 - wmma
 * [gemm_fp32](https://github.com/cjmcv/hpc/tree/master/cuda/gemm_fp32.cu) : Gemm fp32 - cuda core
+* [reduce_fp32.cu](https://github.com/cjmcv/hpc/blob/master/cuda/reduce_fp32.cu) : Based on warp reduce.
+* [marlin_kernel](https://github.com/cjmcv/hpc/tree/master/cuda/marlin) : Reading notes on the Marlin Kernel.
 </details>
 
 <details>
